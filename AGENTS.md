@@ -12,7 +12,7 @@ Before touching code, read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the dat
 
 ## Build and test
 
-- Gate (exactly what CI runs): `scripts/check.sh` = `./gradlew spotlessCheck lintDebug testDebugUnitTest assembleDebug`. It must pass before you push.
+- Gate (exactly what CI runs): `scripts/check.sh` = `./gradlew spotlessCheck lintDebug testDebugUnitTest assembleDebug`. It must pass before you push. On the KSP init flake (`PluginEnabler` / `ExceptionInInitializerError`) it retries once by itself in a fresh JVM; do not add your own retry.
 - Fix formatting: `./gradlew spotlessApply` (ktlint via Spotless; rules in `.editorconfig`).
 - One test class: `./gradlew testDebugUnitTest --tests '*ChatParserRegistryTest'`.
 
@@ -29,6 +29,7 @@ Before touching code, read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the dat
 - Android pieces (node mapping, Room/SQLCipher, DataStore, services) run with Robolectric (`@RunWith(RobolectricTestRunner::class)`), still under `app/src/test`. There are no instrumented tests.
 - Parser tests read JSON fixtures: `Fixtures.snapshot("whatsapp/group.json")`. See `app/src/test/resources/fixtures/README.md`.
 - HTTP tests use OkHttp `MockWebServer` (`mockwebserver3`); flows use Turbine; assertions use Truth.
+- History merge: `HistoryMergePropertyTest` must stay green; extend its invariants for new cases. Logic with a large input space needs a seeded property test.
 
 ## Working in parallel
 
