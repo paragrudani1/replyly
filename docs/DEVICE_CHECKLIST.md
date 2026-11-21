@@ -646,3 +646,59 @@ dark mark; all text readable. **Send:** Screenshots of settings, button and pane
 11.9 **Do:** Settings > Display > Font size and style: set the font size two steps larger; open
 settings, onboarding and the panel. **See:** no text cut off or overlapping. **Send:** Screenshots
 of anything clipped.
+
+### Floating button (polish #3)
+
+Numbered `11.B…` so the parallel polish PRs do not collide on numbers. Use WhatsApp and Telegram
+with Gboard (or Samsung Keyboard).
+
+11.B1 **Do:** open a WhatsApp chat and tap the message field so the keyboard opens; close the
+keyboard (Back) and open it again a few times. **See:** the button grows and fades in (about a
+sixth of a second) and shrinks and fades out when the keyboard closes; smooth, no flicker, no
+jump to another spot, never left half-visible. **Send:** a screen recording if it stutters or
+blinks.
+
+11.B2 **Do:** with the keyboard open, look at the button against the keyboard and the input bar.
+**See:** a round ink-blue button (light periwinkle in dark mode) with the bubble + sparkle mark,
+about 8 dp above the keyboard top, on the right, not over the send button; its shadow is soft and
+not cut off in a square. **Send:** a screenshot.
+
+11.B3 **Do:** press and hold the button for a second without moving, then let go. **See:** it
+shrinks a little while held; on release one short, light tick (like a keyboard key, not a long
+buzz) and the panel opens as before. Turn off Settings > Sounds and vibration > System
+vibration > Touch interactions and repeat: no tick. **Send:** what the haptic feels like if it is
+missing, long or strong.
+
+11.B4 **Do:** put a finger on the button and drag it slowly up to the top of the screen, then down
+onto the keyboard. **See:** it follows the finger smoothly, grows slightly while dragged, stops
+just below the status bar at the top and just above the keyboard at the bottom (never over the
+status bar or the keys), and stays where you let go. One short tick when the drag starts.
+**Send:** a screen recording.
+
+11.B5 **Do:** drag the button a few centimetres up and release; also try a tiny wiggle and a
+sideways slide before releasing. **See:** no panel opens after any drag (a drag is never a tap),
+and the button does not dim. A plain tap still opens the panel, and only once per tap. **Send:**
+which gesture opened the panel by mistake.
+
+11.B6 **Do:** in WhatsApp, drag the button to the middle of the chat. Close the keyboard, open it
+again; go Home, come back. **See:** the button returns to the same height above the keyboard
+each time. Then open Telegram (or another chat app): there it sits at the default spot (or where
+you put it in that app). Switch back to WhatsApp: still your spot. Restart the phone (or
+force-stop Replyly and turn it back on in Accessibility): the WhatsApp spot is remembered.
+**Send:** which app lost its spot.
+
+11.B7 **Do:** in WhatsApp with the button dragged up, switch to a taller keyboard layout (Gboard
+emoji or number row, or one-handed mode). **See:** the button keeps the same gap above the
+keyboard and moves with it. **Send:** a screenshot if it ends up over the keys.
+
+11.B8 **Do:** tap the button and watch it while the chat is being read. **See:** it dims until
+the panel opens (or the "can't read a chat" notice appears), then is back to full colour when the
+panel closes. **Send:** a screenshot if it stays dim.
+
+11.B9 **Do:** turn on TalkBack, open a chat with the keyboard, and swipe to the button. **See:**
+TalkBack says "Replyly: suggest replies, button". Swipe up then right (or use the TalkBack menu >
+Actions): "Move up" and "Move down" are listed and each moves the button about one button
+height; double-tap still opens the panel. **Send:** what TalkBack reads, if different.
+
+11.B10 **Do:** turn on "Remove animations" (see 11.8) and repeat 11.B1 and 11.B4. **See:** the
+button appears and disappears at once, dragging still works. **Send:** anything stuck half-way.
