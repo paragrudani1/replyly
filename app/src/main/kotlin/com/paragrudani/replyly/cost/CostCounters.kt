@@ -16,10 +16,13 @@ data class CostCounters(
 ) {
     /**
      * The counters as seen on [today]. Only moves forward: a clock set back (or a trip across
-     * time zones) keeps the current counts instead of granting a fresh allowance.
+     * time zones) keeps the current counts instead of granting a fresh allowance. A stored day more
+     * than one day ahead (a clock that was wrong in the future) moves back to [today] with its
+     * counts kept, so the counter does not stay frozen until that future date.
      */
     fun rolledTo(today: LocalDate): CostCounters {
         val thisMonth = YearMonth.from(today)
+        if (day.isAfter(today.plusDays(1))) return copy(day = today, month = thisMonth)
         val newMonth = thisMonth.isAfter(month)
         val newDay = today.isAfter(day)
         if (!newDay && !newMonth) return this

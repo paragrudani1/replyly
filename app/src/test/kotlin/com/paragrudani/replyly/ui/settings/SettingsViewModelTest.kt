@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.ui.settings
 
 import com.google.common.truth.Truth.assertThat
+import com.paragrudani.replyly.cost.CostGuard
 import com.paragrudani.replyly.cost.InMemoryCostGuard
 import com.paragrudani.replyly.feedback.InMemoryFeedbackLog
 import com.paragrudani.replyly.llm.Suggestion
@@ -9,6 +10,7 @@ import com.paragrudani.replyly.parser.ChatKey
 import com.paragrudani.replyly.settings.InMemoryApiKeyStore
 import com.paragrudani.replyly.settings.InMemorySettingsRepository
 import com.paragrudani.replyly.settings.ReplylySettings
+import com.paragrudani.replyly.settings.SettingsRepository
 import com.paragrudani.replyly.settings.current
 import com.paragrudani.replyly.testing.MutableClock
 import kotlinx.coroutines.Dispatchers
@@ -21,6 +23,7 @@ import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import java.io.IOException
 import java.time.Duration
 import java.time.LocalDateTime
 
@@ -166,6 +169,56 @@ class SettingsViewModelTest {
                     ?.aboutMe,
             ).isEqualTo("typing...")
             assertThat(settings.current().aboutMe).isEmpty()
+        }
+
+    @Test
+    fun `a failed write shows a fixed message instead of crashing`() =
+        runTest {
+            val backing = settings
+            val failing =
+                object : SettingsRepository {
+                    var fail = true
+                    override val settings = backing.settings
+
+                    override suspend fun update(transform: (ReplylySettings) -> ReplylySettings) {
+                        if (fail) throw IOException("disk full at /data/secret/path")
+                        backing.update(transform)
+                    }
+                }
+            val vm = SettingsViewModel(failing, apiKeys, cost, feedback, clock)
+
+            vm.editDraft { it.copy(dailyRequestLimit = "50") }
+            vm.save()
+            assertThat(vm.state.value.saveError).isEqualTo("Could not save settings")
+            assertThat(vm.state.value.dirty).isTrue() // the edit stays so the user can retry
+            assertThat(settings.current().dailyRequestLimit).isEqualTo(200)
+
+            vm.dismissSaveError()
+            assertThat(vm.addBlockedPackage("com.bank.app")).isNull()
+            assertThat(vm.state.value.saveError).isEqualTo("Could not save settings")
+            vm.dismissSaveError()
+            vm.removeBlockedChat("com.whatsapp:Mom")
+            assertThat(vm.state.value.saveError).isEqualTo("Could not save settings")
+
+            vm.dismissSaveError()
+            failing.fail = false
+            vm.save()
+            assertThat(vm.state.value.saveError).isNull()
+            assertThat(settings.current().dailyRequestLimit).isEqualTo(50)
+        }
+
+    @Test
+    fun `refreshUsage asks the cost guard to recompute`() =
+        runTest {
+            var refreshed = 0
+            val guard =
+                object : CostGuard by cost {
+                    override fun refresh() {
+                        refreshed++
+                    }
+                }
+            SettingsViewModel(settings, apiKeys, guard, feedback, clock).refreshUsage()
+            assertThat(refreshed).isEqualTo(1)
         }
 
     @Test

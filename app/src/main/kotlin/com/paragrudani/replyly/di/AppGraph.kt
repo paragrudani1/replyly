@@ -47,7 +47,7 @@ import java.time.Clock
 class AppGraph(
     val app: Application,
 ) {
-    // Skeleton
+    // Skeleton. The zone is fixed at process start: a time zone change applies after the app restarts.
     val clock: Clock = Clock.systemDefaultZone()
 
     // Skeleton: app-lifetime scope for work that must outlive a screen.

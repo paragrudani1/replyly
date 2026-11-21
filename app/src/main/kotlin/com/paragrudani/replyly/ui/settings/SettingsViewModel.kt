@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.IOException
 import java.time.Clock
 import java.time.Duration
 
@@ -32,6 +33,8 @@ data class SettingsUiState(
     /** The user tapped "Replace" on a saved key. */
     val replacingApiKey: Boolean = false,
     val usage: CostStatus = CostStatus(0, ReplylySettings().dailyRequestLimit, 0, 0),
+    /** A settings or blocklist write failed (disk full, I/O error). Shown once, then dismissed. */
+    val saveError: String? = null,
 ) {
     val showApiKeyField: Boolean get() = !apiKeySaved || replacingApiKey
 
@@ -40,13 +43,13 @@ data class SettingsUiState(
     // Keeps a half-typed key out of any log or crash report that prints the state.
     override fun toString(): String =
         "SettingsUiState(draft=$draft, errors=$errors, apiKeySaved=$apiKeySaved, replacingApiKey=$replacingApiKey, " +
-            "apiKeyInput=<${apiKeyInput.length} chars>, apiKeyError=$apiKeyError, usage=$usage)"
+            "apiKeyInput=<${apiKeyInput.length} chars>, apiKeyError=$apiKeyError, usage=$usage, saveError=$saveError)"
 }
 
 class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
     private val apiKeyStore: ApiKeyStore,
-    costGuard: CostGuard,
+    private val costGuard: CostGuard,
     private val feedbackLog: FeedbackLog,
     private val clock: Clock,
 ) : ViewModel() {
@@ -102,7 +105,7 @@ class SettingsViewModel(
 
             is DraftValidation.Valid -> {
                 viewModelScope.launch {
-                    settingsRepository.update(result.apply)
+                    if (!writeSettings(result.apply)) return@launch
                     val stored = settingsRepository.current()
                     mutableState.update {
                         it.copy(
@@ -169,24 +172,39 @@ class SettingsViewModel(
     /** @return an error message, or null once the package is blocked. */
     fun addBlockedPackage(input: String): String? {
         val pkg = SettingsValidator.normalizePackage(input) ?: return "Enter a package name, e.g. com.whatsapp"
-        viewModelScope.launch { settingsRepository.update { it.copy(blockedPackages = it.blockedPackages + pkg) } }
+        viewModelScope.launch { writeSettings { it.copy(blockedPackages = it.blockedPackages + pkg) } }
         return null
     }
 
     fun removeBlockedPackage(pkg: String) {
-        viewModelScope.launch { settingsRepository.update { it.copy(blockedPackages = it.blockedPackages - pkg) } }
+        viewModelScope.launch { writeSettings { it.copy(blockedPackages = it.blockedPackages - pkg) } }
     }
 
     /** @return an error message, or null once the chat is blocked. */
     fun addBlockedChat(input: String): String? {
         val key = SettingsValidator.normalizeChatKey(input) ?: return "Use package:chat name, e.g. com.whatsapp:Mom"
-        viewModelScope.launch { settingsRepository.update { it.copy(blockedChatKeys = it.blockedChatKeys + key) } }
+        viewModelScope.launch { writeSettings { it.copy(blockedChatKeys = it.blockedChatKeys + key) } }
         return null
     }
 
     fun removeBlockedChat(key: String) {
-        viewModelScope.launch { settingsRepository.update { it.copy(blockedChatKeys = it.blockedChatKeys - key) } }
+        viewModelScope.launch { writeSettings { it.copy(blockedChatKeys = it.blockedChatKeys - key) } }
     }
+
+    fun dismissSaveError() = mutableState.update { it.copy(saveError = null) }
+
+    /** Re-reads today's usage; the screen calls it on resume because deep sleep stalls the midnight tick. */
+    fun refreshUsage() = costGuard.refresh()
+
+    /** @return false (and shows [SAVE_ERROR]) if the write failed. The exception text is not shown or logged. */
+    private suspend fun writeSettings(transform: (ReplylySettings) -> ReplylySettings): Boolean =
+        try {
+            settingsRepository.update(transform)
+            true
+        } catch (_: IOException) {
+            mutableState.update { it.copy(saveError = SAVE_ERROR) }
+            false
+        }
 
     fun clearFeedbackLog() {
         viewModelScope.launch { feedbackLog.clear() }
@@ -194,5 +212,6 @@ class SettingsViewModel(
 
     companion object {
         const val FEEDBACK_VIEWER_LIMIT = 200
+        const val SAVE_ERROR = "Could not save settings"
     }
 }

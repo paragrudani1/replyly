@@ -74,6 +74,19 @@ class PersistentCostGuardTest {
         }
 
     @Test
+    fun `refresh shows the new day when the midnight tick was missed`() =
+        runBlocking<Unit> {
+            // Deep sleep stalls the midnight delay: ticks never fire here, only refresh().
+            val guard = guard()
+            guard.tryAcquire()
+            guard.awaitStatus { it.requestsToday == 1 }
+
+            clock.setLocal(LocalDateTime.of(2026, 11, 22, 7, 0))
+            guard.refresh()
+            guard.awaitStatus { it.requestsToday == 0 }
+        }
+
+    @Test
     fun `tokens add up within the month and reset on the 1st`() =
         runBlocking<Unit> {
             clock.setLocal(LocalDateTime.of(2026, 11, 30, 22, 0))

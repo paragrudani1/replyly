@@ -12,11 +12,13 @@ import com.paragrudani.replyly.security.DatabaseKeyProvider
 import com.paragrudani.replyly.testing.MutableClock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.io.IOException
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
@@ -131,6 +133,44 @@ class RoomFeedbackLogTest {
             val byId = log.observeRecent(10).first().associateBy { it.id }
             assertThat(byId.getValue(newer).finalSentText).isEqualTo("first")
             assertThat(byId.getValue(older).finalSentText).isEqualTo("second")
+        }
+
+    @Test
+    fun `the final message only goes to an insert younger than 6 hours`() =
+        runBlocking<Unit> {
+            val stale = log.record(chat, "m", "p1", three)
+            log.markInserted(stale, 0)
+            clock.advance(Duration.ofHours(6))
+            assertThat(log.attachFinalMessage(chat, "much later")).isFalse()
+
+            val fresh = log.record(chat, "m", "p2", three)
+            log.markInserted(fresh, 1)
+            clock.advance(Duration.ofHours(5).plusMinutes(59))
+            assertThat(log.attachFinalMessage(chat, "in time")).isTrue()
+            val byId = log.observeRecent(10).first().associateBy { it.id }
+            assertThat(byId.getValue(fresh).finalSentText).isEqualTo("in time")
+            assertThat(byId.getValue(stale).finalSentText).isNull()
+        }
+
+    @Test
+    fun `a failed purge is retried on the next call`() =
+        runBlocking<Unit> {
+            var failNext = true
+            val flaky =
+                flow {
+                    if (failNext) {
+                        failNext = false
+                        throw IOException("settings unreadable")
+                    }
+                    emit(30)
+                }
+            val flakyLog = RoomFeedbackLog(db, clock, flaky)
+            log.record(chat, "m", "old", three)
+            clock.advance(Duration.ofDays(31))
+
+            assertThat(runCatching { flakyLog.purgeIfDue() }.isFailure).isTrue()
+            // Not marked as done, so the next call purges instead of waiting a day.
+            assertThat(flakyLog.purgeIfDue()).isEqualTo(1)
         }
 
     @Test

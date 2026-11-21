@@ -59,7 +59,8 @@ class RoomFeedbackLog(
     override suspend fun attachFinalMessage(
         chatKey: ChatKey,
         text: String,
-    ): Boolean = dao.attachFinalMessage(chatKey.encoded, text)
+    ): Boolean =
+        dao.attachFinalMessage(chatKey.encoded, text, clock.instant().minus(FINAL_MESSAGE_WINDOW).toEpochMilli())
 
     override fun observeRecent(limit: Int): Flow<List<FeedbackEntry>> =
         dao.observeRecent(limit).map { rows ->
@@ -77,8 +78,9 @@ class RoomFeedbackLog(
         val now = clock.instant()
         val last = lastPurgeAt
         if (last != null && Duration.between(last, now) < Duration.ofDays(1)) return 0
-        lastPurgeAt = now
-        return purgeOlderThan(now.minus(Duration.ofDays(retentionDays.first().toLong())))
+        val removed = purgeOlderThan(now.minus(Duration.ofDays(retentionDays.first().toLong())))
+        lastPurgeAt = now // Only after success, so a failed purge is retried on the next record.
+        return removed
     }
 
     private fun FeedbackEntryEntity.toEntry() =

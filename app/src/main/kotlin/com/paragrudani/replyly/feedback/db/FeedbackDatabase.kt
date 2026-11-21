@@ -47,9 +47,12 @@ interface FeedbackDao {
 
     @Query(
         "SELECT id FROM feedback_entries WHERE chat_key = :chatKey AND inserted_index IS NOT NULL " +
-            "AND final_sent_text IS NULL ORDER BY id DESC LIMIT 1",
+            "AND final_sent_text IS NULL AND created_at > :createdAfterMillis ORDER BY id DESC LIMIT 1",
     )
-    suspend fun newestOpenInsert(chatKey: String): Long?
+    suspend fun newestOpenInsert(
+        chatKey: String,
+        createdAfterMillis: Long,
+    ): Long?
 
     @Query("UPDATE feedback_entries SET final_sent_text = :text WHERE id = :id")
     suspend fun setFinalText(
@@ -61,8 +64,9 @@ interface FeedbackDao {
     suspend fun attachFinalMessage(
         chatKey: String,
         text: String,
+        createdAfterMillis: Long,
     ): Boolean {
-        val id = newestOpenInsert(chatKey) ?: return false
+        val id = newestOpenInsert(chatKey, createdAfterMillis) ?: return false
         setFinalText(id, text)
         return true
     }

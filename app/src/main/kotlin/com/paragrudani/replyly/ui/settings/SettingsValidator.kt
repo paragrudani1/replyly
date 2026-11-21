@@ -31,7 +31,7 @@ data class SettingsDraft(
 }
 
 sealed interface DraftValidation {
-    /** [apply] writes the cleaned values onto the stored settings. */
+    /** [apply] writes the cleaned values onto the stored settings, leaving the stored blocklists as they are. */
     data class Valid(
         val apply: (ReplylySettings) -> ReplylySettings,
     ) : DraftValidation
@@ -97,8 +97,7 @@ object SettingsValidator {
                 aboutMe = aboutMe,
                 retentionDays = retention!!,
                 dailyRequestLimit = limit!!,
-                blockedPackages = draft.blockedPackages,
-                blockedChatKeys = draft.blockedChatKeys,
+                // Blocklists are saved on their own the moment they change; Save keeps the stored ones.
             )
         }
     }

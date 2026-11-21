@@ -48,4 +48,14 @@ class CostCountersTest {
         // Travelling back across a time zone must not hand out a fresh daily allowance.
         assertThat(counters.rolledTo(LocalDate.of(2026, 11, 20))).isEqualTo(counters)
     }
+
+    @Test
+    fun `a stored day far in the future moves back to today and keeps the counts`() {
+        // The clock was once set to next year; without this the count would never reset until then.
+        val future = counters.copy(day = LocalDate.of(2027, 3, 5), month = YearMonth.of(2027, 3))
+        val rolled = future.rolledTo(nov21)
+        assertThat(rolled).isEqualTo(counters)
+        // From there it rolls normally again.
+        assertThat(rolled.rolledTo(LocalDate.of(2026, 11, 22)).requests).isEqualTo(0)
+    }
 }

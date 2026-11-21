@@ -9,13 +9,16 @@ import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.paragrudani.replyly.llm.TokenUsage
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import java.time.Clock
@@ -29,7 +32,8 @@ import java.time.YearMonth
  *
  * @param dailyRequestLimit the limit from settings; a change applies at once.
  * @param ticks re-evaluates [status] without a request, so the screen shows the new day after
- *   midnight. Defaults to one tick per local midnight.
+ *   midnight. Defaults to one tick per local midnight. Deep sleep pauses that `delay`, so the
+ *   settings screen also calls [refresh] when it resumes.
  */
 class PersistentCostGuard(
     private val dataStore: DataStore<Preferences>,
@@ -38,8 +42,11 @@ class PersistentCostGuard(
     scope: CoroutineScope,
     ticks: Flow<Unit> = midnightTicks(clock),
 ) : CostGuard {
+    private val refreshes =
+        MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
     override val status: StateFlow<CostStatus> =
-        combine(dataStore.data, dailyRequestLimit, ticks.onStart { emit(Unit) }) { prefs, limit, _ ->
+        combine(dataStore.data, dailyRequestLimit, merge(ticks, refreshes).onStart { emit(Unit) }) { prefs, limit, _ ->
             prefs.counters().rolledTo(today()).toStatus(limit)
         }.stateIn(scope, SharingStarted.Eagerly, CostCounters.empty(today()).toStatus(DEFAULT_LIMIT))
 
@@ -65,6 +72,10 @@ class PersistentCostGuard(
                 ),
             )
         }
+    }
+
+    override fun refresh() {
+        refreshes.tryEmit(Unit)
     }
 
     private fun today(): LocalDate = LocalDate.now(clock)

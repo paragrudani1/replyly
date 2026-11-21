@@ -85,9 +85,12 @@ class SettingsValidatorTest {
     }
 
     @Test
-    fun `saving keeps the blocklists of the draft`() {
-        val draft = valid.copy(blockedPackages = setOf("com.bank.app"), blockedChatKeys = setOf("com.whatsapp:Mom"))
-        val settings = (SettingsValidator.validate(draft) as DraftValidation.Valid).apply(ReplylySettings())
+    fun `Save never touches blocklists`() {
+        // A stale draft must not undo a blocklist change stored since the form loaded.
+        val draft = valid.copy(blockedPackages = setOf("com.stale.app"), blockedChatKeys = emptySet())
+        val stored =
+            ReplylySettings(blockedPackages = setOf("com.bank.app"), blockedChatKeys = setOf("com.whatsapp:Mom"))
+        val settings = (SettingsValidator.validate(draft) as DraftValidation.Valid).apply(stored)
         assertThat(settings.blockedPackages).containsExactly("com.bank.app")
         assertThat(settings.blockedChatKeys).containsExactly("com.whatsapp:Mom")
     }
