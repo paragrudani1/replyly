@@ -15,3 +15,4 @@
 - From #6 (`ticket-6-settings@b1fa11a`): once #3 has merged, bind `feedbackLog = RoomFeedbackLog(FeedbackDatabase.open(app, databaseKeyProvider), clock, settingsRepository.settings.map { it.retentionDays })`. Add the `useParallelCalls` switch to the settings screen. No Compose ui-test dependency yet.
 - From #4 review: ApiKeyStore (#6) should trim the key on `set`.
 - From #6 review: the LLM client (#4) should itself refuse a non-https endpoint.
+- From #3 (`ticket-3-history@ef09e1c`): the #4 assembler should catch `DatabaseKeyUnavailableException` (fixed-wording failure). FLAG_SECURE detection belongs in the host (#1); capture should then pass it to the policy. Capture stores nothing until #2's parsers merge.
