@@ -44,6 +44,20 @@ class PanelScreenshotTest {
         )
 
     @Test
+    fun instructionNearLimit() {
+        val chips = setOf(QuickInstruction.Shorter, QuickInstruction.InEnglish)
+        val room = instructionRoom(chips)
+        shot(
+            "panel/instruction_limit",
+            ready.copy(
+                generation = 2,
+                chips = chips,
+                instruction = "Say I'll call at 6 after the meeting, ".repeat(10).take(room),
+            ),
+        )
+    }
+
+    @Test
     fun copied() = shot("panel/copied", ready.copy(copied = true))
 
     @Test
