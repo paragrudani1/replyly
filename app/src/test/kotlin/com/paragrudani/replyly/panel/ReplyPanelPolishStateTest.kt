@@ -161,6 +161,44 @@ class ReplyPanelPolishStateTest {
             assertThat(generator.calls).isEqualTo(1)
         }
 
+    @Test
+    fun `regenerate and chip taps while a slow insert runs start no call`() =
+        runTest {
+            val generator = FakeGenerator()
+            inserter.delayMillis = 300
+            val panel = opened(generator)
+
+            panel.insert(0)
+            advanceTimeBy(100)
+            panel.regenerate()
+            panel.toggleChip(QuickInstruction.Shorter)
+            advanceUntilIdle()
+
+            assertThat(generator.calls).isEqualTo(1)
+            assertThat(panel.state.value.chips).isEmpty()
+            assertThat(panel.state.value.finished).isTrue()
+            assertThat(closed).isEqualTo(1)
+        }
+
+    @Test
+    fun `after a slow insert fails, the next regenerate tap makes one call`() =
+        runTest {
+            val generator = FakeGenerator()
+            inserter.delayMillis = 300
+            inserter.result = InsertResult.NoFocusedField
+            val panel = opened(generator)
+
+            panel.insert(0)
+            advanceTimeBy(100)
+            panel.regenerate()
+            advanceUntilIdle()
+            assertThat(generator.calls).isEqualTo(1)
+
+            panel.regenerate()
+            advanceUntilIdle()
+            assertThat(generator.calls).isEqualTo(2)
+        }
+
     // Long-press copy
 
     @Test

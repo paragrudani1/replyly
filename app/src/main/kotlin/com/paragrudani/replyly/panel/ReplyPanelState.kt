@@ -101,7 +101,7 @@ const val COPIED_VISIBLE_MILLIS = 1_500L
  * closing the panel cancels any call still in flight.
  *
  * LLM calls: one on [start], one per [regenerate] and one per [toggleChip] tap, each ignored while
- * a call runs. The panel's out-and-in card animation only follows [PanelUiState.suggestions]; it
+ * a call runs, while an insert runs and after the panel finished. The panel's out-and-in card animation only follows [PanelUiState.suggestions]; it
  * never starts or delays a call.
  *
  * The instruction sent is [combineInstruction]: the selected chips' fixed prompts, then the typed
@@ -161,7 +161,14 @@ class ReplyPanelState(
         generate()
     }
 
-    private fun canGenerate(): Boolean = generation?.isActive != true && !mutableState.value.finished
+    /**
+     * No call while one runs, while a card is being inserted (the insert may still succeed and
+     * close the panel), or after the panel finished.
+     */
+    private fun canGenerate(): Boolean {
+        val current = mutableState.value
+        return generation?.isActive != true && !current.inserting && !current.finished
+    }
 
     private fun generate() {
         if (!canGenerate()) return

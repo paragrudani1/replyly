@@ -56,8 +56,8 @@ import com.paragrudani.replyly.ui.theme.Spacing
  * The instruction field with Regenerate, and the quick-chips under it.
  *
  * A chip tap toggles that chip and regenerates once; chips and the typed text combine as
- * [combineInstruction] describes. While a call runs the chips and Regenerate are disabled (the
- * state also ignores those taps). Done on the keyboard only hides it: a model call needs a tap on
+ * [combineInstruction] describes. While a call or an insert runs, and after an insert, the chips and
+ * Regenerate are disabled (the state also ignores those taps). Done on the keyboard only hides it: a model call needs a tap on
  * Regenerate or a chip (AGENTS.md rule 4).
  */
 @Composable
@@ -66,7 +66,8 @@ internal fun InstructionArea(
     actions: PanelActions,
 ) {
     val focusManager = LocalFocusManager.current
-    val busy = ui.suggestions == SuggestionsUi.Loading || ui.finished
+    // A running insert counts too: it may still succeed and close the panel (no call after that).
+    val busy = ui.suggestions == SuggestionsUi.Loading || ui.inserting || ui.finished
     Column(Modifier.padding(top = Spacing.S), verticalArrangement = Arrangement.spacedBy(Spacing.XXS)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.S)) {
             CompactField(

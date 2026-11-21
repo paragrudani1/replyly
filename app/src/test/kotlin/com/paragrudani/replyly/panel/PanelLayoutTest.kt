@@ -1,8 +1,12 @@
 package com.paragrudani.replyly.panel
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
+import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
@@ -92,6 +96,25 @@ class PanelLayoutTest {
 
         compose.onNodeWithText("Shorter").assertIsNotEnabled()
         compose.onNodeWithContentDescription("Regenerate replies").assertIsNotEnabled()
+    }
+
+    @Test
+    fun `chips and Regenerate are disabled while an insert runs and after it`() {
+        var ui by mutableStateOf(ready.copy(inserting = true, insertingIndex = 0))
+        compose.setContent {
+            ReplylyTheme(darkTheme = false, dynamicColor = false, reducedMotion = true) {
+                PanelLayout(ui, "Riya", ComposeReplyPanel.DEFAULT_MAX_HEIGHT, actions)
+            }
+        }
+        compose.onNodeWithText("Shorter").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Regenerate replies").assertIsNotEnabled()
+
+        ui = ready.copy(finished = true, insertingIndex = 0)
+        compose.onNodeWithText("Shorter").assertIsNotEnabled()
+        compose.onNodeWithContentDescription("Regenerate replies").assertIsNotEnabled()
+
+        ui = ready
+        compose.onNodeWithText("Shorter").assertIsEnabled()
     }
 
     @Test
