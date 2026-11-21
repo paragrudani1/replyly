@@ -27,3 +27,9 @@
 - From #1 (`ticket-1-overlay@cc70910`): #3's `PassiveCaptureComponent` should call `host.captureActiveWindowChecked()` (FLAG_SECURE) instead of `captureActiveWindow()`; do it at integration. Remove unused stubs `MinimalSensitiveScreenPolicy`, `UnavailableReplyInserter`, `Stub*` LLM after all merge. After installing over an older build the service must be toggled once to gain `canTakeScreenshot` (device checklist).
 - 2026-11-21: #3 merge blocked twice (first review: false edits; re-review: gap + scroll-up overwrites). Third round adds gap segments and a committed fuzzer. Lesson: for diff-like merges, demand a property test against a simulated truth from the start, not hand-picked scenarios. Retro candidate.
 - From #1 review: at integration switch #3 `PassiveCaptureComponent` and #2 `DumpCapturer` to `captureActiveWindowChecked()` (passive capture may use a longer `maxAgeMillis`); update #5's `ComposeReplyPanel` KDoc and checklist to the modal full-screen host.
+
+## PR log (2026-11-21)
+- #8 skeleton (base main). Ticket PRs are stacked on `skeleton` so their diffs stay clean, and GitHub retargets them when `skeleton` merges and is deleted: #9 = ticket 4, #10 = ticket 6, #11 = ticket 7, #12 = ticket 2, #13 = ticket 5 (stacked on `ticket-4-llm`), #14 = ticket 1. Ticket 3 still in its third fix round.
+- Merge order planned: #8, #9, #10, #11, #12, #13, #14, ticket 3, then a wiring PR (follow-ups listed above) and a `docs/DEVICE_CHECKLIST.md` consolidation.
+- Integration dry-run (local `integration-dryrun`, rerere enabled) started to pre-resolve conflicts.
+- Blocked: GitHub Actions created 0 runs for any PR; waiting on Parag to enable Actions.
