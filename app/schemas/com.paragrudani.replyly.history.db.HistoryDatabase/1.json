@@ -1,0 +1,176 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "4329f33477496293c70cab0abd7ae90d",
+    "entities": [
+      {
+        "tableName": "messages",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `chat_key` TEXT NOT NULL, `package_name` TEXT NOT NULL, `position` INTEGER NOT NULL, `gap_before` INTEGER NOT NULL DEFAULT 0, `is_me` INTEGER NOT NULL, `sender` TEXT, `text` TEXT NOT NULL, `time_shown` TEXT, `hash` TEXT NOT NULL, `first_seen_at` INTEGER NOT NULL)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chatKey",
+            "columnName": "chat_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "packageName",
+            "columnName": "package_name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "position",
+            "columnName": "position",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "gapBefore",
+            "columnName": "gap_before",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "0"
+          },
+          {
+            "fieldPath": "isMe",
+            "columnName": "is_me",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sender",
+            "columnName": "sender",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "text",
+            "columnName": "text",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "timeShown",
+            "columnName": "time_shown",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "hash",
+            "columnName": "hash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "firstSeenAt",
+            "columnName": "first_seen_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_messages_chat_key_position",
+            "unique": false,
+            "columnNames": [
+              "chat_key",
+              "position"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_messages_chat_key_position` ON `${TABLE_NAME}` (`chat_key`, `position`)"
+          },
+          {
+            "name": "index_messages_package_name_is_me_first_seen_at",
+            "unique": false,
+            "columnNames": [
+              "package_name",
+              "is_me",
+              "first_seen_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_messages_package_name_is_me_first_seen_at` ON `${TABLE_NAME}` (`package_name`, `is_me`, `first_seen_at`)"
+          },
+          {
+            "name": "index_messages_first_seen_at",
+            "unique": false,
+            "columnNames": [
+              "first_seen_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_messages_first_seen_at` ON `${TABLE_NAME}` (`first_seen_at`)"
+          }
+        ]
+      },
+      {
+        "tableName": "chat_positions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`chat_key` TEXT NOT NULL, `message_id` INTEGER NOT NULL, PRIMARY KEY(`chat_key`))",
+        "fields": [
+          {
+            "fieldPath": "chatKey",
+            "columnName": "chat_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "messageId",
+            "columnName": "message_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "chat_key"
+          ]
+        }
+      },
+      {
+        "tableName": "contact_notes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`chat_key` TEXT NOT NULL, `note` TEXT NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`chat_key`))",
+        "fields": [
+          {
+            "fieldPath": "chatKey",
+            "columnName": "chat_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "note",
+            "columnName": "note",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updated_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "chat_key"
+          ]
+        }
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4329f33477496293c70cab0abd7ae90d')"
+    ]
+  }
+}
