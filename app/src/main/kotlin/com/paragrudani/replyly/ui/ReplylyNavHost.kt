@@ -1,13 +1,15 @@
 package com.paragrudani.replyly.ui
 
 import androidx.compose.runtime.Composable
+import androidx.navigation.NavController
+import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.rememberNavController
 import com.paragrudani.replyly.ui.debug.DebugRoute
 import com.paragrudani.replyly.ui.debug.debugDestination
 import com.paragrudani.replyly.ui.onboarding.OnboardingRoute
 import com.paragrudani.replyly.ui.onboarding.onboardingDestination
-import com.paragrudani.replyly.ui.onboarding.onboardingStartDestination
+import com.paragrudani.replyly.ui.onboarding.rememberOnboardingStartDestination
 import com.paragrudani.replyly.ui.settings.SettingsRoute
 import com.paragrudani.replyly.ui.settings.settingsDestination
 
@@ -18,16 +20,26 @@ import com.paragrudani.replyly.ui.settings.settingsDestination
 @Composable
 fun ReplylyNavHost() {
     val nav = rememberNavController()
-    NavHost(navController = nav, startDestination = onboardingStartDestination()) {
-        onboardingDestination(
-            onFinished = {
-                nav.navigate(SettingsRoute) { popUpTo<OnboardingRoute> { inclusive = true } }
-            },
-        )
-        settingsDestination(
-            onOpenOnboarding = { nav.navigate(OnboardingRoute) },
-            onOpenDebug = { nav.navigate(DebugRoute) },
-        )
-        debugDestination(onBack = { nav.popBackStack() })
+    // Blank for the few milliseconds the onboarding check takes; the NavHost starts only after it.
+    val start = rememberOnboardingStartDestination() ?: return
+    NavHost(navController = nav, startDestination = start) { replylyGraph(nav) }
+}
+
+internal fun NavGraphBuilder.replylyGraph(nav: NavController) {
+    onboardingDestination(
+        onFinished = nav::finishOnboarding,
+        onOpenApiKeySettings = { nav.navigate(SettingsRoute) },
+    )
+    settingsDestination(
+        onOpenOnboarding = { nav.navigate(OnboardingRoute) },
+        onOpenDebug = { nav.navigate(DebugRoute) },
+    )
+    debugDestination(onBack = { nav.popBackStack() })
+}
+
+/** Back to the Settings below onboarding if there is one (opened via "Setup steps"), else replace it. */
+internal fun NavController.finishOnboarding() {
+    if (!popBackStack<SettingsRoute>(inclusive = false)) {
+        navigate(SettingsRoute) { popUpTo<OnboardingRoute> { inclusive = true } }
     }
 }
