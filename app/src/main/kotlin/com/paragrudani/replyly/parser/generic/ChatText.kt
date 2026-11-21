@@ -4,8 +4,8 @@ package com.paragrudani.replyly.parser.generic
  * Text rules shared by every parser: cleaning, and recognising the screen "chrome" that is not a
  * message (timestamps, date separators, system notices, unread banners, status words).
  *
- * All English: the S23 runs in English. Every phrase here is an assumption listed in
- * docs/device-checklist/ticket-2.md.
+ * All English: the S23 runs in English. Every phrase here is an unverified assumption, checked by
+ * docs/DEVICE_CHECKLIST.md section 6.
  */
 object ChatText {
     private val spaces = Regex(" +")

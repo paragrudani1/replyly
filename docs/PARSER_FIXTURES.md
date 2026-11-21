@@ -2,7 +2,7 @@
 
 The parsers (`parser/whatsapp/`, `parser/telegram/`, `parser/generic/`) are tested on saved screen trees.
 Until real dumps arrive, the fixtures are **synthetic** (`synthetic-*.json`), written from public knowledge of the apps.
-Every guess behind them is listed in [device-checklist/ticket-2.md](device-checklist/ticket-2.md).
+The parsers' guesses are checked on the phone by [DEVICE_CHECKLIST.md](DEVICE_CHECKLIST.md), section 6.
 This page explains how to replace them with real dumps, and what to do when an app update breaks a parser.
 
 The synthetic fixtures come from [scripts/fixturegen/gen.py](../scripts/fixturegen/gen.py). To change one, edit its screen in the script (not the JSON), then run from the repo root:
@@ -27,7 +27,7 @@ The script rewrites every `synthetic-*.json` and leaves real dumps alone.
    - one line per message: `←` someone else (with the sender), `→ me`, the time in brackets, then the text.
    Compare it with the screen. That alone tells whether the parser works on this chat.
 
-Screens the sensitive-screen policy blocks (password fields, blocklisted chats, banking apps) are never saved, nor are apps or chats on Replyly's blocklists. If the parser reads no chat, the app blocklist still applies, and the toast says the chat blocklist could not be checked.
+Screens the sensitive-screen policy blocks (secure windows such as Chrome Incognito, password fields, banking apps, and apps or chats on Replyly's blocklists) are never saved. If the parser reads no chat, the app blocklist still applies, and the toast says the chat blocklist could not be checked.
 
 ## 2. Send it
 
