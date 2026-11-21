@@ -79,11 +79,6 @@ class AccessibilityInputFieldSourceTest {
     }
 
     @Test
-    fun `app windows are the application windows only`() {
-        assertThat(source.appWindowIds()).containsExactly(7)
-    }
-
-    @Test
     fun `setText sends ACTION_SET_TEXT with the text, and nothing else`() {
         val field = source.fields(7, viewId = null)!!.single()
 

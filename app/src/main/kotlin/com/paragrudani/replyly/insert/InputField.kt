@@ -43,31 +43,19 @@ interface InputFieldSource {
         windowId: Int,
         viewId: String?,
     ): List<EditableField>?
-
-    /** Ids of the app windows on screen now (not the keyboard, not Replyly's own overlays). */
-    fun appWindowIds(): List<Int>
 }
 
 /**
- * Finds the field an [InputFieldRef] points at. Looks in the remembered window first, then (if
- * that window is gone) in the app's other windows. Only fields of the same app, never a password
- * field. Same view id wins; with no view id: the only field, else a focused one, else the one
+ * Finds the field an [InputFieldRef] points at, only in the remembered window: if that window is
+ * gone, there is no field (another window of the same app may hold another chat). Only fields of
+ * the same app, never a password field. Same view id wins; with no view id: the only field, else a focused one, else the one
  * nearest the remembered bounds.
  */
 object InputFieldFinder {
     fun find(
         ref: InputFieldRef,
         source: InputFieldSource,
-    ): EditableField? {
-        val own = source.fields(ref.windowId, ref.viewId)?.let { pick(ref, it) }
-        if (own != null) return own
-        return source
-            .appWindowIds()
-            .asSequence()
-            .filter { it != ref.windowId }
-            .mapNotNull { id -> source.fields(id, ref.viewId)?.let { pick(ref, it) } }
-            .firstOrNull()
-    }
+    ): EditableField? = source.fields(ref.windowId, ref.viewId)?.let { pick(ref, it) }
 
     private fun pick(
         ref: InputFieldRef,

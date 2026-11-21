@@ -59,17 +59,17 @@ class InputFieldFinderTest {
     }
 
     @Test
-    fun `window gone - looks in the app's other windows`() {
-        val entry = FakeField()
-        val source = FakeFieldSource(mutableMapOf(12 to listOf(entry)))
+    fun `window gone - null, never a field in the app's other windows (that may be another chat)`() {
+        val otherChatsEntry = FakeField()
+        val source = FakeFieldSource(mutableMapOf(12 to listOf(otherChatsEntry)))
 
-        assertThat(InputFieldFinder.find(ref, source)).isSameInstanceAs(entry)
+        assertThat(InputFieldFinder.find(ref, source)).isNull()
     }
 
     @Test
     fun `never picks a field of another app`() {
         val other = FakeField(packageName = "org.telegram.messenger")
-        val source = FakeFieldSource(mutableMapOf(7 to listOf(other), 12 to listOf(other)))
+        val source = FakeFieldSource(mutableMapOf(7 to listOf(other)))
 
         assertThat(InputFieldFinder.find(ref, source)).isNull()
     }

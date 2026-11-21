@@ -27,9 +27,6 @@ class AccessibilityInputFieldSource(
         return nodes.map(::NodeEditableField)
     }
 
-    override fun appWindowIds(): List<Int> =
-        windows().filter { it.type == AccessibilityWindowInfo.TYPE_APPLICATION }.map { it.id }
-
     private fun editableNodes(root: AccessibilityNodeInfo): List<AccessibilityNodeInfo> {
         val found = mutableListOf<AccessibilityNodeInfo>()
         var visited = 0

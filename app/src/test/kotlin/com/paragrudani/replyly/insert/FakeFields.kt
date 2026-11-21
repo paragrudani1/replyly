@@ -40,6 +40,4 @@ class FakeFieldSource(
         windowId: Int,
         viewId: String?,
     ): List<EditableField>? = windows[windowId]
-
-    override fun appWindowIds(): List<Int> = windows.keys.toList()
 }
