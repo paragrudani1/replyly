@@ -109,7 +109,10 @@ class ReplyPanelState(
 
     private fun generate() {
         if (generation?.isActive == true) return
-        val instruction = mutableState.value.instruction.trim().ifEmpty { null }
+        val instruction =
+            mutableState.value.instruction
+                .trim()
+                .ifEmpty { null }
         mutableState.update { it.copy(suggestions = SuggestionsUi.Loading, insertError = null) }
         generation =
             scope.launch {
@@ -124,8 +127,14 @@ class ReplyPanelState(
                             val entryId = recordOrNull(result)
                             SuggestionsUi.Ready(result.suggestions, result.model, result.latency, entryId)
                         }
-                        is SuggestionResult.Failure -> SuggestionsUi.Error(result.toPanelError())
-                        null -> SuggestionsUi.Error(UNEXPECTED_ERROR)
+
+                        is SuggestionResult.Failure -> {
+                            SuggestionsUi.Error(result.toPanelError())
+                        }
+
+                        null -> {
+                            SuggestionsUi.Error(UNEXPECTED_ERROR)
+                        }
                     }
                 mutableState.update { it.copy(suggestions = next) }
             }
@@ -148,13 +157,20 @@ class ReplyPanelState(
                     mutableState.update { it.copy(inserting = false) }
                     onClose()
                 }
-                InsertResult.NoFocusedField ->
+
+                InsertResult.NoFocusedField -> {
                     mutableState.update { it.copy(inserting = false, insertError = NO_FOCUSED_FIELD) }
-                is InsertResult.Failed ->
+                }
+
+                is InsertResult.Failed -> {
                     mutableState.update {
                         it.copy(inserting = false, insertError = "Could not insert the reply: ${result.reason}")
                     }
-                null -> mutableState.update { it.copy(inserting = false, insertError = "Could not insert the reply.") }
+                }
+
+                null -> {
+                    mutableState.update { it.copy(inserting = false, insertError = "Could not insert the reply.") }
+                }
             }
         }
     }
@@ -222,7 +238,7 @@ class ReplyPanelState(
         scope.launch {
             val deleted = ignoringErrors { deps.history.deleteChat(chatKey) } != null
             val notice =
-                if (deleted) "Saved messages for this chat were deleted." else "Could not delete this chat's history. Try again."
+                if (deleted) DELETED_NOTICE else "Could not delete this chat's history. Try again."
             mutableState.update { it.copy(notice = notice) }
         }
     }
@@ -248,3 +264,5 @@ private suspend fun <T> ignoringErrors(block: suspend () -> T): T? =
     }
 
 internal const val NO_FOCUSED_FIELD = "Could not find the chat's message box. Tap it, then pick a reply again."
+
+internal const val DELETED_NOTICE = "Saved messages for this chat were deleted."

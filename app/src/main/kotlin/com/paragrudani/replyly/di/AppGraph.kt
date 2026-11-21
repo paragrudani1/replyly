@@ -16,8 +16,9 @@ import com.paragrudani.replyly.llm.OpenAiReplyGenerator
 import com.paragrudani.replyly.llm.ReplyGenerator
 import com.paragrudani.replyly.llm.SuggestionRequestAssembler
 import com.paragrudani.replyly.llm.packageManagerAppLabel
-import com.paragrudani.replyly.panel.PlaceholderReplyPanel
+import com.paragrudani.replyly.panel.ComposeReplyPanel
 import com.paragrudani.replyly.panel.ReplyPanel
+import com.paragrudani.replyly.panel.ReplyPanelDependencies
 import com.paragrudani.replyly.parser.ChatParserRegistry
 import com.paragrudani.replyly.parser.Parsers
 import com.paragrudani.replyly.policy.MinimalSensitiveScreenPolicy
@@ -91,7 +92,18 @@ class AppGraph(
     }
 
     // Ticket #5
-    val replyPanel: ReplyPanel by lazy { PlaceholderReplyPanel }
+    val replyPanel: ReplyPanel by lazy {
+        ComposeReplyPanel(
+            ReplyPanelDependencies(
+                suggestionRequestAssembler,
+                replyGenerator,
+                replyInserter,
+                feedbackLog,
+                contactNoteStore,
+                historyRepository,
+            ),
+        )
+    }
 
     // Ticket #6
     val settingsRepository: SettingsRepository by lazy { InMemorySettingsRepository() }

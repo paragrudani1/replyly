@@ -287,7 +287,10 @@ class ReplyPanelStateTest {
 
             panel.onNoteChange("n".repeat(1_200))
 
-            assertThat(panel.state.value.note!!.text).hasLength(1_000)
+            assertThat(
+                panel.state.value.note!!
+                    .text,
+            ).hasLength(1_000)
         }
 
     @Test
@@ -359,7 +362,8 @@ class ReplyPanelStateTest {
                             assembler,
                             FakeGenerator(),
                             object : ReplyInserter {
-                                override suspend fun insert(text: String): InsertResult = throw IllegalStateException(text)
+                                override suspend fun insert(text: String): InsertResult =
+                                    throw IllegalStateException(text)
                             },
                             feedback,
                             notes,
@@ -421,11 +425,16 @@ class ReplyPanelStateTest {
                     SuggestionResult.Failure.LimitReached(dailyLimit = 50) to
                         PanelError(
                             "Daily limit reached",
-                            "You have used all 50 requests for today. It resets tomorrow, or raise the limit in Settings.",
+                            "You have used all 50 requests for today. " +
+                                "It resets tomorrow, or raise the limit in Settings.",
                             ErrorAction.OpenSettings,
                         ),
                     SuggestionResult.Failure.Timeout to
-                        PanelError("The model took too long", "Check your connection and try again.", ErrorAction.Retry),
+                        PanelError(
+                            "The model took too long",
+                            "Check your connection and try again.",
+                            ErrorAction.Retry,
+                        ),
                     SuggestionResult.Failure.Network("No internet connection.") to
                         PanelError("Could not reach the API", "No internet connection.", ErrorAction.Retry),
                     SuggestionResult.Failure.Http(401, "API key rejected. Check the key in Settings.") to
@@ -443,7 +452,11 @@ class ReplyPanelStateTest {
                             ErrorAction.Retry,
                         ),
                     SuggestionResult.Failure.Http(503, "The provider had an error. Try again.") to
-                        PanelError("The API returned an error (503)", "The provider had an error. Try again.", ErrorAction.Retry),
+                        PanelError(
+                            "The API returned an error (503)",
+                            "The provider had an error. Try again.",
+                            ErrorAction.Retry,
+                        ),
                     SuggestionResult.Failure.Http(418, null) to
                         PanelError("The API returned an error (418)", null, ErrorAction.Retry),
                     SuggestionResult.Failure.BadOutput("reply cut off at the token limit") to
