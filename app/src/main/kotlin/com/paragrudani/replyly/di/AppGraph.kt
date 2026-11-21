@@ -22,6 +22,7 @@ import com.paragrudani.replyly.parser.ChatParserRegistry
 import com.paragrudani.replyly.parser.Parsers
 import com.paragrudani.replyly.policy.DefaultSensitiveScreenPolicy
 import com.paragrudani.replyly.policy.SensitiveScreenPolicy
+import com.paragrudani.replyly.policy.SettingsUnavailableNotice
 import com.paragrudani.replyly.security.DatabaseKeyProvider
 import com.paragrudani.replyly.security.UnimplementedDatabaseKeyProvider
 import com.paragrudani.replyly.service.AccessibilityComponent
@@ -57,11 +58,18 @@ class AppGraph(
     val overlayComponent: AccessibilityComponent by lazy { OverlayComponent.create(this) }
 
     // Ticket #1
-    val replyInserter: ReplyInserter by lazy { AccessibilityReplyInserter.create(accessibilityHostHolder) }
+    val replyInserter: ReplyInserter by lazy { accessibilityReplyInserter }
+
+    // Ticket #1: the same inserter, typed, so the overlay can remember the insert target.
+    val accessibilityReplyInserter: AccessibilityReplyInserter by lazy {
+        AccessibilityReplyInserter.create(accessibilityHostHolder)
+    }
 
     // Ticket #1
     val sensitiveScreenPolicy: SensitiveScreenPolicy by lazy {
-        DefaultSensitiveScreenPolicy.create(settingsRepository, appScope)
+        DefaultSensitiveScreenPolicy.create(settingsRepository, appScope, onUnavailable = {
+            SettingsUnavailableNotice.show(app)
+        })
     }
 
     // Ticket #2: register parsers in parser/Parsers.kt, not here.

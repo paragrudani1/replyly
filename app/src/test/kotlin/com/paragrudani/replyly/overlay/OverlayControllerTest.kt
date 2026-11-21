@@ -18,6 +18,7 @@ class OverlayControllerTest {
         var buttonShows = 0
         var panel: PanelRequest? = null
         val notices = mutableListOf<Notice>()
+        val busy = mutableListOf<Boolean>()
 
         override fun showButton(position: ButtonPosition) {
             buttonShows++
@@ -38,6 +39,10 @@ class OverlayControllerTest {
 
         override fun showNotice(notice: Notice) {
             notices += notice
+        }
+
+        override fun setButtonBusy(busy: Boolean) {
+            this.busy += busy
         }
     }
 
@@ -119,10 +124,134 @@ class OverlayControllerTest {
             advanceUntilIdle()
 
             facts = facts.copy(focusedInput = null)
-            controller.onEvent(OverlayEvent.CONTENT)
+            controller.onEvent(OverlayEvent.CONTENT, WHATSAPP)
             advanceUntilIdle()
 
             assertThat(ui.button).isNull()
+        }
+
+    @Test
+    fun `content changes from another app (the keyboard) are ignored`() =
+        runTest {
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+            val reads = factReads
+
+            controller.onEvent(OverlayEvent.CONTENT, "com.google.android.inputmethod.latin")
+            controller.onEvent(OverlayEvent.CONTENT, null)
+            advanceUntilIdle()
+
+            assertThat(factReads).isEqualTo(reads)
+        }
+
+    @Test
+    fun `screen off hides the button`() =
+        runTest {
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+
+            controller.onScreenOff()
+
+            assertThat(ui.button).isNull()
+        }
+
+    @Test
+    fun `screen off closes the panel`() =
+        runTest {
+            val controller = openPanel()
+
+            controller.onScreenOff()
+
+            assertThat(ui.panel).isNull()
+        }
+
+    @Test
+    fun `screen off during a tap opens nothing`() =
+        runTest {
+            val gate = CompletableDeferred<Unit>()
+            tapAnswer = {
+                gate.await()
+                TapOutcome.Open(CHAT)
+            }
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+            controller.onButtonTapped()
+            advanceUntilIdle()
+
+            controller.onScreenOff()
+            gate.complete(Unit)
+            advanceUntilIdle()
+
+            assertThat(ui.panel).isNull()
+            assertThat(remembered).isEmpty()
+        }
+
+    @Test
+    fun `the panel closes when the chat's window is gone (Home, Recents, another app)`() =
+        runTest {
+            val controller = openPanel()
+
+            facts = ScreenFacts(listOf(WindowFacts(3, WindowKind.APPLICATION, chatWindow.bounds, active = true)), null)
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+
+            assertThat(ui.panel).isNull()
+        }
+
+    @Test
+    fun `a focus-only change keeps the panel open`() =
+        runTest {
+            val controller = openPanel()
+
+            // The panel took focus: the chat window is neither active nor focused, its input lost
+            // focus and the keyboard closed. The window itself is still there.
+            facts = ScreenFacts(listOf(chatWindow.copy(active = false, focused = false)), focusedInput = null)
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+
+            assertThat(ui.panel).isEqualTo(PanelRequest(CHAT))
+        }
+
+    @Test
+    fun `the panel does not open if the chat's window went away during the tap`() =
+        runTest {
+            tapAnswer = {
+                facts = ScreenFacts(listOf(keyboard), null)
+                TapOutcome.Open(CHAT)
+            }
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+
+            controller.onButtonTapped()
+            advanceUntilIdle()
+
+            assertThat(ui.panel).isNull()
+            assertThat(remembered).isEmpty()
+        }
+
+    @Test
+    fun `the button is dimmed while a tap is in flight`() =
+        runTest {
+            val gate = CompletableDeferred<Unit>()
+            tapAnswer = {
+                gate.await()
+                TapOutcome.NotAChat
+            }
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+
+            controller.onButtonTapped()
+            advanceUntilIdle()
+            assertThat(ui.busy).containsExactly(true)
+
+            gate.complete(Unit)
+            advanceUntilIdle()
+            assertThat(ui.busy).containsExactly(true, false).inOrder()
         }
 
     @Test
@@ -251,6 +380,16 @@ class OverlayControllerTest {
             assertThat(ui.button).isNull()
             assertThat(ui.panel).isNull()
         }
+
+    private suspend fun TestScope.openPanel(): OverlayController {
+        val controller = controller()
+        controller.onEvent(OverlayEvent.WINDOWS)
+        advanceUntilIdle()
+        controller.onButtonTapped()
+        advanceUntilIdle()
+        assertThat(ui.panel).isEqualTo(PanelRequest(CHAT))
+        return controller
+    }
 
     private companion object {
         const val WHATSAPP = "com.whatsapp"

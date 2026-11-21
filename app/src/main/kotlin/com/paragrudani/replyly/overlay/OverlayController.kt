@@ -18,6 +18,9 @@ interface OverlayUi {
     fun closePanel()
 
     fun showNotice(notice: Notice)
+
+    /** Dims the button while a tap is being read (it can take a few seconds). */
+    fun setButtonBusy(busy: Boolean)
 }
 
 enum class Notice {
@@ -32,7 +35,10 @@ enum class OverlayEvent {
     /** Windows changed, window state changed, or focus moved: the button may need to show or hide. */
     WINDOWS,
 
-    /** Content changed somewhere. Only matters while the button is shown (the field may be gone). */
+    /**
+     * Content changed. Only matters while the button is shown and only from the chat's own app
+     * (the field may be gone); the keyboard's own changes, one per keystroke, are ignored.
+     */
     CONTENT,
 }
 
@@ -40,6 +46,12 @@ enum class OverlayEvent {
  * The button's state machine (ticket #1). Events are coalesced: a burst of them leads to one
  * read of [readFacts] (two cheap IPC calls, no tree walk) after [settleMillis]. Content changes
  * are ignored while the button is hidden. The button stays hidden while the panel is open.
+ *
+ * The panel stays open while the chat's input loses focus (the panel takes it). It closes on
+ * Back, a tap outside, screen off ([onScreenOff]), or when the chat's window is gone (Home,
+ * Recents, another app): otherwise a tapped suggestion could land in a different chat, or the
+ * panel could stay readable above the lock screen.
+ *
  * Every method runs on the main thread ([scope] is a main-thread scope).
  */
 class OverlayController(
@@ -58,12 +70,19 @@ class OverlayController(
 
     private var shown: ButtonDecision.Show? = null
     private var shownAt: ButtonPosition? = null
-    private var panelOpen = false
-    private var tapInFlight = false
+
+    /** The chat window the open panel belongs to; `null` while the panel is closed. */
+    private var panelWindowId: Int? = null
+    private val panelOpen get() = panelWindowId != null
+    private var tapJob: Job? = null
     private var pending: Job? = null
 
-    fun onEvent(event: OverlayEvent) {
-        if (event == OverlayEvent.CONTENT && shown == null) return
+    /** [packageName] is the event's source app; only needed for [OverlayEvent.CONTENT]. */
+    fun onEvent(
+        event: OverlayEvent,
+        packageName: String? = null,
+    ) {
+        if (event == OverlayEvent.CONTENT && (shown == null || packageName != shown?.input?.packageName)) return
         if (pending?.isActive == true) return
         pending =
             scope.launch {
@@ -74,53 +93,77 @@ class OverlayController(
 
     fun onButtonTapped() {
         val current = shown ?: return
-        if (tapInFlight || panelOpen) return
-        tapInFlight = true
-        scope.launch {
-            try {
-                val outcome = tap(current.input)
-                log("tap outcome=${outcome.logName}")
-                when (outcome) {
-                    is TapOutcome.Open -> openPanel(current.input, outcome)
-                    is TapOutcome.Blocked -> ui.showNotice(Notice.OFF_HERE)
-                    TapOutcome.NotAChat -> ui.showNotice(Notice.NO_CHAT)
+        if (tapJob?.isActive == true || panelOpen) return
+        ui.setButtonBusy(true)
+        tapJob =
+            scope.launch {
+                try {
+                    val outcome = tap(current.input)
+                    log("tap outcome=${outcome.logName}")
+                    when (outcome) {
+                        is TapOutcome.Open -> openPanel(current.input, outcome)
+                        is TapOutcome.Blocked -> ui.showNotice(Notice.OFF_HERE)
+                        TapOutcome.NotAChat -> ui.showNotice(Notice.NO_CHAT)
+                    }
+                } finally {
+                    ui.setButtonBusy(false)
                 }
-            } finally {
-                tapInFlight = false
             }
-        }
     }
 
     fun onPanelClosed() {
         if (!panelOpen) return
-        panelOpen = false
-        ui.closePanel()
+        closePanel()
         onEvent(OverlayEvent.WINDOWS)
     }
 
+    /** The screen turned off: drop a running tap, close the panel and hide the button. */
+    fun onScreenOff() {
+        log("screen off")
+        clear()
+    }
+
     /** Service disconnected: remove everything. */
-    fun stop() {
+    fun stop() = clear()
+
+    private fun clear() {
         pending?.cancel()
+        tapJob?.cancel()
         hide()
-        if (panelOpen) {
-            panelOpen = false
-            ui.closePanel()
-        }
+        if (panelOpen) closePanel()
+    }
+
+    private fun closePanel() {
+        panelWindowId = null
+        ui.closePanel()
     }
 
     private fun openPanel(
         input: FocusedInput,
         outcome: TapOutcome.Open,
     ) {
+        // Reading can take seconds: the user may have left the chat meanwhile.
+        if (readFacts().windows.none { it.id == input.windowId }) {
+            log("panel not opened reason=window_gone")
+            onEvent(OverlayEvent.WINDOWS)
+            return
+        }
         rememberTarget(InputFieldRef(input.windowId, input.packageName, input.viewId, input.bounds))
-        panelOpen = true
+        panelWindowId = input.windowId
         hide()
         ui.openPanel(PanelRequest(outcome.chat))
     }
 
     private fun refresh() {
-        if (panelOpen) return hide()
-        val decision = visibility.decide(readFacts())
+        val facts = readFacts()
+        val panelWindow = panelWindowId
+        if (panelWindow != null) {
+            // Window gone, not focus lost: the panel itself takes focus and the keyboard.
+            if (facts.windows.any { it.id == panelWindow }) return hide()
+            log("panel closed reason=window_gone")
+            closePanel()
+        }
+        val decision = visibility.decide(facts)
         val name = if (decision is ButtonDecision.Hide) "hidden reason=${decision.reason}" else "shown"
         if (name != lastDecision) log("button $name")
         lastDecision = name

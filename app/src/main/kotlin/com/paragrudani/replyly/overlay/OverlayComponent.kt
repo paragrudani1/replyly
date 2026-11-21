@@ -1,12 +1,15 @@
 package com.paragrudani.replyly.overlay
 
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import com.paragrudani.replyly.di.AppGraph
-import com.paragrudani.replyly.insert.AccessibilityReplyInserter
 import com.paragrudani.replyly.insert.InputFieldRef
 import com.paragrudani.replyly.panel.ReplyPanel
 import com.paragrudani.replyly.parser.ChatParserRegistry
@@ -36,6 +39,7 @@ class OverlayComponent(
 ) : AccessibilityComponent {
     private var scope: CoroutineScope? = null
     private var controller: OverlayController? = null
+    private var screenOff: Pair<Context, BroadcastReceiver>? = null
 
     override fun onConnected(host: AccessibilityHost) {
         onDisconnected()
@@ -86,6 +90,18 @@ class OverlayComponent(
             )
         this.scope = scope
         this.controller = controller
+        // Overlays draw above the lock screen: nothing of a chat may stay readable there.
+        val receiver =
+            object : BroadcastReceiver() {
+                override fun onReceive(
+                    context: Context,
+                    intent: Intent,
+                ) {
+                    if (intent.action == Intent.ACTION_SCREEN_OFF) controller.onScreenOff()
+                }
+            }
+        service.registerReceiver(receiver, IntentFilter(Intent.ACTION_SCREEN_OFF), Context.RECEIVER_NOT_EXPORTED)
+        screenOff = service to receiver
     }
 
     override fun onEvent(
@@ -103,10 +119,18 @@ class OverlayComponent(
 
                 else -> return
             }
-        controller?.onEvent(kind)
+        controller?.onEvent(kind, event.packageName?.toString())
     }
 
     override fun onDisconnected() {
+        screenOff?.let { (context, receiver) ->
+            try {
+                context.unregisterReceiver(receiver)
+            } catch (e: IllegalArgumentException) {
+                // Already unregistered.
+            }
+        }
+        screenOff = null
         controller?.stop()
         controller = null
         scope?.cancel()
@@ -126,7 +150,7 @@ class OverlayComponent(
                 policy = graph.sensitiveScreenPolicy,
                 parsers = graph.chatParserRegistry,
                 panel = { graph.replyPanel },
-                rememberTarget = { ref -> (graph.replyInserter as? AccessibilityReplyInserter)?.rememberTarget(ref) },
+                rememberTarget = graph.accessibilityReplyInserter::rememberTarget,
             )
     }
 }

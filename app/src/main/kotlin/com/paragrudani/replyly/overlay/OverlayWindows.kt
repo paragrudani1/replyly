@@ -56,6 +56,7 @@ class OverlayWindows(
 ) : OverlayUi {
     private val windowManager = context.getSystemService(WindowManager::class.java)
     private var button: View? = null
+    private var buttonBusy = false
     private var panelWindow: PanelWindow? = null
 
     private class PanelWindow(
@@ -81,6 +82,7 @@ class OverlayWindows(
                 elevation = 6 * resources.displayMetrics.density
                 contentDescription = context.getString(R.string.overlay_button_description)
                 setOnClickListener { onButtonTap() }
+                alpha = buttonAlpha()
             }
         val params =
             baseParams(buttonSizePx, buttonSizePx).apply {
@@ -91,6 +93,13 @@ class OverlayWindows(
         windowManager.addView(view, params)
         button = view
     }
+
+    override fun setButtonBusy(busy: Boolean) {
+        buttonBusy = busy
+        button?.alpha = buttonAlpha()
+    }
+
+    private fun buttonAlpha() = if (buttonBusy) BUSY_ALPHA else 1f
 
     override fun hideButton() {
         button?.let(::remove)
@@ -136,6 +145,7 @@ class OverlayWindows(
         Toast.makeText(context, text, Toast.LENGTH_SHORT).show()
     }
 
+    @SuppressLint("RtlHardcoded")
     private fun baseParams(
         width: Int,
         height: Int,
@@ -147,7 +157,8 @@ class OverlayWindows(
             WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
             PixelFormat.TRANSLUCENT,
         ).apply {
-            gravity = Gravity.TOP or Gravity.START
+            // LEFT, not START: x is a screen coordinate, also in right-to-left layouts.
+            gravity = Gravity.TOP or Gravity.LEFT
             fitInsetsTypes = 0
             layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
         }
@@ -162,6 +173,7 @@ class OverlayWindows(
 
     private companion object {
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
+        const val BUSY_ALPHA = 0.45f
     }
 }
 

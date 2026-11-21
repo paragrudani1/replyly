@@ -106,6 +106,29 @@ class ButtonVisibilityTest {
         assertThat(decide()).isEqualTo(hidden(HideReason.BLOCKED_APP))
     }
 
+    @Test
+    fun `hides when a full-screen keyboard covers the input (landscape extract mode)`() {
+        val fullScreenKeyboard = keyboardWindow.copy(bounds = Bounds(0, 0, 2340, 1080))
+        val landscapeInput = input.copy(bounds = Bounds(30, 900, 2000, 1020))
+
+        assertThat(decide(landscapeInput, chatWindow, fullScreenKeyboard)).isEqualTo(hidden(HideReason.INPUT_COVERED))
+    }
+
+    @Test
+    fun `hides when the input has no visible area`() {
+        assertThat(decide(input.copy(bounds = Bounds.EMPTY))).isEqualTo(hidden(HideReason.INPUT_COVERED))
+    }
+
+    @Test
+    fun `a floating keyboard above the input bar does not hide the button`() {
+        val floating = keyboardWindow.copy(bounds = Bounds(100, 900, 900, 1500))
+        val bottomInput = input.copy(bounds = Bounds(30, 2200, 900, 2320))
+
+        assertThat(
+            decide(bottomInput, chatWindow, floating),
+        ).isEqualTo(ButtonDecision.Show(bottomInput, floating.bounds))
+    }
+
     private companion object {
         const val OWN = "com.paragrudani.replyly"
         const val WHATSAPP = "com.whatsapp"

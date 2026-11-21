@@ -46,6 +46,9 @@ enum class HideReason {
     NO_INPUT_FOCUS,
     NOT_EDITABLE,
     PASSWORD_FIELD,
+
+    /** The input has no visible area above the keyboard (a full-screen landscape keyboard). */
+    INPUT_COVERED,
     WINDOW_NOT_ACTIVE,
     EXCLUDED_APP,
     BLOCKED_APP,
@@ -53,7 +56,8 @@ enum class HideReason {
 
 /**
  * Spec 3: the button shows only when an editable, non-password field of a target app has input
- * focus, its window is the active (or focused) app window, and the keyboard is open. Target app
+ * focus, its window is the active (or focused) app window, the keyboard is open, and the input
+ * is not hidden behind the keyboard. Target app
  * = any app [isAppAllowed] lets through (WhatsApp, WhatsApp Business, Telegram, and the generic
  * mode for every other app), except Replyly itself and the system UI.
  */
@@ -84,6 +88,10 @@ class ButtonVisibility(
                 hide(HideReason.PASSWORD_FIELD)
             }
 
+            input.bounds.width <= 0 || input.bounds.height <= 0 || keyboard.bounds.covers(input.bounds) -> {
+                hide(HideReason.INPUT_COVERED)
+            }
+
             !isAppAllowed(input.packageName) -> {
                 hide(HideReason.BLOCKED_APP)
             }
@@ -95,6 +103,9 @@ class ButtonVisibility(
     }
 
     private fun hide(reason: HideReason) = ButtonDecision.Hide(reason)
+
+    private fun Bounds.covers(other: Bounds) =
+        left <= other.left && top <= other.top && right >= other.right && bottom >= other.bottom
 
     private companion object {
         val EXCLUDED_PACKAGES = setOf("com.android.systemui")
