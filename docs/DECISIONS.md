@@ -27,3 +27,5 @@ One line per decision, with the date and the reason. Newest at the bottom. Longe
 - 2026-11-21 (#4 review): Replies match the language, mix and script the user writes in this chat (fallback: the latest messages). Reason: a contact writing English or Devanagari should not pull the user's Hinglish replies away from their own style.
 - 2026-11-21 (#4 review): The conversation goes into the prompt inside `<conversation>` tags marked untrusted; titles and sender names lose newlines. Reason: limit prompt injection from chat text.
 - 2026-11-21 (#4 review): Style examples: at most 10 from this chat, so other chats of the app get 10–15. Reason: spec section 6.
+- 2026-11-21 (#6 review): Save never writes blocklists; a stored cost day more than 1 day in the future snaps back to today keeping counts; a corrupt cost file resets to empty (fresh allowance). Reason: no silent unblocking; a wrong clock must not lock the app for months; corruption is rare and recoverable.
+- 2026-11-21 (#6 review): A final sent message attaches only to an inserted feedback entry younger than 6 hours. Reason: keeps the feedback log's pairs meaningful.
