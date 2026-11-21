@@ -50,10 +50,12 @@ import androidx.compose.ui.unit.dp
 import com.paragrudani.replyly.MainActivity
 import com.paragrudani.replyly.R
 import com.paragrudani.replyly.llm.Suggestion
+import com.paragrudani.replyly.ui.theme.HapticEvent
 import com.paragrudani.replyly.ui.theme.MotionDurations
 import com.paragrudani.replyly.ui.theme.MotionEasing
 import com.paragrudani.replyly.ui.theme.ReplylyTheme
 import com.paragrudani.replyly.ui.theme.Spacing
+import com.paragrudani.replyly.ui.theme.rememberReplylyHaptics
 import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -96,8 +98,9 @@ import kotlin.time.Duration.Companion.milliseconds
  *
  * Loading shows 3 shimmering skeleton cards (static with reduced motion). The 3 cards fade and slide
  * in, staggered by `MotionDurations.STAGGER`. Regenerate (or a chip) cross-fades the cards out to
- * the skeleton and back in. Tap a card: highlight, light haptic, insert, then the sheet slides
- * down. Long-press: copy (marked sensitive), haptic, a "Copied" pill. None of the motion starts or
+ * the skeleton and back in. Tap a card: highlight, insert, `HapticEvent.CardInsert` once the text
+ * is in the field, then the sheet slides down. Long-press: copy (marked sensitive),
+ * `HapticEvent.LongPressCopy`, a "Copied" pill. None of the motion starts or
  * delays an LLM call; [ReplyPanelState] decides calls.
  *
  * The panel uses no Dialog, Popup, `LocalActivity`, Activity ViewModelStore or activity result
@@ -136,6 +139,10 @@ class ComposeReplyPanel(
             }.state
         LaunchedEffect(state) { state.start() }
         val ui by state.state.collectAsState()
+        // Haptics on success (docs/DESIGN.md "Haptics"): the text is in the chat field, or on the clipboard.
+        val haptics = rememberReplylyHaptics()
+        LaunchedEffect(ui.finished) { if (ui.finished) haptics.perform(HapticEvent.CardInsert) }
+        LaunchedEffect(ui.copies) { if (ui.copies > 0) haptics.perform(HapticEvent.LongPressCopy) }
         ReplylyTheme {
             PanelLayout(
                 ui = ui,

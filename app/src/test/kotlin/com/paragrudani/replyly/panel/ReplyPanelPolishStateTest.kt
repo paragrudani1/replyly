@@ -173,6 +173,7 @@ class ReplyPanelPolishStateTest {
 
             assertThat(clipboard.copied).containsExactly("Kitne baje?")
             assertThat(panel.state.value.copied).isTrue()
+            assertThat(panel.state.value.copies).isEqualTo(1)
             assertThat(inserter.inserted).isEmpty()
             assertThat(feedback.marked).isEmpty()
             assertThat(closed).isEqualTo(0)
@@ -192,6 +193,7 @@ class ReplyPanelPolishStateTest {
             advanceTimeBy(400)
             assertThat(panel.state.value.copied).isFalse()
             assertThat(clipboard.copied).hasSize(2)
+            assertThat(panel.state.value.copies).isEqualTo(2)
         }
 
     @Test
@@ -210,6 +212,7 @@ class ReplyPanelPolishStateTest {
             runCurrent()
             assertThat(panel.state.value.copied).isFalse()
             assertThat(panel.state.value.notice).isEqualTo(COPY_FAILED)
+            assertThat(panel.state.value.copies).isEqualTo(0)
         }
 
     @Test

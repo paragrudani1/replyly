@@ -75,6 +75,8 @@ data class PanelUiState(
     val generation: Int = 0,
     /** A long-press just copied a card: shows the "Copied" confirmation for [COPIED_VISIBLE_MILLIS]. */
     val copied: Boolean = false,
+    /** Successful copies so far; each new one plays the copy haptic once. */
+    val copies: Int = 0,
 )
 
 data class NoteEditorUi(
@@ -265,7 +267,7 @@ class ReplyPanelState(
             mutableState.update { it.copy(copied = false, notice = COPY_FAILED) }
             return
         }
-        mutableState.update { it.copy(copied = true, notice = null) }
+        mutableState.update { it.copy(copied = true, copies = it.copies + 1, notice = null) }
         copiedTimer =
             ownScope.launch {
                 delay(COPIED_VISIBLE_MILLIS)

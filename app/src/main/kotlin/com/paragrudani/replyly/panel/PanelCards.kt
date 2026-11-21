@@ -2,13 +2,8 @@ package com.paragrudani.replyly.panel
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.MutableTransitionState
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.withInfiniteAnimationFrameMillis
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -34,8 +29,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,9 +42,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -126,14 +122,21 @@ private fun shimmerBrush(): Brush {
     val base = MaterialTheme.colorScheme.surfaceContainerHighest
     if (ReplylyTheme.motion.reduced) return SolidColor(base)
     val highlight = MaterialTheme.colorScheme.surfaceContainerLow
-    val width = LocalWindowInfo.current.containerSize.width
-        .toFloat()
-    val progress by rememberInfiniteTransition(label = "shimmer").animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(tween(SHIMMER_MILLIS, easing = LinearEasing), RepeatMode.Restart),
-        label = "shimmer progress",
-    )
+    val width =
+        LocalWindowInfo.current.containerSize.width
+            .toFloat()
+    // A frame loop, not a tween: a loop never runs with reduced motion (returned above), and the
+    // infinite-frame call lets tests settle while it runs.
+    var progress by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(Unit) {
+        var start = -1L
+        while (true) {
+            withInfiniteAnimationFrameMillis { now ->
+                if (start < 0) start = now
+                progress = ((now - start) % SHIMMER_MILLIS) / SHIMMER_MILLIS.toFloat()
+            }
+        }
+    }
     val x = -width + progress * width * 2
     return Brush.linearGradient(
         colors = listOf(base, highlight, base),
@@ -166,7 +169,8 @@ internal fun StaggeredItem(
 }
 
 /**
- * One suggestion. Tap inserts (with a brief highlight and a light haptic), long-press copies.
+ * One suggestion. Tap inserts (with a brief highlight), long-press copies. The haptics play when
+ * the insert or copy succeeded (see `ComposeReplyPanel`), not on press.
  * TalkBack reads the intent and the text once, with "Insert" and "Copy" actions.
  */
 @OptIn(ExperimentalFoundationApi::class)
@@ -179,7 +183,6 @@ internal fun SuggestionCard(
     onCopy: () -> Unit,
 ) {
     val motion = ReplylyTheme.motion
-    val haptics = LocalHapticFeedback.current
     val colors = MaterialTheme.colorScheme
     val container by animateColorAsState(
         if (highlighted) colors.primaryContainer else colors.surfaceContainerHigh,
@@ -187,14 +190,6 @@ internal fun SuggestionCard(
         label = "card highlight",
     )
     val content = if (highlighted) colors.onPrimaryContainer else colors.onSurface
-    val insert = {
-        haptics.performHapticFeedback(HapticFeedbackType.ContextClick)
-        onInsert()
-    }
-    val copy = {
-        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-        onCopy()
-    }
     Column(
         Modifier
             .fillMaxWidth()
@@ -205,18 +200,18 @@ internal fun SuggestionCard(
                 enabled = enabled,
                 onClickLabel = "Insert",
                 onLongClickLabel = "Copy",
-                onLongClick = copy,
-                onClick = insert,
+                onLongClick = onCopy,
+                onClick = onInsert,
             ).semantics(mergeDescendants = true) {
                 if (enabled) {
                     customActions =
                         listOf(
                             CustomAccessibilityAction("Insert") {
-                                insert()
+                                onInsert()
                                 true
                             },
                             CustomAccessibilityAction("Copy") {
-                                copy()
+                                onCopy()
                                 true
                             },
                         )
