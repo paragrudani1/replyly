@@ -360,9 +360,13 @@ class OpenAiReplyGeneratorTest {
     fun `reply cut off at the token limit says so`() {
         val cut = """{"suggestions":[{"intent":"agree","text":"Haan"""
         val result = generateWith(ok(completion(cut, finishReason = "length")))
-        assertThat(result).isEqualTo(SuggestionResult.Failure.BadOutput("reply cut off at the token limit"))
+        assertThat(
+            result,
+        ).isEqualTo(SuggestionResult.Failure.BadOutput("reply cut off at the token limit", cutOff = true))
         val empty = generateWith(ok(completion("", finishReason = "length")))
-        assertThat(empty).isEqualTo(SuggestionResult.Failure.BadOutput("reply cut off at the token limit"))
+        assertThat(
+            empty,
+        ).isEqualTo(SuggestionResult.Failure.BadOutput("reply cut off at the token limit", cutOff = true))
     }
 
     @Test

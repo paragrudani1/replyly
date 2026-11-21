@@ -53,7 +53,7 @@ internal fun Failure.toPanelError(): PanelError =
         }
 
         is Failure.BadOutput -> {
-            if (reason.contains("cut off")) {
+            if (cutOff) {
                 PanelError(
                     "The reply was cut off",
                     "The model ran out of room before finishing. Try again.",
@@ -80,6 +80,11 @@ private fun httpError(
 
         402 -> {
             PanelError("Out of credits (402)", "Add credits to your API account, then retry.", ErrorAction.Retry)
+        }
+
+        // The request itself is wrong (model id, key access, size): retrying sends the same request.
+        400, 403, 404, 413 -> {
+            PanelError("The API returned an error ($code)", detail, ErrorAction.OpenSettings)
         }
 
         429 -> {
