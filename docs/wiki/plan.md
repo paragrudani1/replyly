@@ -55,3 +55,4 @@
 - 2026-11-21: P2 opened as PR #24 (`polish-2-panel@308026b`, 623 tests, rebased on the foundation tip with the haptics helper). Review running. Device checklist numbering collides across polish branches (P2 11.20–11.31, P4 11.20–11.25, P3 11.30–11.36, P1 11.B*): renumber section 11 once after all polish PRs merge.
 - 2026-11-21: PR #23 (P4) review: merge after should-fixes (save haptic only on success, retry button on storage-locked log, use ModelPickerList for the profile model picker, host ProviderProfilesSection in the slot and delete legacy key/endpoint/model UI and validation, haptics helper). Review thread: delegate-task%3A854fd660-d8e2-4032-8fbf-3edd605d1d90. Fix round waits for #20 to merge.
 - 2026-11-21: #21 fixes at `46e78d9` (634 tests) and #22 fixes at `deb1994` (607 tests); merger agents land both on green CI.
+- 2026-11-21: #21 (P1 button) merged as `26683ca` on green CI 44930028824.
