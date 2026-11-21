@@ -178,16 +178,16 @@ class OverlayWindows(
     override fun openPanel(request: PanelRequest) {
         closePanel()
         val owners = OverlayViewOwners()
-        val sheet = PanelSheetState()
         lateinit var root: View
-        // Every close slides the sheet down first; the window goes when the sheet says it is closed.
-        // The fallback removes it anyway if no frame runs (the slide takes 250 ms).
-        val requestClose = {
-            if (!sheet.closeRequested) {
-                sheet.requestClose()
+        lateinit var sheet: PanelSheetState
+        // Every close (insert, Close, Open settings, Back, backdrop, swipe) slides the sheet down
+        // first; the window goes when the sheet says it is closed. The fallback, posted from the
+        // one place every close passes, removes it anyway if no frame runs (the slide takes 250 ms).
+        sheet =
+            PanelSheetState(onCloseRequested = {
                 root.postDelayed({ if (panelWindow?.sheet === sheet) onPanelDismiss() }, CLOSE_FALLBACK_MS)
-            }
-        }
+            })
+        val requestClose = sheet::requestClose
         val compose =
             ComposeView(context).apply {
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
@@ -210,6 +210,14 @@ class OverlayWindows(
         windowManager.addView(root, params)
         panelWindow = PanelWindow(root, compose, owners, sheet)
     }
+
+    /** The open panel's sheet (tests: the backdrop and swipe call its requestClose directly). */
+    @VisibleForTesting
+    internal val panelSheet: PanelSheetState? get() = panelWindow?.sheet
+
+    /** The open panel's window root (tests). */
+    @VisibleForTesting
+    internal val panelRoot: View? get() = panelWindow?.root
 
     override fun closePanel() {
         val window = panelWindow ?: return

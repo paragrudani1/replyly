@@ -53,14 +53,23 @@ import kotlinx.coroutines.launch
 /**
  * Asks an open [PanelSheet] to close. The sheet slides down, then calls its `onClosed`.
  * Main thread only; asking twice closes once.
+ *
+ * Every close goes through [requestClose]: the panel's own (insert, Close, Open settings), the
+ * host's Back key, and the sheet's backdrop tap and swipe down. So [onCloseRequested] runs once
+ * for any of them: the host uses it for a fallback that removes the window if the slide-down
+ * never finishes (no frame runs).
  */
 @Stable
-class PanelSheetState {
+class PanelSheetState(
+    private val onCloseRequested: () -> Unit = {},
+) {
     var closeRequested by mutableStateOf(false)
         private set
 
     fun requestClose() {
+        if (closeRequested) return
         closeRequested = true
+        onCloseRequested()
     }
 }
 
@@ -110,7 +119,7 @@ fun PanelSheet(
     }
 
     val drag =
-        remember(offset, motion) {
+        remember(offset, motion, dismissVelocity) {
             SheetDrag(offset, scope, motion, { hideDistance }, dismissVelocity, state)
         }
     val visibleFraction =

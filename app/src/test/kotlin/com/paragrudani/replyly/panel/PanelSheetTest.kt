@@ -26,7 +26,8 @@ import org.robolectric.annotation.Config
 class PanelSheetTest {
     @get:Rule val compose = createComposeRule()
 
-    private val sheet = PanelSheetState()
+    private var closeRequests = 0
+    private val sheet = PanelSheetState(onCloseRequested = { closeRequests++ })
     private var closed = 0
 
     private fun show(reducedMotion: Boolean) {
@@ -51,6 +52,7 @@ class PanelSheetTest {
         compose.waitForIdle()
 
         assertThat(closed).isEqualTo(1)
+        assertThat(closeRequests).isEqualTo(1)
         // The slide-down took frames (250 ms), it did not snap.
         assertThat(compose.mainClock.currentTime - start).isAtLeast(200L)
     }
@@ -74,6 +76,8 @@ class PanelSheetTest {
 
         assertThat(sheet.closeRequested).isTrue()
         assertThat(closed).isEqualTo(1)
+        // The host's close fallback hangs off this, so the backdrop gets it too.
+        assertThat(closeRequests).isEqualTo(1)
     }
 
     @Test
@@ -84,6 +88,7 @@ class PanelSheetTest {
         compose.waitForIdle()
 
         assertThat(closed).isEqualTo(1)
+        assertThat(closeRequests).isEqualTo(1)
     }
 
     @Test
@@ -94,5 +99,6 @@ class PanelSheetTest {
         compose.waitForIdle()
 
         assertThat(closed).isEqualTo(0)
+        assertThat(closeRequests).isEqualTo(0)
     }
 }

@@ -81,9 +81,10 @@ import kotlin.time.Duration.Companion.milliseconds
  *   (`WindowInsets.ime.union(WindowInsets.navigationBars)`), so it sits right above Gboard. Not
  *   ADJUST_PAN, which shifts the whole window up instead of moving only the sheet.
  * - The host wraps [Content] in [PanelSheet] (backdrop, sheet surface, slide-up spring, swipe down)
- *   and passes `PanelSheetState::requestClose` (plus a time-out fallback) as `onClose`. So every
- *   close the panel asks for (insert, Close, Open settings) slides the sheet down first; the window
- *   is removed when the sheet's `onClosed` runs.
+ *   and passes `PanelSheetState::requestClose` as `onClose`. So every close the panel asks for
+ *   (insert, Close, Open settings) slides the sheet down first; the window is removed when the
+ *   sheet's `onClosed` runs, or by the host's time-out fallback (`PanelSheetState`'s
+ *   `onCloseRequested`, which every close path reaches).
  * - When the user types into the panel, the chat app's input field loses input focus. The
  *   inserter therefore writes into the input node remembered when the button was tapped, and the
  *   overlay does not hide the panel because the chat field lost focus.
