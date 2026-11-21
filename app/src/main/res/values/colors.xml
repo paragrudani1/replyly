@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Brand colours for XML (icon, overlay button defaults). Kotlin twins: ui/theme/Color.kt ReplylyPalette. -->
 <resources>
-  <color name="ic_launcher_background">#9333EA</color>
+  <color name="replyly_ink">#2D3E9A</color>
+  <color name="replyly_marigold">#F5B83D</color>
 </resources>

@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Ticket #1: the floating button's round background. -->
+<!-- The floating button's round fill. The button tints it with the scheme's primary at runtime. -->
 <shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
-  <solid android:color="@color/ic_launcher_background" />
+  <solid android:color="@color/replyly_ink" />
 </shape>
