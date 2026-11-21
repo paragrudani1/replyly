@@ -73,6 +73,12 @@ sealed interface SuggestionResult {
             val detail: String?,
         ) : Failure
 
+        /** The endpoint is not https. The generator refuses it before any request or cost check. */
+        data object InsecureEndpoint : Failure {
+            /** Fixed wording for the error card. */
+            const val MESSAGE: String = "The API endpoint must start with https://. Fix it in Settings."
+        }
+
         /**
          * The key of Replyly's encrypted databases could not be read right now (a transient Android
          * Keystore failure). Nothing was deleted; trying again later usually works.

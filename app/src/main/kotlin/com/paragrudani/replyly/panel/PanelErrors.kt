@@ -52,6 +52,10 @@ internal fun Failure.toPanelError(): PanelError =
             httpError(code, detail)
         }
 
+        Failure.InsecureEndpoint -> {
+            PanelError("Endpoint is not https", Failure.InsecureEndpoint.MESSAGE, ErrorAction.OpenSettings)
+        }
+
         Failure.StorageLocked -> {
             PanelError("Secure storage is locked", Failure.StorageLocked.MESSAGE, ErrorAction.Retry)
         }

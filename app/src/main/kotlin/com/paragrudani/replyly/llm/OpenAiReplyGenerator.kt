@@ -24,7 +24,8 @@ data class LlmTimeouts(
 /**
  * [ReplyGenerator] over an OpenAI-compatible chat-completions endpoint (OpenRouter by default).
  *
- * Order: API key (trimmed; visible ASCII only), endpoint, [CostGuard.tryAcquire], then the call(s), then
+ * Order: API key (trimmed; visible ASCII only), endpoint (must be https: the key and chat text never
+ * go over cleartext), [CostGuard.tryAcquire], then the call(s), then
  * [CostGuard.recordUsage] with whatever usage came back (also on bad output). One call asks for 3
  * suggestions; with [com.paragrudani.replyly.settings.ReplylySettings.useParallelCalls] it makes 3
  * concurrent calls, one per [FixedIntent], which together count as 1 request.
@@ -39,6 +40,8 @@ class OpenAiReplyGenerator(
     http: OkHttpClient = defaultHttpClient(),
     private val promptLimits: PromptLimits = PromptLimits(),
     private val timeSource: TimeSource = TimeSource.Monotonic,
+    /** Off only in tests that talk to a local cleartext MockWebServer. */
+    private val requireHttps: Boolean = true,
 ) : ReplyGenerator {
     private val client = ChatCompletionsClient(http)
     private val noJsonMode: MutableSet<String> = ConcurrentHashMap.newKeySet()
@@ -51,6 +54,7 @@ class OpenAiReplyGenerator(
         val url =
             chatCompletionsUrl(current.endpoint)
                 ?: return SuggestionResult.Failure.Network("Endpoint URL is not valid. Check Settings.")
+        if (requireHttps && !url.isHttps) return SuggestionResult.Failure.InsecureEndpoint
         if (!costGuard.tryAcquire()) {
             return SuggestionResult.Failure.LimitReached(costGuard.status.value.dailyRequestLimit)
         }

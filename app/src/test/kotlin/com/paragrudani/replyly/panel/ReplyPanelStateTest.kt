@@ -435,6 +435,12 @@ class ReplyPanelStateTest {
                                 "It resets tomorrow, or raise the limit in Settings.",
                             ErrorAction.OpenSettings,
                         ),
+                    SuggestionResult.Failure.InsecureEndpoint to
+                        PanelError(
+                            "Endpoint is not https",
+                            "The API endpoint must start with https://. Fix it in Settings.",
+                            ErrorAction.OpenSettings,
+                        ),
                     SuggestionResult.Failure.Timeout to
                         PanelError(
                             "The model took too long",
