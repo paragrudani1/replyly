@@ -572,6 +572,50 @@ class OpenAiFormatGeneratorTest {
     }
 
     @Test
+    fun `a 400 about reasoning_effort on api openai com retries once without it, and remembers per url and model`() {
+        val bodies = mutableListOf<JsonObject>()
+        updateProfile { it.copy(baseUrl = "https://api.openai.com/v1", model = "gpt-4.1-mini") }
+        val rejected =
+            """{"error":{"message":"Unrecognized request argument supplied: reasoning_effort"}}"""
+        val http =
+            fakeHttp(
+                bodies,
+                400 to rejected,
+                200 to completion(threeJson),
+                200 to completion(threeJson),
+                200 to completion(threeJson),
+            )
+        val generator = LlmReplyGenerator(settings, profiles, costGuard, http)
+
+        assertThat(runBlocking { generator.generate(request) }).isInstanceOf(SuggestionResult.Success::class.java)
+        assertThat(runBlocking { generator.generate(request) }).isInstanceOf(SuggestionResult.Success::class.java)
+
+        assertThat(bodies.map { it.containsKey("reasoning_effort") }).containsExactly(true, false, false).inOrder()
+        // The token field is unaffected by this retry.
+        assertThat(bodies.all { it.containsKey("max_completion_tokens") }).isTrue()
+        assertThat(costGuard.status.value.requestsToday).isEqualTo(2)
+
+        // Another model on the same URL sends it again.
+        updateProfile { it.copy(model = "o9-mini") }
+        runBlocking { generator.generate(request) }
+        assertThat(bodies.last()["reasoning_effort"]!!.jsonPrimitive.content).isEqualTo("low")
+    }
+
+    @Test
+    fun `the reasoning_effort retry happens only once`() {
+        val bodies = mutableListOf<JsonObject>()
+        updateProfile { it.copy(baseUrl = "https://api.openai.com/v1") }
+        val rejected = 400 to """{"error":{"message":"Unsupported parameter: 'reasoning_effort'"}}"""
+        val http = fakeHttp(bodies, rejected, rejected)
+
+        val result = runBlocking { LlmReplyGenerator(settings, profiles, costGuard, http).generate(request) }
+
+        assertThat((result as SuggestionResult.Failure.Http).code).isEqualTo(400)
+        assertThat(bodies).hasSize(2)
+        assertThat(bodies[1].containsKey("reasoning_effort")).isFalse()
+    }
+
+    @Test
     fun `the token field retry happens only once`() {
         val bodies = mutableListOf<JsonObject>()
         val http = fakeHttp(bodies, 400 to """{"error":{"message":"max_tokens and max_completion_tokens: bad"}}""")
