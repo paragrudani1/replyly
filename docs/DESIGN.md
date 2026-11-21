@@ -20,7 +20,8 @@ and "Remove animations". Tests and previews pin them: `ReplylyTheme(darkTheme = 
 | Corner shapes | `MaterialTheme.shapes`, `SheetShape` |
 | Spacing, radii, elevation | `Spacing.L`, `Radii.M`, `Elevation.Sheet` |
 | Animation specs | `ReplylyTheme.motion` |
-| View code (floating button) | `replylyColorScheme(context, dark, dynamic)`, `ReplylyMotion.forContext(context)` |
+| Haptics | `rememberReplylyHaptics().perform(HapticEvent.X)` |
+| View code (floating button) | `replylyColorScheme(context, dark, dynamic)`, `ReplylyMotion.forContext(context)`, `view.performReplylyHaptic(event)` |
 
 ## Colour
 
@@ -105,6 +106,33 @@ pulsing) must check `motion.reduced` and not start. View animations use
 Motion answers a user action (tap, open, dismiss). No idle animation, no decorative entrance on
 every element.
 
+## Haptics
+
+One helper, `ui/theme/Haptics.kt`, one feedback type per event. Never call
+`performHapticFeedback` yourself.
+
+| Event | `HapticEvent` | System feedback | When |
+|---|---|---|---|
+| Tap | `Tap` | `VIRTUAL_KEY` | Tap on the floating button (opens the panel). |
+| Card insert | `CardInsert` | `CONFIRM` | A suggestion's text was set in the chat field. |
+| Long-press copy | `LongPressCopy` | `LONG_PRESS` | A suggestion was copied to the clipboard. |
+| Drag snap | `DragSnap` | `SEGMENT_TICK` | The dragged button snaps to an edge. |
+| Toggle | `ToggleOn` / `ToggleOff` (`HapticEvent.toggle(on)`) | `TOGGLE_ON` / `TOGGLE_OFF` | A switch changed. |
+| Save | `Save` | `CONFIRM` | Settings or a note were saved. |
+
+```kotlin
+val haptics = rememberReplylyHaptics()          // Compose
+haptics.perform(HapticEvent.CardInsert)
+buttonView.performReplylyHaptic(HapticEvent.Tap) // View code (overlay button)
+```
+
+- The system "Touch feedback" setting (`Settings.System.HAPTIC_FEEDBACK_ENABLED`) is respected:
+  when it is off, nothing plays. So is `View.isHapticFeedbackEnabled`.
+- Play the haptic when the action succeeds (insert done, saved), not on press-down. Material
+  buttons and switches already click; don't add `Tap` on top of them.
+- "Remove animations" does not silence haptics; only "Touch feedback" does.
+- A new event needs a row here and in `HapticsTest`.
+
 ## Accessibility
 
 - **Touch targets: 48 dp.** Material buttons, chips, switches and `IconButton` already comply.
@@ -154,5 +182,21 @@ every element.
 | Sentence-case, plain verbs: "Insert", "Try again", "Open settings". | ALL-CAPS labels, "Submit", "Oops!". |
 | Errors say what happened and the one thing to do. | Apologise or show raw exception text. |
 | Build animations via `ReplylyTheme.motion`. | Call `tween()` / `spring()` directly, or start loops when `reduced`. |
+| Play haptics via `HapticEvent` (`rememberReplylyHaptics`). | Call `performHapticFeedback` directly. |
 | Add a screenshot test for every new screen and state. | Merge UI changes without recorded PNGs. |
 | Keep insert-only: a card tap only sets text. | Add any send, click or Enter action on the chat app. |
+
+## Enforced rules
+
+`DesignRulesTest` (in `app/src/test/.../invariants/`, part of the gate) scans every Kotlin file
+in `src/main` **outside `ui/theme/`** and fails on:
+
+| Pattern | Use instead |
+|---|---|
+| `Color(0x…)`, `"#RRGGBB"` / `"#AARRGGBB"` | `MaterialTheme.colorScheme` roles, `ReplylyTheme.colors`; View code: `replylyColorScheme(…)`. New colours go in `Color.kt`. |
+| bare `tween(` / `spring(`, `TweenSpec(` / `SpringSpec(`, importing them | `ReplylyTheme.motion.tween(…)` / `.spring()`; View code: `ReplylyMotion.forContext(context)`. |
+| `RoundedCornerShape(` with a dp literal | `MaterialTheme.shapes.*`, `SheetShape`, or `RoundedCornerShape(Radii.X)`. |
+| `performHapticFeedback(` | `rememberReplylyHaptics().perform(…)` / `view.performReplylyHaptic(…)`. |
+
+The failure lists each `file:line` and the token or helper to use. Fix the code; don't widen the
+test. A genuinely new token belongs in `ui/theme/` (with a row in this file).
