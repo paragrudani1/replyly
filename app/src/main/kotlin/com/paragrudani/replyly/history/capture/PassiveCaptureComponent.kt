@@ -16,21 +16,30 @@ import com.paragrudani.replyly.service.AccessibilityComponent
 import com.paragrudani.replyly.service.AccessibilityHost
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ChannelResult
+import kotlinx.coroutines.channels.produce
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.onTimeout
+import kotlinx.coroutines.selects.select
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 /**
  * Passive capture (spec 4, ticket #3). In an app with a full parser, every screen change restarts
- * a [quietPeriod] wait; when the screen has been still that long it:
+ * a [quietPeriod] wait, but a screen that never goes still (typing indicator, playing GIF) is
+ * still captured [maxWait] after its first change. Then it:
  *
- * 1. asks [policy] about the app, then reads the active window;
- * 2. skips it unless it still belongs to a full-parser app, and asks [policy] about the screen;
+ * 1. checks that the app in front ([activePackage], the active window's root) is still the app of
+ *    the screen changes, and asks [policy] about that app; only then reads the active window;
+ * 2. skips it unless it still belongs to that app, and asks [policy] about the screen;
  * 3. parses it, and asks [policy] about the chat (blocklisted chats are known only after parsing);
  * 4. merges it into history;
  * 5. if the merge found a message I sent below the saved tail, gives the newest one to
@@ -40,7 +49,6 @@ import kotlin.time.Duration.Companion.seconds
  * It never calls the LLM. Generic apps get no history. The wait runs on [scope]'s dispatcher,
  * so tests drive it with virtual time. Failures are logged by class name only.
  */
-@OptIn(FlowPreview::class)
 class PassiveCaptureComponent(
     private val scope: CoroutineScope,
     private val policy: SensitiveScreenPolicy,
@@ -49,6 +57,13 @@ class PassiveCaptureComponent(
     private val feedbackLog: FeedbackLog,
     private val retention: HistoryRetention,
     private val quietPeriod: Duration = 1.seconds,
+    private val maxWait: Duration = 3.seconds,
+    /** The package of the active window, without mapping its tree. */
+    private val activePackage: (AccessibilityHost) -> String? = {
+        it.service.rootInActiveWindow
+            ?.packageName
+            ?.toString()
+    },
     private val log: (String) -> Unit = { Log.d(TAG, it) },
 ) : AccessibilityComponent {
     /** The package of the last screen change, conflated: only the latest matters. */
@@ -61,7 +76,7 @@ class PassiveCaptureComponent(
         session =
             scope.launch {
                 launch { guarded("purge") { retention.purgeNow() } }
-                changes.debounce(quietPeriod).collect { packageName ->
+                changes.debounceAtMost(quietPeriod, maxWait).collect { packageName ->
                     guarded("capture") { capture(host, packageName) }
                 }
             }
@@ -85,6 +100,8 @@ class PassiveCaptureComponent(
         host: AccessibilityHost,
         packageName: String,
     ) {
+        // The app in front may have changed since the last event: check it before reading anything.
+        if (activePackage(host) != packageName) return
         if (policy.evaluate(ScreenContext(packageName)).blocked) return
         val snapshot = host.captureActiveWindow() ?: return
         if (snapshot.packageName != packageName) return
@@ -139,3 +156,39 @@ class PassiveCaptureComponent(
         }
     }
 }
+
+/**
+ * Like `debounce(quiet)`, but a burst of values that never pauses for [quiet] still emits its
+ * latest value [maxWait] after the burst's first value. The next value starts a new burst.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+internal fun <T : Any> Flow<T>.debounceAtMost(
+    quiet: Duration,
+    maxWait: Duration,
+): Flow<T> =
+    channelFlow {
+        val values = produce(capacity = Channel.CONFLATED) { collect { send(it) } }
+        var upstreamOpen = true
+        while (upstreamOpen) {
+            var latest: T = values.receiveCatching().getOrNull() ?: break
+            val deadline = launch { delay(maxWait) }
+            while (true) {
+                // null: the screen was still for [quiet], or the burst reached [maxWait].
+                val next: ChannelResult<T>? =
+                    select {
+                        values.onReceiveCatching { it }
+                        deadline.onJoin { null }
+                        onTimeout(quiet) { null }
+                    }
+                if (next == null) break
+                val value = next.getOrNull()
+                if (value == null) {
+                    upstreamOpen = false
+                    break
+                }
+                latest = value
+            }
+            deadline.cancel()
+            send(latest)
+        }
+    }

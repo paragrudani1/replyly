@@ -44,6 +44,9 @@ class PassiveCaptureComponentTest {
 
     /** The screen the fake host returns, read from the active window at capture time. */
     private var screenPackage: String? = whatsapp
+
+    /** The package of the active window's root, checked before the tree is read. */
+    private var activePackage: () -> String? = { screenPackage }
     private var captures = 0
     private val host =
         object : AccessibilityHost {
@@ -111,6 +114,7 @@ class PassiveCaptureComponentTest {
             history = merger,
             feedbackLog = feedback,
             retention = HistoryRetention(history, InMemorySettingsRepository(), clock),
+            activePackage = { activePackage() },
             log = { logs += it },
         ).also {
             it.onConnected(host)
@@ -138,6 +142,34 @@ class PassiveCaptureComponentTest {
             runCurrent()
             assertThat(merged).hasSize(1)
             assertThat(merged.single().chatKey).isEqualTo(asha)
+        }
+
+    @Test
+    fun `a screen that never stops changing is still captured every 3 seconds`() =
+        runTest {
+            // A typing indicator or a playing GIF changes the screen every few hundred ms.
+            val capture = component()
+            val mergesAfterEachStep = mutableListOf<Int>()
+
+            repeat(25) {
+                capture.onEvent(contentChanged(), host)
+                advanceTimeBy(400)
+                mergesAfterEachStep += merged.size
+            }
+
+            // Bursts start at 0, 3200 and 6400 ms (the first change after a capture): captures at
+            // 3000, 6200 and 9400 ms.
+            assertThat(mergesAfterEachStep)
+                .containsExactlyElementsIn(
+                    List(7) { 0 } + List(8) { 1 } + List(8) { 2 } + List(2) { 3 },
+                ).inOrder()
+            // The last burst started at 9600 ms and then the screen went still.
+            advanceTimeBy(599)
+            runCurrent()
+            assertThat(merged).hasSize(3)
+            advanceTimeBy(2)
+            runCurrent()
+            assertThat(merged).hasSize(4)
         }
 
     @Test
@@ -231,9 +263,47 @@ class PassiveCaptureComponentTest {
         }
 
     @Test
-    fun `a screen that moved to another app by capture time is skipped`() =
+    fun `another app in front by capture time is not read at all`() =
         runTest {
             val capture = component()
+            screenPackage = "com.example.bank"
+
+            capture.onEvent(contentChanged(), host)
+            advanceTimeBy(1_001)
+            runCurrent()
+
+            assertThat(captures).isEqualTo(0)
+            assertThat(policyCalls).isEmpty()
+        }
+
+    @Test
+    fun `the package check runs on the app actually in front`() =
+        runTest {
+            policy =
+                SensitiveScreenPolicy {
+                    if (it.packageName ==
+                        whatsapp
+                    ) {
+                        SensitivityVerdict.Blocked(BlockReason.BLOCKLISTED_APP)
+                    } else {
+                        SensitivityVerdict.Allowed
+                    }
+                }
+            val capture = component()
+
+            capture.onEvent(contentChanged(), host)
+            advanceTimeBy(1_001)
+            runCurrent()
+
+            assertThat(policyCalls.map { it.packageName }).containsExactly(whatsapp)
+            assertThat(captures).isEqualTo(0)
+        }
+
+    @Test
+    fun `a window that changes app between the check and the read is skipped`() =
+        runTest {
+            val capture = component()
+            activePackage = { whatsapp }
             screenPackage = "com.android.launcher"
 
             capture.onEvent(contentChanged(), host)
