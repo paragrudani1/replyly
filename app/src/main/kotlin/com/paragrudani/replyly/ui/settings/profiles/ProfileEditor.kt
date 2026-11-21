@@ -242,7 +242,9 @@ private fun ApiKeyField(
         modifier = Modifier.fillMaxWidth(),
     )
     if (draft.keySaved && (draft.replacingKey || draft.removeKey)) {
-        TextButton(onClick = { actions.onChange { it.copy(replacingKey = false, removeKey = false, apiKeyInput = "") } }) {
+        TextButton(
+            onClick = { actions.onChange { it.copy(replacingKey = false, removeKey = false, apiKeyInput = "") } },
+        ) {
             Text("Keep the saved key")
         }
     }

@@ -127,13 +127,24 @@ class ProfilesViewModel(
 
     fun save() {
         val draft = mutable.value.editor ?: return
-        val stored = draft.id?.let { id -> mutable.value.rows.firstOrNull { it.profile.id == id }?.profile }
+        val stored =
+            draft.id?.let { id ->
+                mutable.value.rows
+                    .firstOrNull { it.profile.id == id }
+                    ?.profile
+            }
         when (val result = ProfileValidator.validate(draft, stored, newId)) {
             is ProfileValidation.Invalid -> {
                 mutable.update { state ->
                     // Open the key field so its error is visible.
                     val editor =
-                        if (ProfileField.ApiKey in result.errors) state.editor?.copy(replacingKey = true) else state.editor
+                        if (ProfileField.ApiKey in
+                            result.errors
+                        ) {
+                            state.editor?.copy(replacingKey = true)
+                        } else {
+                            state.editor
+                        }
                     state.copy(errors = result.errors, editor = editor)
                 }
             }

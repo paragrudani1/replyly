@@ -41,7 +41,9 @@ class ProfileValidatorTest {
         assertThat(errors(valid.copy(baseUrl = "https://h.example:99999/v1"))).containsKey(ProfileField.BaseUrl)
         assertThat(errors(valid.copy(baseUrl = "https://user:pw@h.example/v1"))).containsKey(ProfileField.BaseUrl)
         assertThat(errors(valid.copy(baseUrl = "https://user@h.example/v1"))).containsKey(ProfileField.BaseUrl)
-        assertThat(validate(valid.copy(baseUrl = "https://h.example:8443/v1"))).isInstanceOf(ProfileValidation.Valid::class.java)
+        assertThat(
+            validate(valid.copy(baseUrl = "https://h.example:8443/v1")),
+        ).isInstanceOf(ProfileValidation.Valid::class.java)
     }
 
     @Test

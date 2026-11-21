@@ -14,7 +14,13 @@ class OnboardingCheckerTest {
     private val manual = FakeManualSteps()
     private val keys = InMemoryApiKeyStore()
     private val profile =
-        ProviderProfile("p", "OpenRouter", ApiFormat.OpenAi, ReplylySettings.DEFAULT_ENDPOINT, ReplylySettings.DEFAULT_MODEL)
+        ProviderProfile(
+            "p",
+            "OpenRouter",
+            ApiFormat.OpenAi,
+            ReplylySettings.DEFAULT_ENDPOINT,
+            ReplylySettings.DEFAULT_MODEL,
+        )
     private val profiles = InMemoryProfileRepository(listOf(profile))
     private val checker = OnboardingChecker(probe, manual, keys, profiles)
 

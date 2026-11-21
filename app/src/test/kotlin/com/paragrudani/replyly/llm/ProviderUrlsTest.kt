@@ -69,7 +69,8 @@ class ProviderUrlsTest {
     @Test
     fun `property - joining keeps the origin and ends with the suffix once`() {
         val random = Random(18)
-        val pieces = listOf("api", "v1", "V2", "v1beta", "openai", "anthropic", "chat", "completions", "messages", "proxy", "")
+        val pieces =
+            listOf("api", "v1", "V2", "v1beta", "openai", "anthropic", "chat", "completions", "messages", "proxy", "")
         repeat(2_000) {
             val host =
                 listOf(

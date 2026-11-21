@@ -171,7 +171,9 @@ object ProfileValidator {
         val apiKey = draft.apiKeyInput.trim().takeIf { it.isNotEmpty() }
         apiKey?.let { SettingsValidator.apiKeyError(it) }?.let { errors[ProfileField.ApiKey] = it }
         val removeKey = draft.removeKey && apiKey == null
-        if (stored != null && draft.keySaved && apiKey == null && !removeKey && movesKey(stored, draft.format, baseUrl)) {
+        if (stored != null && draft.keySaved && apiKey == null && !removeKey &&
+            movesKey(stored, draft.format, baseUrl)
+        ) {
             errors[ProfileField.ApiKey] = KEY_FOR_NEW_HOST
         }
 

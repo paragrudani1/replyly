@@ -540,7 +540,9 @@ class OpenAiFormatGeneratorTest {
         assertThat(first.containsKey("max_tokens")).isTrue()
         val retry = server.takeRequest().json()
         assertThat(retry.containsKey("max_tokens")).isFalse()
-        assertThat(retry["max_completion_tokens"]!!.jsonPrimitive.content).isEqualTo(first["max_tokens"]!!.jsonPrimitive.content)
+        assertThat(
+            retry["max_completion_tokens"]!!.jsonPrimitive.content,
+        ).isEqualTo(first["max_tokens"]!!.jsonPrimitive.content)
         assertThat(server.takeRequest().json().containsKey("max_completion_tokens")).isTrue()
         assertThat(costGuard.status.value.requestsToday).isEqualTo(2)
 

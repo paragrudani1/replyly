@@ -88,7 +88,12 @@ internal class ChatCompletionsClient(
             is HttpReply.Body -> {
                 when {
                     reply.code in 200..299 -> Sent.Done(parseSuccess(reply.text))
-                    rejectsTokenField(reply.code, reply.text) -> Sent.TokenFieldRejected(httpFailure(reply.code, reply.text, false))
+
+                    rejectsTokenField(
+                        reply.code,
+                        reply.text,
+                    ) -> Sent.TokenFieldRejected(httpFailure(reply.code, reply.text, false))
+
                     else -> Sent.Done(httpFailure(reply.code, reply.text, request.jsonMode))
                 }
             }

@@ -145,8 +145,14 @@ class ProfilesViewModelTest {
 
             assertThat(vm.state.value.errors[ProfileField.ApiKey]).isEqualTo("Enter the key for this provider")
             // The key field opens so the error is visible.
-            assertThat(vm.state.value.editor!!.showKeyField).isTrue()
-            assertThat(repo.state.value.profiles.single()).isEqualTo(openRouter)
+            assertThat(
+                vm.state.value.editor!!
+                    .showKeyField,
+            ).isTrue()
+            assertThat(
+                repo.state.value.profiles
+                    .single(),
+            ).isEqualTo(openRouter)
             assertThat(secrets.apiKey("or")).isEqualTo("sk-or-key-0001")
         }
 
@@ -160,7 +166,11 @@ class ProfilesViewModelTest {
             vm.save()
 
             assertThat(vm.state.value.errors).containsKey(ProfileField.ApiKey)
-            assertThat(repo.state.value.profiles.single().format).isEqualTo(ApiFormat.OpenAi)
+            assertThat(
+                repo.state.value.profiles
+                    .single()
+                    .format,
+            ).isEqualTo(ApiFormat.OpenAi)
         }
 
     @Test
@@ -177,7 +187,11 @@ class ProfilesViewModelTest {
 
             assertThat(vm.state.value.editor).isNull()
             assertThat(secrets.apiKey("or")).isEqualTo("sk-openai-key-0002")
-            assertThat(repo.state.value.profiles.single().baseUrl).isEqualTo("https://api.openai.com/v1")
+            assertThat(
+                repo.state.value.profiles
+                    .single()
+                    .baseUrl,
+            ).isEqualTo("https://api.openai.com/v1")
             assertThat(vm.state.value.tests).doesNotContainKey("or")
         }
 
@@ -191,7 +205,11 @@ class ProfilesViewModelTest {
             vm.save()
 
             assertThat(vm.state.value.errors).isEmpty()
-            assertThat(repo.state.value.profiles.single().baseUrl).isEqualTo("https://api.openai.com/v1")
+            assertThat(
+                repo.state.value.profiles
+                    .single()
+                    .baseUrl,
+            ).isEqualTo("https://api.openai.com/v1")
         }
 
     @Test
@@ -201,7 +219,10 @@ class ProfilesViewModelTest {
             val vm = viewModel()
             vm.edit("or")
             vm.stageRemoveKey()
-            assertThat(vm.state.value.editor!!.showKeyField).isTrue()
+            assertThat(
+                vm.state.value.editor!!
+                    .showKeyField,
+            ).isTrue()
             vm.cancelEdit()
             assertThat(secrets.apiKey("or")).isEqualTo("sk-or-key-0001")
 
@@ -209,7 +230,11 @@ class ProfilesViewModelTest {
             vm.stageRemoveKey()
             vm.save()
             assertThat(secrets.apiKey("or")).isNull()
-            assertThat(vm.state.value.rows.single().hasKey).isFalse()
+            assertThat(
+                vm.state.value.rows
+                    .single()
+                    .hasKey,
+            ).isFalse()
         }
 
     @Test
