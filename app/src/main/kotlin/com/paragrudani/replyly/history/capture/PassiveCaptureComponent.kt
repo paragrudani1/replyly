@@ -1,5 +1,6 @@
 package com.paragrudani.replyly.history.capture
 
+import android.annotation.SuppressLint
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.paragrudani.replyly.di.AppGraph
@@ -38,8 +39,10 @@ import kotlin.time.Duration.Companion.seconds
  * still captured [maxWait] after its first change. Then it:
  *
  * 1. checks that the app in front ([activePackage], the active window's root) is still the app of
- *    the screen changes, and asks [policy] about that app; only then reads the active window;
- * 2. skips it unless it still belongs to that app, and asks [policy] about the screen;
+ *    the screen changes, and asks [policy] about that app; only then reads the active window,
+ *    with the FLAG_SECURE check first (`captureActiveWindowChecked`, fails closed);
+ * 2. skips it unless it still belongs to that app, and asks [policy] about the screen (a secure
+ *    window arrives with an empty tree and `secureWindow` set, and the policy blocks it);
  * 3. parses it, and asks [policy] about the chat (blocklisted chats are known only after parsing);
  * 4. merges it into history;
  * 5. if the merge found a message I sent below the saved tail, gives the newest one to
@@ -59,12 +62,8 @@ class PassiveCaptureComponent(
     private val retention: HistoryRetention,
     private val quietPeriod: Duration = 1.seconds,
     private val maxWait: Duration = 3.seconds,
-    /** The package of the active window, without mapping its tree. */
-    private val activePackage: (AccessibilityHost) -> String? = {
-        it.service.rootInActiveWindow
-            ?.packageName
-            ?.toString()
-    },
+    /** The package of the active window, without mapping or prefetching its tree. */
+    private val activePackage: (AccessibilityHost) -> String? = ::activeWindowPackage,
     private val log: (String) -> Unit = { Log.d(TAG, it) },
 ) : AccessibilityComponent {
     /** The package of the last screen change, conflated: only the latest matters. */
@@ -105,7 +104,9 @@ class PassiveCaptureComponent(
         // The app in front may have changed since the last event: check it before reading anything.
         if (activePackage(host) != packageName) return
         if (policy.evaluate(ScreenContext(packageName)).blocked) return
-        val snapshot = host.captureActiveWindow() ?: return
+        // Keeps the probe's default 1 s cache: a window can turn secure without changing id (a
+        // Telegram secret chat), and this path stores what it reads.
+        val snapshot = host.captureActiveWindowChecked() ?: return
         if (snapshot.packageName != packageName) return
         if (policy.evaluate(ScreenContext(packageName, snapshot)).blocked) return
         val chat = parsers.parse(snapshot)?.takeIf { it.historyApplies } ?: return
@@ -162,6 +163,21 @@ class PassiveCaptureComponent(
         }
     }
 }
+
+/**
+ * The active window's package from its root node alone. No prefetching: fetching the tree would
+ * load node text into this process before the FLAG_SECURE check.
+ *
+ * WrongConstant: getRootInActiveWindow's docs allow 0 (no prefetching); lint's IntDef does not.
+ */
+@SuppressLint("WrongConstant")
+private fun activeWindowPackage(host: AccessibilityHost): String? =
+    host.service
+        .getRootInActiveWindow(NO_PREFETCH)
+        ?.packageName
+        ?.toString()
+
+private const val NO_PREFETCH = 0
 
 /**
  * Like `debounce(quiet)`, but a burst of values that never pauses for [quiet] still emits its

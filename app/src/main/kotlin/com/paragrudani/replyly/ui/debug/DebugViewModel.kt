@@ -6,7 +6,6 @@ import androidx.lifecycle.viewModelScope
 import com.paragrudani.replyly.di.AppGraph
 import com.paragrudani.replyly.parser.explain
 import com.paragrudani.replyly.screen.ScreenSnapshotJson
-import com.paragrudani.replyly.settings.current
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -46,7 +45,6 @@ class DebugViewModel(
             policy = graph.sensitiveScreenPolicy,
             registry = graph.chatParserRegistry,
             ownPackage = graph.app.packageName,
-            settings = { graph.settingsRepository.current() },
         )
     private val state = MutableStateFlow(DebugUiState())
     val ui: StateFlow<DebugUiState> = state.asStateFlow()
