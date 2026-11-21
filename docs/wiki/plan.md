@@ -17,7 +17,7 @@
 - From #6 review: the LLM client (#4) should itself refuse a non-https endpoint.
 - From #3 (`ticket-3-history@ef09e1c`): the #4 assembler should catch `DatabaseKeyUnavailableException` (fixed-wording failure). FLAG_SECURE detection belongs in the host (#1); capture should then pass it to the policy. Capture stores nothing until #2's parsers merge.
 - From #7: reviewed 2026-11-21; start-destination and back-stack fixes running (see DECISIONS #7 review).
-- From #2: reviewed 2026-11-21 (7 parser breaks on adversarial trees, scramble leaks); fixes running.
+- From #2: review fixes done at `ticket-2-parser@600c506` (98 tests, 17 adversarial trees committed). Ready. `secureWindow` not set on the dump path until integration.
 
 ## GitHub (2026-11-21)
 - Repo https://github.com/paragrudani1/replyly created; issues #1–#7 = tickets 1–7; PR #8 = skeleton.
