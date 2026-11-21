@@ -7,15 +7,20 @@ of the steps below ran anywhere. Useful commands (USB debugging on):
 - Replyly's logs: `adb logcat -s ReplylyOverlay ReplylyA11y ReplylyPolicy`
   (event names and reasons only, never chat text). Lines you will see:
   `button shown`, `button hidden reason=<REASON>`, `tap outcome=open|no_chat|blocked reason=<REASON>`,
-  `secure check state=SECURE|UNKNOWN code=<n>`.
+  `secure check state=SECURE|UNKNOWN|GONE code=<n>`, `screen off`, `panel closed reason=window_gone`,
+  `panel not opened reason=window_gone`.
+- Time a tap: `adb logcat -v time -s ReplylyOverlay`; the time from the tap to `tap outcome=` is
+  the read time.
 - Window list (to compare positions): `adb shell dumpsys window windows | grep -E "Window #|mFrame|InputMethod"`.
 
 Until #2 lands real parsers, a tap ends in "Replyly can't read a chat here" (`tap outcome=no_chat`)
-in every app. Steps 1 to 4 work without #2; do steps 5 to 8 on a build with #2 (and #5 for a real panel).
+in every app. Steps 1 to 4, 10.3, 11 (dimming and timing) and 12.1 work without #2; do the rest on a
+build with #2 (and #5 for a real panel).
 
 **Update first:** after installing this build over an older one, turn the Replyly accessibility
 service off and on once (Settings > Accessibility > Installed apps > Replyly), so Android picks up
-the new `canTakeScreenshot` capability. If you skip it, step 6 logs `code=-1`.
+the new `canTakeScreenshot` capability. If you skip it, every tap shows "Replyly is off here" and
+the log says `secure check state=UNKNOWN code=2` (or `code=-1`): the FLAG_SECURE check fails closed.
 
 ## 1. The button sits above Gboard (portrait)
 
@@ -29,12 +34,22 @@ the new `canTakeScreenshot` capability. If you skip it, step 6 logs `code=-1`.
 
 ## 2. Placement in other keyboard modes
 
-1. **Landscape:** rotate the phone in the same chat. Expect the button at the right, above the bar.
-2. **Floating keyboard:** in Gboard, toolbar > ⋮ > Floating. Expect the button above the floating
+1. **Landscape, both ways:** rotate the phone left, then right, in the same chat (the punch-hole
+   camera ends up on the left, then on the right). Expect the button at the right, above the bar,
+   not under the camera cut-out.
+2. **Landscape with 3-button navigation** (Settings > Display > Navigation bar > Buttons; the bar
+   sits on the side in landscape): rotate both ways again. Expect the button fully visible, not
+   under the navigation bar. Switch back to gestures afterwards if you prefer them.
+3. **Full-screen landscape keyboard:** in landscape, if the keyboard covers the whole screen (an
+   app or keyboard setting that turns off the side-by-side layout; WhatsApp's field in landscape on
+   some keyboards), expect no button (`reason=INPUT_COVERED`). Send back a screenshot if it shows
+   pinned in a corner instead.
+4. **Floating keyboard:** in Gboard, toolbar > ⋮ > Floating. Expect the button above the floating
    keyboard's right corner, not off screen. Move the floating keyboard; expect the button to follow
-   within about half a second.
-3. **One-handed mode** (Gboard): expect the button above the keyboard's right edge.
-4. **Samsung Keyboard:** switch the default keyboard to Samsung Keyboard (Settings > General
+   within about half a second. If the button vanishes with `reason=INPUT_COVERED` while the
+   message bar is plainly visible, send back a screenshot and the `dumpsys window` output.
+5. **One-handed mode** (Gboard): expect the button above the keyboard's right edge.
+6. **Samsung Keyboard:** switch the default keyboard to Samsung Keyboard (Settings > General
    management > Keyboard list and default) and repeat step 1. Expect the same placement.
 5. If any fails, send back: which mode, a screenshot, and the `dumpsys window` output.
 
@@ -86,12 +101,14 @@ For each step, expect the button to appear or vanish within about 0.2 s. Check t
    (the banking list blocks it first; step 2 tests FLAG_SECURE on its own).
 2. Chrome: open a new Incognito tab, tap the address bar. Expect the button shows (Chrome is
    allowed). Tap it. Expect: the "Replyly is off here" notice, and in logs
-   `secure check state=SECURE code=5` and `tap outcome=blocked reason=SECURE_WINDOW`.
+   `secure check state=SECURE code=6` and `tap outcome=blocked reason=SECURE_WINDOW`.
 3. Switch to a normal (non-incognito) Chrome tab, tap the address bar and the button. Expect:
    no "off here" notice (`tap outcome=no_chat` or `open`), and no `secure check` line.
 4. Telegram secret chat (if you have one): tap the field and the button. Expect: `reason=SECURE_WINDOW`.
-5. If step 2 shows `state=UNKNOWN`, send back the `code=` value (−1: service not restarted after
-   update; 1: internal error; 3: called too often; timeout: no answer).
+5. Any `state=UNKNOWN` blocks the tap ("Replyly is off here"): the check fails closed. Send back
+   the `code=` value (2, or −1: the service was not turned off and on after the update; 1: internal
+   error; 3: called too often twice in a row; timeout: no answer in 1.5 s). `state=GONE code=4|5`
+   means the display or window went away mid-tap and shows "Replyly can't read a chat here".
 6. Also send back: does the screen flash or stutter when you tap the button? (The check captures
    the window once and throws the pixels away at once.)
 
@@ -103,8 +120,8 @@ For each step, expect the button to appear or vanish within about 0.2 s. Check t
 3. Repeat in WhatsApp Business and Telegram.
 4. Repeat with the panel's instruction field used first (step 5.3), so focus moved to the panel
    before the insert. Expect: the text still lands in the chat's field, not in the panel.
-5. Open the panel, then go Back to the chat list and into another chat before tapping a card
-   (if the panel allows it). Expect: an error such as "field gone", never text in the wrong chat.
+5. Open the panel, then press Home, open WhatsApp again and go into another chat. Expect: the
+   panel closed when you pressed Home (step 10.3), so no card can land in the other chat.
 6. If the text does not appear, send back the app name and the WhatsApp/Telegram version
    (Settings > Apps > the app > version).
 
@@ -126,3 +143,57 @@ wallet apps from memory. For each such app you have installed:
    `adb logcat -b events -d | grep -i replyly | tail -20`.
 4. Swipe Replyly away from Recents, then repeat step 2's last part. Expect: the button still shows
    (the accessibility service lives apart from the app's task).
+
+## 10. The panel never outlives the chat
+
+1. **Lock with the panel open:** open the panel in a WhatsApp chat, then press the side key.
+   Wake the phone. Expect: on the lock screen, no panel and no button (log `screen off`). After
+   unlocking: the chat, no panel; the button comes back once the keyboard is open.
+2. **Timeout with the panel open:** open the panel while it is still loading (with #4/#5), put the
+   phone down and let the screen time out. Wake it. Expect the same as step 1: nothing of the chat
+   readable on the lock screen.
+3. **Lock with only the button showing:** keyboard open, button shown, press the side key, wake.
+   Expect: no button on the lock screen, including on the PIN pad.
+4. **Home with the panel open:** expect the panel to close at once (`panel closed
+   reason=window_gone`), and not to show over the launcher.
+5. **Recents with the panel open:** expect the panel to close. Go back to WhatsApp: no panel.
+6. **The panel stays open by itself:** open the panel and wait 30 s without touching anything,
+   then tap its instruction field. Expect: it stays open the whole time. If it closes on its own
+   right after opening, send back the log lines and
+   `adb shell dumpsys accessibility | grep -A40 "Windows"` taken while it is open.
+7. **Notification shade with the panel open:** pull the shade down, then up. Send back whether
+   the panel closed (closing is acceptable; it means the shade covered the chat's window).
+8. **Rotate with the panel open** (with #5, after the cards have loaded): expect the panel to stay,
+   the same cards, and no second LLM call (no new request in the cost screen or in #4's logs).
+9. **Dark mode with the panel open:** `adb shell cmd uimode night yes`, then `... night no`.
+   Expect: the panel stays, its colours follow, the cards are the same, no second LLM call.
+10. **Font size with the panel open:** `adb shell settings put system font_scale 1.3`, then
+    `... font_scale 1.0`. Expect the same as step 9.
+11. **Service off while shown:** with the button showing, turn Replyly off in Settings >
+    Accessibility (use `adb shell settings put secure enabled_accessibility_services ""` if you
+    cannot reach Settings without closing the keyboard; turn it back on in Settings afterwards).
+    Expect: the button disappears. Repeat with the panel open. Expect: the panel disappears too.
+12. If any step fails, send back which step, a screenshot (not of a private chat), and the log lines.
+
+## 11. Ten taps per app
+
+1. In WhatsApp, tap the button ten times in a row (close the panel or the notice each time).
+   While a tap is being read, expect the button to dim, and a second tap during that time to do
+   nothing.
+2. Expect no `secure check state=UNKNOWN` line in the ten taps. Note the time from each tap to
+   `tap outcome=` (see the timing command at the top): send back the slowest and a typical one.
+3. Repeat in Telegram.
+
+## 12. Split screen and pop-up view
+
+1. **Split screen:** Recents > WhatsApp's icon > Open in split screen view, with Chrome in the
+   other half. Tap WhatsApp's message field. Expect: the button above the keyboard at the right of
+   the keyboard, and a tap reads the WhatsApp chat (not Chrome). Then tap Chrome's address bar:
+   expect the button to follow the focused app.
+2. With the panel open in split screen, tap into the other app's half (outside the panel closes
+   it; that is fine). Send back what happened.
+3. **Pop-up view:** Recents > WhatsApp's icon > Open in pop-up view. Tap the message field. Expect
+   the button above the keyboard, fully on screen. Tap it: expect the panel for that chat. Move
+   the pop-up while the panel is closed: expect the button to follow.
+4. If the button shows for the wrong half, or a tap reads the other app, send back screenshots and
+   the `dumpsys window` output.
