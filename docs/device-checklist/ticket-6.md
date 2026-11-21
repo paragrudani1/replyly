@@ -44,7 +44,7 @@ On a failure, send back the step number, a screenshot, and what you saw instead.
 
 15. Once ticket #4 has landed, set Daily request limit to `2` and save. Ask for suggestions 3 times.
     Expected: the first two work. The third shows "limit reached", and the Usage card shows `2 / 2` in red with "Daily limit reached. It resets at midnight."
-16. Leave Replyly's settings screen open across midnight (or check it the next morning).
+16. Leave Replyly's settings screen open across midnight (or check it the next morning). If the phone slept, switch to another app and back, or close and reopen the screen: the Usage card recomputes when the screen resumes.
     Expected: the count is back to `0 / 2`. The token count only resets on the 1st of the month.
 
 ## Feedback log
@@ -52,6 +52,9 @@ On a failure, send back the step number, a screenshot, and what you saw instead.
 17. Once tickets #3 and #4 have landed (the log is in-memory until #3 merges): ask for suggestions, insert one, edit it, and send it yourself. Then open settings > **Feedback log**.
     Expected: an entry with the date, the chat name, the three suggestions with a ✓ on the one you inserted, and "Sent: <your final message>". "Show prompt" expands the prompt.
 18. Tap **Clear log** and confirm. Expected: the list is empty.
-19. (Encryption check, debug build only.) With a USB cable and adb, run:
+19. (Encryption check, debug build only. Do this only **after #3 merges and the feedback binding is switched** to the encrypted Room log; before that the log is in memory and `feedback.db` does not exist.) With a USB cable and adb, run:
     `adb shell run-as com.paragrudani.replyly head -c 16 databases/feedback.db | xxd`
     Expected: random-looking bytes, **not** the text `SQLite format 3`. Send back the output line.
+20. (API key at rest, debug build only.) With the key saved (step 8), run:
+    `adb shell run-as com.paragrudani.replyly cat files/datastore/api_key.preferences_pb | strings`
+    Expected: only the name `api_key_blob` and a Base64 string (letters, digits, `+`, `/`, `=`), **never** text starting with `sk-or-`. Send back whether `sk-or-` appears (yes/no), not the output itself.
