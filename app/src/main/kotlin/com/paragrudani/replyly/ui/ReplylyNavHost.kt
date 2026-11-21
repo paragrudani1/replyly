@@ -36,7 +36,7 @@ internal fun NavGraphBuilder.replylyGraph(nav: NavController) {
         onOpenApiKeySettings = { nav.navigate(SettingsRoute) },
     )
     settingsDestination(
-        onOpenOnboarding = { nav.navigate(OnboardingRoute) },
+        onOpenOnboarding = { nav.navigate(OnboardingRoute(fromSettings = true)) },
         onOpenDebug = { nav.navigate(DebugRoute) },
     )
     debugDestination(onBack = { nav.popBackStack() })

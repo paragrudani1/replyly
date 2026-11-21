@@ -748,6 +748,64 @@ turn it on again (lock screen visible, do not unlock yet). **See:** no Replyly b
 a faded one, on the lock screen. Unlock: the button comes back over the chat as usual. **Send:**
 a photo of the lock screen if the button shows there.
 
+### Onboarding welcome flow
+
+11.D1 **Do:** uninstall Replyly (or Settings > Apps > Replyly > Storage > Clear data), install and
+open it. **See:** the welcome flow opens on "Replies in your style" with three page dots; "Skip"
+top right, "Next" bottom right. Swipe left and right between the three pages with your thumb.
+**See:** the page follows your finger, settles softly (no hard jump, no bounce past the edge),
+the neighbouring page fades in; the dots stretch to the current page. **Send:** a screen
+recording if a swipe stutters or settles on the wrong page.
+
+11.D2 **Do:** on the first page tap "Next", "Next", then "Back"; then go to page 1 and tap "Skip";
+then use the system Back gesture on the checklist. **See:** each button slides to the right page
+(about half a second); "Skip" lands on "Set up your phone"; Back on the checklist goes to the
+privacy page, Back on the first page leaves the app. **Send:** what happened instead.
+
+11.D3 **Do:** on "Set up your phone", tap "Open Accessibility", turn Replyly on, come back with
+Back. **See:** within a second step 2 (and step 1) tick: the ring fills blue, then a white check
+draws itself; "N of 5 done" goes up. Repeat for "Allow" (battery: accept the dialog), "Open
+battery settings" + "I've done this" (sleeping apps), and "Open settings" (enter key and model,
+then Back). **See:** each step ticks on return without touching anything. **Send:** the step
+that did not tick, and whether it ticked after leaving and reopening Replyly.
+
+11.D4 **Do:** Settings > Accessibility > Replyly: turn it off while on the checklist (via the
+notification shade quick settings or recents), come back. **See:** step 2 goes back to an empty
+ring with "Not done", no crash. Turn it back on: it ticks again. **Send:** a screenshot if the
+ring and the text disagree.
+
+11.D5 **Do:** with every step done, reopen Replyly. **See:** it opens on Settings. Tap "Setup
+steps". **See:** it opens straight on the checklist (page 3, five ticks shown at once, no
+animation), Back returns to Settings. **Send:** a screenshot if it opens on the first page.
+
+11.D6 **Do:** turn on TalkBack and open "Setup steps". Swipe through the checklist. **See:**
+TalkBack reads "Set up", the title as a heading, then each step as one item, e.g. "Battery:
+done", "Sleeping apps: not confirmed", then its instruction and buttons. While TalkBack is on,
+complete one step and come back: TalkBack announces the new state once ("Battery: done"), not
+the "N of 5 done" counter as well. Swipe to the
+page dots: "Page 3 of 3". **Send:** anything read twice, skipped, or read as "unlabelled".
+
+11.D7 **Do:** with "Remove animations" on (11.A8), page through the welcome flow and complete a
+step. **See:** pages change at once and the tick appears at once, nothing half-drawn.
+**Send:** a screenshot of anything stuck half-way.
+
+11.D8 **Do:** clear Replyly's data (Settings > Apps > Replyly > Storage > Clear data) with at
+least one step not done, open Replyly, and on the first page tap "Skip", then "Skip for now" at
+the bottom of the checklist. On Settings, tap "Setup steps". **See:** it opens straight on "Set
+up your phone" (page 3), not on "Replies in your style". Press Back once. **See:** you are back
+on Settings, without passing through the privacy or first page. Repeat from the checklist's step
+5 button ("Open settings") > "Setup steps": same result. **Send:** a screen recording of the
+pages Back passes through if it is not straight to Settings.
+
+11.D9 **Do:** turn on auto-rotate. In the welcome flow go to "Your privacy" and rotate the phone
+to landscape and back; then do the same on "Set up your phone", once from first run and once
+from Settings > "Setup steps". Then turn on Developer options > "Don't keep activities", and for
+each of those screens press Home, reopen Replyly from recents, and rotate again. **See:** every
+time it stays on the same page, ticks already shown do not replay, and Back from the checklist
+still goes where it did before (Settings when opened from "Setup steps", the privacy page on
+first run). Turn "Don't keep activities" off afterwards. **Send:** which screen jumped page or
+where Back went instead.
+
 ### Settings, feedback timeline and "What's new" (polish item 7 and 9)
 
 11.E1 **Do:** install a CI build of Replyly over the one you have (do not uninstall), open
