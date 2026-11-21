@@ -10,31 +10,14 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.Toast
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.union
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.paragrudani.replyly.R
 import com.paragrudani.replyly.panel.PanelRequest
+import com.paragrudani.replyly.panel.PanelSheet
+import com.paragrudani.replyly.panel.PanelSheetState
 import com.paragrudani.replyly.panel.ReplyPanel
-import com.paragrudani.replyly.ui.theme.Elevation
 import com.paragrudani.replyly.ui.theme.ReplylyTheme
-import com.paragrudani.replyly.ui.theme.SheetShape
 
 /**
  * The two overlay windows (TYPE_ACCESSIBILITY_OVERLAY, no extra permission needed):
@@ -62,6 +45,7 @@ class OverlayWindows(
         val root: View,
         val compose: ComposeView,
         val owners: OverlayViewOwners,
+        val sheet: PanelSheetState,
     )
 
     override fun showButton(position: ButtonPosition) {
@@ -99,13 +83,27 @@ class OverlayWindows(
     override fun openPanel(request: PanelRequest) {
         closePanel()
         val owners = OverlayViewOwners()
+        val sheet = PanelSheetState()
+        lateinit var root: View
+        // Every close slides the sheet down first; the window goes when the sheet says it is closed.
+        // The fallback removes it anyway if no frame runs (the slide takes 250 ms).
+        val requestClose = {
+            if (!sheet.closeRequested) {
+                sheet.requestClose()
+                root.postDelayed({ if (panelWindow?.sheet === sheet) onPanelDismiss() }, CLOSE_FALLBACK_MS)
+            }
+        }
         val compose =
             ComposeView(context).apply {
                 setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnDetachedFromWindow)
-                setContent { ReplylyTheme { PanelHost(panel, request, onPanelDismiss) } }
+                setContent {
+                    ReplylyTheme {
+                        PanelSheet(sheet, onClosed = onPanelDismiss) { panel.Content(request, requestClose) }
+                    }
+                }
             }
-        val root =
-            BackKeyFrameLayout(context, onBack = onPanelDismiss).apply {
+        root =
+            BackKeyFrameLayout(context, onBack = requestClose).apply {
                 addView(compose, FrameLayout.LayoutParams(MATCH, MATCH))
             }
         owners.attach(root)
@@ -115,7 +113,7 @@ class OverlayWindows(
                 softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
             }
         windowManager.addView(root, params)
-        panelWindow = PanelWindow(root, compose, owners)
+        panelWindow = PanelWindow(root, compose, owners, sheet)
     }
 
     override fun closePanel() {
@@ -164,6 +162,9 @@ class OverlayWindows(
     private companion object {
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
         const val BUSY_ALPHA = 0.45f
+
+        /** Longer than the sheet's slide-down (250 ms), short enough not to feel stuck. */
+        const val CLOSE_FALLBACK_MS = 1_000L
     }
 }
 
@@ -179,39 +180,5 @@ private class BackKeyFrameLayout(
             return true
         }
         return super.dispatchKeyEvent(event)
-    }
-}
-
-/** A dimmed backdrop (tap to close) with the panel as a bottom sheet above the keyboard. */
-@Composable
-private fun PanelHost(
-    panel: ReplyPanel,
-    request: PanelRequest,
-    onClose: () -> Unit,
-) {
-    Box(Modifier.fillMaxSize()) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .background(ReplylyTheme.colors.backdrop)
-                .clickable(
-                    interactionSource = remember { MutableInteractionSource() },
-                    indication = null,
-                    onClick = onClose,
-                ),
-        )
-        Surface(
-            modifier =
-                Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)),
-            shape = SheetShape,
-            color = MaterialTheme.colorScheme.surfaceContainerLow,
-            tonalElevation = Elevation.Flat,
-            shadowElevation = Elevation.Sheet,
-        ) {
-            panel.Content(request, onClose)
-        }
     }
 }

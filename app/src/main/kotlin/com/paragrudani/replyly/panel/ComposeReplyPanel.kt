@@ -1,29 +1,33 @@
 package com.paragrudani.replyly.panel
 
 import android.content.Context
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.text.KeyboardActions
-import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.RememberObserver
@@ -34,17 +38,22 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalFocusManager
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.paragrudani.replyly.MainActivity
+import com.paragrudani.replyly.R
 import com.paragrudani.replyly.llm.Suggestion
+import com.paragrudani.replyly.ui.theme.MotionDurations
+import com.paragrudani.replyly.ui.theme.MotionEasing
 import com.paragrudani.replyly.ui.theme.ReplylyTheme
+import com.paragrudani.replyly.ui.theme.Spacing
 import java.util.Locale
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -69,6 +78,10 @@ import kotlin.time.Duration.Companion.milliseconds
  * - `SOFT_INPUT_ADJUST_RESIZE`, and the panel's sheet is padded by the IME and navigation-bar insets
  *   (`WindowInsets.ime.union(WindowInsets.navigationBars)`), so it sits right above Gboard. Not
  *   ADJUST_PAN, which shifts the whole window up instead of moving only the sheet.
+ * - The host wraps [Content] in [PanelSheet] (backdrop, sheet surface, slide-up spring, swipe down)
+ *   and passes `PanelSheetState::requestClose` (plus a time-out fallback) as `onClose`. So every
+ *   close the panel asks for (insert, Close, Open settings) slides the sheet down first; the window
+ *   is removed when the sheet's `onClosed` runs.
  * - When the user types into the panel, the chat app's input field loses input focus. The
  *   inserter therefore writes into the input node remembered when the button was tapped, and the
  *   overlay does not hide the panel because the chat field lost focus.
@@ -77,7 +90,15 @@ import kotlin.time.Duration.Companion.milliseconds
  *   new call, so the host keeps the same `ComposeView` and composition while the panel stays open.
  * - The panel has no back handling (an overlay has no `OnBackPressedDispatcherOwner`); the host's
  *   root view calls the same `onClose` on KEYCODE_BACK. The panel applies its own theme and caps its
- *   height at [maxHeight]; the host only places it at the bottom, above the keyboard.
+ *   height at [maxHeight].
+ *
+ * ## Motion and gestures
+ *
+ * Loading shows 3 shimmering skeleton cards (static with reduced motion). The 3 cards fade and slide
+ * in, staggered by `MotionDurations.STAGGER`. Regenerate (or a chip) cross-fades the cards out to
+ * the skeleton and back in. Tap a card: highlight, light haptic, insert, then the sheet slides
+ * down. Long-press: copy (marked sensitive), haptic, a "Copied" pill. None of the motion starts or
+ * delays an LLM call; [ReplyPanelState] decides calls.
  *
  * The panel uses no Dialog, Popup, `LocalActivity`, Activity ViewModelStore or activity result
  * launcher: those need an Activity window token. Its state lives in [ReplyPanelState], created
@@ -89,6 +110,7 @@ class ComposeReplyPanel(
     private val deps: ReplyPanelDependencies,
     private val openSettings: (Context) -> Unit = ::openReplylySettings,
     private val maxHeight: Dp = DEFAULT_MAX_HEIGHT,
+    private val clipboard: (Context) -> SuggestionClipboard = ::AndroidSuggestionClipboard,
 ) : ReplyPanel {
     @Composable
     override fun Content(
@@ -97,15 +119,23 @@ class ComposeReplyPanel(
     ) {
         val currentOnClose by rememberUpdatedState(onClose)
         val scope = rememberCoroutineScope()
+        val context = LocalContext.current
         // Unkeyed on purpose: one state (and one LLM call) per panel open. A new or equal
         // [request] while the panel stays open never starts another call.
         val state =
             remember {
-                DisposingPanelState(ReplyPanelState(request, deps, scope, onClose = { currentOnClose() }))
+                DisposingPanelState(
+                    ReplyPanelState(
+                        request,
+                        deps,
+                        scope,
+                        onClose = { currentOnClose() },
+                        clipboard = clipboard(context),
+                    ),
+                )
             }.state
         LaunchedEffect(state) { state.start() }
         val ui by state.state.collectAsState()
-        val context = LocalContext.current
         ReplylyTheme {
             PanelLayout(
                 ui = ui,
@@ -117,6 +147,8 @@ class ComposeReplyPanel(
                         onInstructionChange = state::onInstructionChange,
                         onRegenerate = state::regenerate,
                         onInsert = state::insert,
+                        onCopy = state::copy,
+                        onToggleChip = state::toggleChip,
                         onOpenSettings = {
                             openSettings(context)
                             currentOnClose()
@@ -134,8 +166,12 @@ class ComposeReplyPanel(
     }
 
     companion object {
-        /** Leaves room for the chat's input field between the panel and Gboard on the S23. */
-        val DEFAULT_MAX_HEIGHT: Dp = 340.dp
+        /**
+         * Room for 3 short cards plus the instruction field and its chips, while about 250 dp of
+         * the chat stays visible above the sheet on the S23 (780 dp tall). With the keyboard up the
+         * window is shorter and caps the sheet itself; the cards scroll when they need more room.
+         */
+        val DEFAULT_MAX_HEIGHT: Dp = 480.dp
     }
 }
 
@@ -160,6 +196,8 @@ internal class PanelActions(
     val onInstructionChange: (String) -> Unit = {},
     val onRegenerate: () -> Unit = {},
     val onInsert: (Int) -> Unit = {},
+    val onCopy: (Int) -> Unit = {},
+    val onToggleChip: (QuickInstruction) -> Unit = {},
     val onOpenSettings: () -> Unit = {},
     val onOpenNote: () -> Unit = {},
     val onNoteChange: (String) -> Unit = {},
@@ -170,6 +208,7 @@ internal class PanelActions(
     val onCancelDelete: () -> Unit = {},
 )
 
+/** The sheet's content. Stateless: screenshot tests render it with fixed [ui]. */
 @Composable
 internal fun PanelLayout(
     ui: PanelUiState,
@@ -177,17 +216,18 @@ internal fun PanelLayout(
     maxHeight: Dp,
     actions: PanelActions,
 ) {
-    Surface(
-        shape = MaterialTheme.shapes.medium,
-        tonalElevation = 3.dp,
-        shadowElevation = 6.dp,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.heightIn(max = maxHeight).padding(horizontal = 12.dp, vertical = 6.dp)) {
+    val motion = ReplylyTheme.motion
+    Box {
+        Column(
+            Modifier
+                .heightIn(max = maxHeight)
+                .padding(start = Spacing.L, end = Spacing.L, bottom = Spacing.M),
+        ) {
+            Grabber()
             TopBar(ui, chatTitle, actions)
             Column(
                 Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
+                verticalArrangement = Arrangement.spacedBy(Spacing.S),
             ) {
                 val note = ui.note
                 if (note != null) {
@@ -199,14 +239,36 @@ internal fun PanelLayout(
                     if (ui.confirmingDelete) {
                         DeleteConfirmation(chatTitle, actions)
                     } else if (ui.showChatActions) {
-                        TextButton(onClick = actions.onRequestDelete) {
-                            Text("Delete this chat's history", style = MaterialTheme.typography.labelMedium)
-                        }
+                        DeleteHistoryButton(actions.onRequestDelete)
                     }
                 }
             }
-            if (ui.note == null) InstructionRow(ui, actions)
+            if (ui.note == null) InstructionArea(ui, actions)
         }
+        AnimatedVisibility(
+            visible = ui.copied,
+            enter =
+                fadeIn(motion.tween(MotionDurations.MEDIUM, MotionEasing.Enter)) +
+                    scaleIn(motion.tween(MotionDurations.MEDIUM, MotionEasing.Enter), initialScale = 0.9f),
+            exit = fadeOut(motion.tween(MotionDurations.MEDIUM, MotionEasing.Exit)),
+            // Centred on the top bar, over the gap between the title and the icons.
+            modifier = Modifier.align(Alignment.TopCenter).padding(top = Spacing.L + Spacing.XS),
+        ) {
+            CopiedPill()
+        }
+    }
+}
+
+/** The drag handle. Decorative: the whole sheet takes the swipe, Close is the TalkBack way out. */
+@Composable
+private fun Grabber() {
+    Box(Modifier.fillMaxWidth().padding(top = Spacing.S), contentAlignment = Alignment.Center) {
+        Box(
+            Modifier
+                .size(width = 32.dp, height = 4.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)),
+        )
     }
 }
 
@@ -217,18 +279,44 @@ private fun TopBar(
     actions: PanelActions,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
+        Icon(
+            painterResource(R.drawable.ic_sparkle),
+            contentDescription = null,
+            tint = ReplylyTheme.colors.accent,
+            modifier = Modifier.size(16.dp),
+        )
+        Spacer(Modifier.width(Spacing.S))
         Text(
             chatTitle,
             style = MaterialTheme.typography.titleSmall,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.weight(1f).semantics { heading() },
         )
         if (ui.showChatActions && ui.note == null) {
-            TextButton(onClick = actions.onOpenNote) { Text("Contact note") }
+            IconButton(onClick = actions.onOpenNote) {
+                Icon(painterResource(R.drawable.ic_panel_edit), contentDescription = "Contact note")
+            }
         }
-        TextButton(onClick = actions.onClose) { Text("Close") }
+        IconButton(onClick = actions.onClose) {
+            Icon(painterResource(R.drawable.ic_panel_close), contentDescription = "Close")
+        }
     }
+}
+
+/** What the body shows; a new value cross-fades. Each generation is its own value, so regenerate animates. */
+private sealed interface BodyKey {
+    data class Loading(
+        val regenerating: Boolean,
+    ) : BodyKey
+
+    data class Ready(
+        val generation: Int,
+    ) : BodyKey
+
+    data class Error(
+        val generation: Int,
+    ) : BodyKey
 }
 
 @Composable
@@ -236,173 +324,76 @@ private fun SuggestionsBody(
     ui: PanelUiState,
     actions: PanelActions,
 ) {
-    when (val suggestions = ui.suggestions) {
-        SuggestionsUi.Loading -> {
-            LinearProgressIndicator(Modifier.fillMaxWidth().padding(top = 4.dp))
-            Text(
-                "Writing 3 replies…",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        is SuggestionsUi.Ready -> {
-            suggestions.suggestions.forEachIndexed { index, suggestion ->
-                SuggestionCard(suggestion, enabled = !ui.inserting, onClick = { actions.onInsert(index) })
+    val motion = ReplylyTheme.motion
+    AnimatedContent(
+        targetState = ui,
+        contentKey = { it.bodyKey() },
+        transitionSpec = {
+            val enter =
+                if (targetState.suggestions is SuggestionsUi.Ready) {
+                    // The cards bring their own staggered entrance.
+                    EnterTransition.None
+                } else {
+                    fadeIn(motion.tween(MotionDurations.LONG, MotionEasing.Enter))
+                }
+            val exit =
+                fadeOut(motion.tween(MotionDurations.MEDIUM, MotionEasing.Exit)) +
+                    slideOutVertically(motion.tween(MotionDurations.MEDIUM, MotionEasing.Exit)) { it / 8 }
+            (enter togetherWith exit).using(SizeTransform(clip = false) { _, _ -> motion.spring() })
+        },
+        label = "suggestions body",
+    ) { target ->
+        // The content still on screen uses the live state (highlight, enabled); an outgoing one
+        // keeps the state it was created with.
+        val shown = if (target.bodyKey() == ui.bodyKey()) ui else target
+        when (val suggestions = shown.suggestions) {
+            SuggestionsUi.Loading -> {
+                SkeletonCards(regenerating = shown.generation > 1)
             }
-            Text(
-                "${suggestions.model} · ${formatSeconds(suggestions.latency.inWholeMilliseconds)} · tap to insert",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
 
-        is SuggestionsUi.Error -> {
-            ErrorCard(suggestions.error, actions)
-        }
-    }
-}
+            is SuggestionsUi.Ready -> {
+                ReadyCards(suggestions, shown, actions)
+            }
 
-@Composable
-private fun SuggestionCard(
-    suggestion: Suggestion,
-    enabled: Boolean,
-    onClick: () -> Unit,
-) {
-    Card(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
-            Text(
-                suggestion.intent.uppercase(Locale.ROOT),
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            // No maxLines: long Hinglish replies wrap in full, the body scrolls.
-            Text(suggestion.text, style = MaterialTheme.typography.bodyMedium)
-        }
-    }
-}
-
-@Composable
-private fun ErrorCard(
-    error: PanelError,
-    actions: PanelActions,
-) {
-    Card(
-        colors =
-            CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer,
-                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-            ),
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(error.title, style = MaterialTheme.typography.titleSmall)
-            error.detail?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-            when (error.action) {
-                ErrorAction.OpenSettings -> Button(onClick = actions.onOpenSettings) { Text("Open settings") }
-                ErrorAction.Retry -> Button(onClick = actions.onRegenerate) { Text("Retry") }
+            is SuggestionsUi.Error -> {
+                ErrorState(suggestions.error, actions.onOpenSettings, actions.onRegenerate)
             }
         }
     }
 }
 
-@Composable
-private fun ErrorLine(text: String) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-}
-
-@Composable
-private fun Notice(text: String) {
-    Text(text, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-}
-
-@Composable
-private fun DeleteConfirmation(
-    chatTitle: String,
-    actions: PanelActions,
-) {
-    // Inline, not an AlertDialog: a Dialog needs an Activity window token.
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("Delete the saved messages of $chatTitle?", style = MaterialTheme.typography.titleSmall)
-            Text(
-                "The contact note stays. Messages still on screen are saved again " +
-                    "the next time Replyly reads this chat.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Row {
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = actions.onCancelDelete) { Text("Cancel") }
-                Spacer(Modifier.width(8.dp))
-                Button(onClick = actions.onConfirmDelete) { Text("Delete") }
-            }
-        }
+private fun PanelUiState.bodyKey(): BodyKey =
+    when (suggestions) {
+        SuggestionsUi.Loading -> BodyKey.Loading(regenerating = generation > 1)
+        is SuggestionsUi.Ready -> BodyKey.Ready(generation)
+        is SuggestionsUi.Error -> BodyKey.Error(generation)
     }
-}
 
 @Composable
-private fun NoteEditor(
-    note: NoteEditorUi,
-    chatTitle: String,
-    actions: PanelActions,
-) {
-    Text("Contact note for $chatTitle", style = MaterialTheme.typography.labelLarge)
-    OutlinedTextField(
-        value = note.text,
-        onValueChange = actions.onNoteChange,
-        enabled = !note.saving,
-        minLines = 3,
-        maxLines = 6,
-        textStyle = MaterialTheme.typography.bodyMedium,
-        placeholder = { Text("Who they are, how you talk with them…") },
-        supportingText = { Text("${note.text.length}/$MAX_NOTE_CHARS") },
-        modifier = Modifier.fillMaxWidth(),
-    )
-    note.error?.let { ErrorLine(it) }
-    Row {
-        Spacer(Modifier.weight(1f))
-        TextButton(onClick = actions.onCancelNote, enabled = !note.saving) { Text("Cancel") }
-        Spacer(Modifier.width(8.dp))
-        Button(onClick = actions.onSaveNote, enabled = !note.saving) { Text("Save") }
-    }
-}
-
-@Composable
-private fun InstructionRow(
+private fun ReadyCards(
+    ready: SuggestionsUi.Ready,
     ui: PanelUiState,
     actions: PanelActions,
 ) {
-    val focusManager = LocalFocusManager.current
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        modifier = Modifier.padding(top = 6.dp),
-    ) {
-        OutlinedTextField(
-            value = ui.instruction,
-            onValueChange = actions.onInstructionChange,
-            singleLine = true,
-            textStyle = MaterialTheme.typography.bodyMedium,
-            placeholder = {
-                Text("Instruction, e.g. say I'll call at 6", maxLines = 1, overflow = TextOverflow.Ellipsis)
-            },
-            // Done only hides the keyboard: a model call needs a tap on Regenerate (AGENTS.md rule 4).
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-            modifier = Modifier.weight(1f),
-        )
-        val loading = ui.suggestions == SuggestionsUi.Loading
-        if (loading) {
-            OutlinedButton(onClick = {}, enabled = false) { Text("Regenerate") }
-        } else {
-            FilledTonalButton(onClick = {
-                focusManager.clearFocus()
-                actions.onRegenerate()
-            }) { Text("Regenerate") }
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.S)) {
+        ready.suggestions.forEachIndexed { index, suggestion ->
+            StaggeredItem(index, key = ui.generation) {
+                SuggestionCard(
+                    suggestion = suggestion,
+                    highlighted = ui.insertingIndex == index,
+                    enabled = !ui.inserting && !ui.finished,
+                    onInsert = { actions.onInsert(index) },
+                    onCopy = { actions.onCopy(index) },
+                )
+            }
         }
+        Text(
+            "Tap to insert, hold to copy · ${formatSeconds(ready.latency.inWholeMilliseconds)} · ${ready.model}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 
@@ -424,15 +415,20 @@ private val previewReady =
                 latency = 1_400.milliseconds,
                 feedbackEntryId = 1,
             ),
+        generation = 1,
     )
 
-@Preview(widthDp = 384)
+@Preview(widthDp = 360)
 @Composable
 private fun PanelReadyPreview() {
-    ReplylyTheme { PanelLayout(previewReady, "Riya", ComposeReplyPanel.DEFAULT_MAX_HEIGHT, PanelActions()) }
+    ReplylyTheme(darkTheme = false, dynamicColor = false, reducedMotion = true) {
+        PanelSheetSurface {
+            PanelLayout(previewReady, "Riya", ComposeReplyPanel.DEFAULT_MAX_HEIGHT, PanelActions())
+        }
+    }
 }
 
-@Preview(widthDp = 384)
+@Preview(widthDp = 360)
 @Composable
 private fun PanelErrorPreview() {
     val ui =
@@ -443,8 +439,11 @@ private fun PanelErrorPreview() {
                         "Daily limit reached",
                         "You have used all 50 requests for today.",
                         ErrorAction.OpenSettings,
+                        ErrorKind.Limit,
                     ),
                 ),
         )
-    ReplylyTheme { PanelLayout(ui, "Riya", ComposeReplyPanel.DEFAULT_MAX_HEIGHT, PanelActions()) }
+    ReplylyTheme(darkTheme = false, dynamicColor = false, reducedMotion = true) {
+        PanelSheetSurface { PanelLayout(ui, "Riya", ComposeReplyPanel.DEFAULT_MAX_HEIGHT, PanelActions()) }
+    }
 }
