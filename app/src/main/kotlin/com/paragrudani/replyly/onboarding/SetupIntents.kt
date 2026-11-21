@@ -28,15 +28,28 @@ object SetupIntents {
         packageName: String,
     ): List<Intent> =
         when (step) {
-            OnboardingStepId.RestrictedSettings -> listOf(appInfo(packageName))
-            OnboardingStepId.AccessibilityService -> listOf(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-            OnboardingStepId.BatteryUnrestricted -> listOf(requestUnrestricted(packageName), appInfo(packageName))
-            OnboardingStepId.SleepingApps ->
+            OnboardingStepId.RestrictedSettings -> {
+                listOf(appInfo(packageName))
+            }
+
+            OnboardingStepId.AccessibilityService -> {
+                listOf(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+            }
+
+            OnboardingStepId.BatteryUnrestricted -> {
+                listOf(requestUnrestricted(packageName), appInfo(packageName))
+            }
+
+            OnboardingStepId.SleepingApps -> {
                 deviceCareBatteryActivities.map { Intent().setComponent(ComponentName(DEVICE_CARE, it)) } +
                     Intent(Intent.ACTION_POWER_USAGE_SUMMARY) +
                     appInfo(packageName)
+            }
+
             // Opens the in-app Settings route, not a system screen.
-            OnboardingStepId.ApiKeyAndModel -> emptyList()
+            OnboardingStepId.ApiKeyAndModel -> {
+                emptyList()
+            }
         }
 
     /** Starts the first intent that resolves. Returns false if none did. */

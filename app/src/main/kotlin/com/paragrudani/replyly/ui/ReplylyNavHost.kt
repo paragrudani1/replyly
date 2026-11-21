@@ -7,6 +7,7 @@ import com.paragrudani.replyly.ui.debug.DebugRoute
 import com.paragrudani.replyly.ui.debug.debugDestination
 import com.paragrudani.replyly.ui.onboarding.OnboardingRoute
 import com.paragrudani.replyly.ui.onboarding.onboardingDestination
+import com.paragrudani.replyly.ui.onboarding.onboardingStartDestination
 import com.paragrudani.replyly.ui.settings.SettingsRoute
 import com.paragrudani.replyly.ui.settings.settingsDestination
 
@@ -17,7 +18,7 @@ import com.paragrudani.replyly.ui.settings.settingsDestination
 @Composable
 fun ReplylyNavHost() {
     val nav = rememberNavController()
-    NavHost(navController = nav, startDestination = OnboardingRoute) {
+    NavHost(navController = nav, startDestination = onboardingStartDestination()) {
         onboardingDestination(
             onFinished = {
                 nav.navigate(SettingsRoute) { popUpTo<OnboardingRoute> { inclusive = true } }
