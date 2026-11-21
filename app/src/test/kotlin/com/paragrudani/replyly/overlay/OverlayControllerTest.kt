@@ -20,12 +20,16 @@ class OverlayControllerTest {
         val notices = mutableListOf<Notice>()
         val busy = mutableListOf<Boolean>()
 
-        override fun showButton(position: ButtonPosition) {
+        override fun showButton(slot: ButtonSlot) {
             buttonShows++
-            button = position
+            button = slot.position
         }
 
-        override fun hideButton() {
+        /** Every hide call, `true` for an immediate one. */
+        val hides = mutableListOf<Boolean>()
+
+        override fun hideButton(immediate: Boolean) {
+            hides += immediate
             button = null
         }
 
@@ -54,6 +58,8 @@ class OverlayControllerTest {
     private var factReads = 0
     private var tapAnswer: suspend () -> TapOutcome = { TapOutcome.Open(CHAT) }
     private val remembered = mutableListOf<InputFieldRef>()
+    private var taps = 0
+    private val savedY = mutableMapOf<String, Int>()
 
     private fun TestScope.controller() =
         OverlayController(
@@ -62,11 +68,18 @@ class OverlayControllerTest {
                 facts
             },
             visibility = ButtonVisibility(ownPackage = "com.paragrudani.replyly", isAppAllowed = { true }),
-            place = { shown -> ButtonPosition(shown.keyboard.right, shown.keyboard.top) },
+            place = { shown ->
+                val y = savedY[shown.input.packageName] ?: shown.keyboard.top
+                ButtonSlot(ButtonPosition(shown.keyboard.right, y), minY = 100, maxY = shown.keyboard.top)
+            },
             ui = ui,
-            tap = { tapAnswer() },
+            tap = {
+                taps++
+                tapAnswer()
+            },
             rememberTarget = { remembered += it },
             scope = this,
+            rememberPosition = { shown, y -> savedY[shown.input.packageName] = y },
         )
 
     @Test
@@ -379,6 +392,107 @@ class OverlayControllerTest {
 
             assertThat(ui.button).isNull()
             assertThat(ui.panel).isNull()
+        }
+
+    @Test
+    fun `screen off and stop remove the button at once, without a fade`() =
+        runTest {
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+
+            controller.onScreenOff()
+            assertThat(ui.button).isNull()
+            assertThat(ui.hides).containsExactly(true)
+
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+            controller.stop()
+            assertThat(ui.hides).containsExactly(true, true).inOrder()
+        }
+
+    @Test
+    fun `screen off right after a normal hide still removes the fading button at once`() =
+        runTest {
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+            facts = facts.copy(windows = listOf(chatWindow))
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+            assertThat(ui.hides).containsExactly(false)
+
+            controller.onScreenOff()
+
+            assertThat(ui.hides).containsExactly(false, true).inOrder()
+        }
+
+    @Test
+    fun `the button shows again after screen off`() =
+        runTest {
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+            controller.onScreenOff()
+
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+
+            assertThat(ui.button).isNotNull()
+        }
+
+    @Test
+    fun `a drag remembers the spot for the app and never taps`() =
+        runTest {
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+
+            controller.onButtonMoved(900)
+            advanceUntilIdle()
+
+            assertThat(savedY).containsExactly(WHATSAPP, 900)
+            assertThat(taps).isEqualTo(0)
+            assertThat(ui.busy).isEmpty()
+            assertThat(ui.panel).isNull()
+        }
+
+    @Test
+    fun `a drag is clamped to the slot`() =
+        runTest {
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+
+            controller.onButtonMoved(-50)
+
+            assertThat(savedY).containsExactly(WHATSAPP, 100)
+        }
+
+    @Test
+    fun `after a drag the next refresh keeps the button where it was dropped`() =
+        runTest {
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+            val shows = ui.buttonShows
+
+            controller.onButtonMoved(900)
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+
+            // The slot from placement now matches what the window already shows: no re-show.
+            assertThat(ui.buttonShows).isEqualTo(shows)
+        }
+
+    @Test
+    fun `a move while the button is hidden is ignored`() =
+        runTest {
+            val controller = controller()
+
+            controller.onButtonMoved(900)
+
+            assertThat(savedY).isEmpty()
         }
 
     private suspend fun TestScope.openPanel(): OverlayController {
