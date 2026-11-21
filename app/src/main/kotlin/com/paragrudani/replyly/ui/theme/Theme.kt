@@ -102,6 +102,9 @@ class ThemeSettings(
                     .map { it.useDynamicColor }
                     .distinctUntilChanged()
                     // A broken settings file must not break every screen: brand colours instead.
+                    // Note: `catch` completes the flow after emitting, so after one read error the
+                    // value stays `false` (brand colours) until the app restarts. Acceptable for a
+                    // cosmetic setting; add a retry here if it ever matters.
                     .catch { emit(false) }
                     .stateIn(scope, SharingStarted.Eagerly, false),
             )
