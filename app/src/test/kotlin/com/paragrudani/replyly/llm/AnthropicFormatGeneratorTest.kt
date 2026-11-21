@@ -249,6 +249,13 @@ class AnthropicFormatGeneratorTest {
     }
 
     @Test
+    fun `stop_reason model_context_window_exceeded is a cut-off reply`() {
+        val cut = """{"suggestions":[{"intent":"agree","text":"Haan"""
+        val result = generateWith(ok(message(cut, stopReason = "model_context_window_exceeded")))
+        assertThat(result).isEqualTo(SuggestionResult.Failure.BadOutput(CUT_OFF, cutOff = true))
+    }
+
+    @Test
     fun `stop_reason max_tokens is a cut-off reply`() {
         val cut = """{"suggestions":[{"intent":"agree","text":"Haan"""
         val result = generateWith(ok(message(cut, stopReason = "max_tokens")))

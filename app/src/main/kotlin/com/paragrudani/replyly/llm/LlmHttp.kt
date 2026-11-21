@@ -78,8 +78,12 @@ internal sealed interface HttpReply {
 internal object LlmHttp {
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
 
-    /** Extra headers may not replace these: they carry the key or frame the body. */
-    val RESERVED_HEADERS = setOf("authorization", "x-api-key", "content-type", "content-length", "host")
+    /**
+     * Extra headers may not replace these: they carry the key or frame the body. An explicit
+     * `Accept-Encoding` would turn off OkHttp's transparent gzip, so the body would come back compressed.
+     */
+    val RESERVED_HEADERS =
+        setOf("authorization", "x-api-key", "content-type", "content-length", "host", "accept-encoding")
 
     /**
      * POSTs [body] with [headers], then [extraHeaders] (which may override non-reserved ones such
