@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.room)
+    alias(libs.plugins.roborazzi)
 }
 
 // CI sets GITHUB_RUN_NUMBER, so every CI build installs over the previous one.
@@ -80,6 +81,12 @@ room {
     schemaDirectory("$projectDir/schemas")
 }
 
+// Screenshot tests (docs/SCREENSHOTS.md). The committed PNGs are the reference;
+// scripts/check.sh verifies against them, scripts/record-screenshots.sh re-records them.
+roborazzi {
+    outputDir.set(file("src/test/screenshots"))
+}
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
@@ -119,5 +126,8 @@ dependencies {
     testImplementation(libs.androidx.navigation.testing)
     testImplementation(platform(libs.compose.bom))
     testImplementation(libs.compose.ui.test.junit4)
+    testImplementation(libs.roborazzi)
+    testImplementation(libs.roborazzi.compose)
+    testImplementation(libs.roborazzi.junit.rule)
     debugImplementation(libs.compose.ui.test.manifest)
 }
