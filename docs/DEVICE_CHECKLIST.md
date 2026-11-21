@@ -216,7 +216,7 @@ screenshot.
 4.2 **Do:** scroll inside the panel; repeat with Gboard's emoji/clipboard strip showing and in
 landscape. **See:** all 3 cards, the instruction row and "Delete this chat's history" reachable,
 nothing cut off. **Send:** screenshot per case; say how many cards should fit without scrolling if
-it is too tall or short (cap: 340 dp).
+it is too tall or short (cap: 480 dp).
 
 4.3 **Do:** tap the dimmed area above the panel; open it again and press Back. **See:** it closes
 both times (Back may first close the keyboard), nothing sent; afterwards the WhatsApp field has
@@ -648,3 +648,73 @@ dark mark; all text readable. **Send:** Screenshots of settings, button and pane
 11.9 **Do:** Settings > Display > Font size and style: set the font size two steps larger; open
 settings, onboarding and the panel. **See:** no text cut off or overlapping. **Send:** Screenshots
 of anything clipped.
+
+### Suggestion panel (items 11.20–11.31)
+
+Panel motion, gestures and the instruction chips. Do 11.20–11.29 with "Remove animations" OFF,
+then 11.30 with it on. Haptics need "Touch interactions" vibration on (Settings > Sounds and
+vibration > System sound/vibration control).
+
+11.20 **Do:** in a WhatsApp chat, tap the button. **See:** the chat dims while the sheet slides up
+from the bottom edge with a soft settle (a hint of overshoot, no wobble), in about half a second;
+no flash of the sheet at its final place before it slides. **Send:** a screen recording
+(Quick settings > Screen recorder) if it jumps, stutters or bounces more than once.
+
+11.21 **Do:** watch the panel while it loads. **See:** 3 grey placeholder cards with a soft light
+band sweeping left to right, about once a second, and no spinner; then the 3 real cards fade and
+slide up one after another (a short, even ripple, top card first). **Send:** a screen recording if
+the shimmer is choppy or the cards appear all at once.
+
+11.22 **Do:** look at the coloured tags on the cards (light and dark mode). **See:** "Agree" green,
+"Decline" red, "Ask" amber, any other word grey-blue; all readable. **Send:** Screenshot.
+
+11.23 **Do:** tap a card. **See and feel:** the card turns blue briefly, one light tick from the
+vibration motor, the sheet slides down, and WhatsApp's message box holds the text (nothing sent).
+**Send:** whether you felt the tick, and a screen recording if the panel closes before the card
+turns blue or the text is missing.
+
+11.24 **Do:** open the panel again and press and hold a card for about half a second. **See and
+feel:** a stronger vibration, a dark "Copied" pill at the top of the panel for about 1.5 s, the
+panel stays open, WhatsApp's box unchanged. Then long-press WhatsApp's message box and paste.
+**See:** the copied reply. Open Gboard's clipboard strip. **See:** the clip is hidden or shown as
+dots (marked sensitive). **Send:** Screenshot of Gboard's clipboard strip.
+
+11.25 **Do:** tap Regenerate (the round arrow). **See:** the cards fade down and out, the
+placeholders shimmer, then 3 new cards ripple in. Replyly settings' usage count for today goes up
+by exactly one per tap (note it before, check after). **Send:** the counts, and a screen recording
+if the cards jump instead of fading.
+
+11.26 **Do:** tap the "Shorter" chip. **See:** it shows a check mark, the cards regenerate once,
+the replies get shorter. While the placeholders shimmer, tap "Shorter" and "Add emoji" quickly
+several times. **See:** the chips are greyed out and nothing changes; the usage count in settings
+goes up by exactly one for the first tap. Tap "Shorter" again when the cards are back. **See:** the check
+goes away and the cards regenerate once without it. **Send:** the counter before and after.
+
+11.27 **Do:** tap the instruction field (Gboard opens), type "say I'll call at 6", then tap the
+"In English" chip without closing the keyboard. **See:** the keyboard closes, the chip row stays
+visible above Gboard while typing (not hidden behind it), and the new replies follow both the
+chip and the text. Repeat with Gboard's emoji strip open. **Send:** Screenshot with the keyboard
+open, and one if the chips are under the keyboard.
+
+11.28 **Do:** with the panel open, put a finger on the panel's top bar and drag it down past about
+a third of its height, let go. Open it again, scroll the cards to the top and keep dragging down
+inside the cards; open it again and flick down quickly from the top bar; open it again and drag
+down only a little, let go. **See:** the first three close the panel smoothly (sliding down, the
+dim fading), the last one springs back. **Send:** a screen recording of anything that sticks half
+way or closes when you only meant to scroll the cards.
+
+11.29 **Do:** tap the dimmed chat above the panel; open it again and press Back. **See:** both
+slide the panel down (not a cut) and the WhatsApp field keeps its cursor. **Send:** a screen
+recording if either closes abruptly or leaves a dim layer behind.
+
+11.30 **Do:** turn on "Remove animations" (11.8) and repeat 11.20, 11.21, 11.23 and 11.28.
+**See:** the panel appears and closes at once, the placeholders are static (no sweeping band), the
+cards appear together; tapping, long-press copy and swipe-down still work. **Send:** anything that
+still animates or gets stuck. Turn it off afterwards.
+
+11.31 **Do:** with TalkBack on (Settings > Accessibility > TalkBack), open the panel and swipe
+through it. **See:** each card is read once as its tag and text ("Agree. Haan pakka…"), with
+"double-tap to insert"; the TalkBack menu (swipe up then right, or three-finger tap) offers
+"Insert" and "Copy"; the chips read as "Shorter, checkbox/selected" style toggles; the arrow reads
+"Regenerate replies"; "Copied" and errors are announced. **Send:** a TalkBack audio/screen
+recording of anything read twice, unlabelled or missing.
