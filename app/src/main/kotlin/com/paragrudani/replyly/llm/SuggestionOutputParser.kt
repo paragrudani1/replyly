@@ -1,5 +1,6 @@
 package com.paragrudani.replyly.llm
 
+import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -23,7 +24,12 @@ sealed interface ParsedSuggestions {
  * keeps the first [expected] valid ones; fewer than [expected] is [ParsedSuggestions.Invalid].
  */
 object SuggestionOutputParser {
-    private val json = Json { isLenient = true }
+    @OptIn(ExperimentalSerializationApi::class)
+    private val json =
+        Json {
+            isLenient = true
+            allowTrailingComma = true
+        }
 
     fun parse(
         raw: String,

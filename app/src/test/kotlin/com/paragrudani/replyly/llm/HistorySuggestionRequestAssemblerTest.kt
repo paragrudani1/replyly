@@ -71,9 +71,10 @@ class HistorySuggestionRequestAssemblerTest {
             val request = assembler.assemble(chat(messages = listOf(them("so?"))), instruction = null)
 
             val styles = request.styleExamples
-            assertThat(styles.first()).isEqualTo("mine 11")
+            // At most 10 from this chat, so other chats keep their 10-15 share.
+            assertThat(styles.first()).isEqualTo("mine 21")
             assertThat(styles).contains("mine 30")
-            assertThat(styles).doesNotContain("mine 10")
+            assertThat(styles).doesNotContain("mine 20")
             assertThat(styles.last()).isEqualTo("other chat msg")
             assertThat(styles).doesNotContain("tg msg")
         }

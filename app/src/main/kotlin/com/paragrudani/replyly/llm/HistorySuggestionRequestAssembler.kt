@@ -62,7 +62,9 @@ class HistorySuggestionRequestAssembler(
     companion object {
         /** How far back to look for the user's own messages in this chat. */
         const val STYLE_SCAN_MESSAGES = 200
-        const val STYLE_FROM_THIS_CHAT = 20
+
+        /** At most 10, so other chats keep a 10-15 share of the 25 style examples. */
+        const val STYLE_FROM_THIS_CHAT = 10
         const val STYLE_FROM_OTHER_CHATS = 15
 
         private val KNOWN_LABELS =

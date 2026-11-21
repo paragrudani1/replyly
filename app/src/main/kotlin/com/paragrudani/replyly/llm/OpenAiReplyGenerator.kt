@@ -24,7 +24,7 @@ data class LlmTimeouts(
 /**
  * [ReplyGenerator] over an OpenAI-compatible chat-completions endpoint (OpenRouter by default).
  *
- * Order: API key, endpoint, [CostGuard.tryAcquire], then the call(s), then
+ * Order: API key (trimmed; visible ASCII only), endpoint, [CostGuard.tryAcquire], then the call(s), then
  * [CostGuard.recordUsage] with whatever usage came back (also on bad output). One call asks for 3
  * suggestions; with [com.paragrudani.replyly.settings.ReplylySettings.useParallelCalls] it makes 3
  * concurrent calls, one per [FixedIntent], which together count as 1 request.
@@ -44,7 +44,9 @@ class OpenAiReplyGenerator(
     private val noJsonMode: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
     override suspend fun generate(request: SuggestionRequest): SuggestionResult {
-        val apiKey = apiKeys.get()?.takeIf { it.isNotBlank() } ?: return SuggestionResult.Failure.NoApiKey
+        val apiKey = apiKeys.get()?.trim()?.takeIf { it.isNotEmpty() } ?: return SuggestionResult.Failure.NoApiKey
+        // A pasted key can carry a zero-width space or a non-breaking space; OkHttp would reject the header.
+        if (!apiKey.all { it in VISIBLE_ASCII }) return SuggestionResult.Failure.InvalidApiKey
         val current = settings.current()
         val url =
             chatCompletionsUrl(current.endpoint)
@@ -105,13 +107,13 @@ class OpenAiReplyGenerator(
 
                 is CallOutcome.Ok -> {
                     outcome.content?.takeIf { it.isNotBlank() }
-                        ?: return Parsed.Fail(SuggestionResult.Failure.BadOutput("empty reply"))
+                        ?: return Parsed.Fail(badOutput("empty reply", outcome))
                 }
             }
         val expected = if (task is PromptTask.Single) 1 else 3
         return when (val parsed = SuggestionOutputParser.parse(content, expected)) {
             is ParsedSuggestions.Invalid -> {
-                Parsed.Fail(SuggestionResult.Failure.BadOutput(parsed.reason))
+                Parsed.Fail(badOutput(parsed.reason, outcome))
             }
 
             is ParsedSuggestions.Ok -> {
@@ -125,6 +127,12 @@ class OpenAiReplyGenerator(
             }
         }
     }
+
+    /** A reply that stopped at `max_tokens` (often spent on reasoning) gets a clearer reason. */
+    private fun badOutput(
+        reason: String,
+        outcome: CallOutcome.Ok,
+    ) = SuggestionResult.Failure.BadOutput(if (outcome.finishReason == "length") CUT_OFF else reason)
 
     private inner class Call(
         val url: HttpUrl,
@@ -156,6 +164,8 @@ class OpenAiReplyGenerator(
         private const val MAX_TOKENS_THREE = 1_024
         private const val MAX_TOKENS_SINGLE = 512
         private const val PARALLEL_PROMPT_SEPARATOR = "\n\n---\n\n"
+        private const val CUT_OFF = "reply cut off at the token limit"
+        private val VISIBLE_ASCII = '!'..'~'
 
         private fun maxTokens(task: PromptTask) = if (task is PromptTask.Single) MAX_TOKENS_SINGLE else MAX_TOKENS_THREE
 

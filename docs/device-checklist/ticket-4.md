@@ -20,7 +20,8 @@ Repeat steps 1–5 for each model id:
 2. Open a WhatsApp 1:1 chat, tap the input field, tap the Replyly button.
    You should see 3 cards within about 2 s, each with a different intent (e.g. agree / decline / ask).
 3. Check the cards:
-   - same language and script as the last messages (Hinglish stays in Latin letters, no Devanagari);
+   - same language and script as you write in this chat (Hinglish stays in Latin letters, no Devanagari,
+     even if the other side writes in Devanagari);
    - length, tone and emoji close to how you write;
    - no invented times, places or promises (if one would be needed, the card asks instead).
 4. Type an instruction ("say I'll call at 6"), tap Regenerate. All 3 cards should follow it.
@@ -39,17 +40,24 @@ error card text if any step failed.
 8. Turn on airplane mode. Tap the button.
    Expected: a network error ("No internet connection…"), within ~10 s. Turn airplane mode off.
 
-Send back: the exact error text for any step that showed something else, or took longer than 30 s.
+Send back: the exact error text for any step that showed something else, or took longer than 60 s.
+(Worst case is 60 s: one call can take up to 30 s, and a model that rejects JSON mode gets one retry
+without it, once per model.)
+
+9. If any card shows "reply cut off at the token limit", the model spent its token budget (1024 for 3
+   suggestions, 512 per call in parallel mode) before finishing, usually on reasoning. On OpenRouter the
+   app already asks for low reasoning effort.
+   Send back: the model id, and whether it happens every time or only sometimes.
 
 ## C. When to turn on parallel mode
 
 The default makes 1 call for 3 suggestions. `useParallelCalls` makes 3 concurrent calls, one per intent
 (agree / decline / ask), still counted as 1 request in the daily limit, but about 3× the prompt tokens.
 
-9. If, in section A, the chosen model usually takes more than ~2 s from tap to cards, turn on parallel
-   mode (Settings, once #6 exposes it; until then, tell the CoS and it will flip the default) and repeat
-   steps 2 and 4 with that model.
-10. Keep parallel mode on only if it is clearly faster (≥ 0.5 s) and the cards still sound like you.
+10. If, in section A, the chosen model usually takes more than ~2 s from tap to cards, turn on parallel
+    mode (Settings, once #6 exposes it; until then, tell the CoS and it will flip the default) and repeat
+    steps 2 and 4 with that model.
+11. Keep parallel mode on only if it is clearly faster (≥ 0.5 s) and the cards still sound like you.
     Note: the intents are then fixed to agree / decline / ask, which fits questions and plans better than
     greetings or news.
 
@@ -57,7 +65,7 @@ Send back: latency for that model with parallel mode off and on, and which one y
 
 ## D. Usage counter
 
-11. After a few requests, open Settings → usage. The request count today should go up by 1 per tap or
+12. After a few requests, open Settings → usage. The request count today should go up by 1 per tap or
     Regenerate (also with parallel mode on), and the monthly token count should grow.
 
 Send back: the counts before and after 3 taps.

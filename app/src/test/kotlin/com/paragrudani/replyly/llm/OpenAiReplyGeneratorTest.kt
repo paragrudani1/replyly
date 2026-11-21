@@ -17,6 +17,12 @@ import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer
 import mockwebserver3.RecordedRequest
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Protocol
+import okhttp3.Response
+import okhttp3.ResponseBody.Companion.toResponseBody
+import okio.Buffer
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
@@ -65,9 +71,10 @@ class OpenAiReplyGeneratorTest {
         promptTokens: Int = 120,
         completionTokens: Int = 30,
         model: String = "test/model-2026",
+        finishReason: String = "stop",
     ): String =
         """{"id":"gen-1","model":"$model","choices":[{"index":0,"message":{"role":"assistant",""" +
-            """"content":${JsonPrimitive(content)}},"finish_reason":"stop"}],""" +
+            """"content":${JsonPrimitive(content)}},"finish_reason":"$finishReason"}],""" +
             """"usage":{"prompt_tokens":$promptTokens,"completion_tokens":$completionTokens,""" +
             """"total_tokens":${promptTokens + completionTokens}}}"""
 
@@ -311,5 +318,106 @@ class OpenAiReplyGeneratorTest {
         assertThat((result as SuggestionResult.Failure.Http).code).isEqualTo(503)
         assertThat(costGuard.status.value.requestsToday).isEqualTo(1)
         assertThat(costGuard.status.value.totalTokensThisMonth).isEqualTo(220)
+    }
+
+    @Test
+    fun `key with a trailing newline is trimmed before use`() {
+        runBlocking { keys.set("sk-or-x\n") }
+        server.enqueue(ok(completion(threeJson)))
+        assertThat(generate()).isInstanceOf(SuggestionResult.Success::class.java)
+        assertThat(server.takeRequest().headers["Authorization"]).isEqualTo("Bearer sk-or-x")
+    }
+
+    @Test
+    fun `key with invalid characters fails typed, without a call or a counted request`() {
+        for (bad in listOf("sk-or-\u200bx", "sk-or x", "sk-or-é")) {
+            runBlocking { keys.set(bad) }
+            val result = generate()
+            assertThat(result).isEqualTo(SuggestionResult.Failure.InvalidApiKey)
+            assertThat(SuggestionResult.Failure.InvalidApiKey.MESSAGE).doesNotContain("sk-or")
+        }
+        assertThat(server.requestCount).isEqualTo(0)
+        assertThat(costGuard.status.value.requestsToday).isEqualTo(0)
+    }
+
+    @Test
+    fun `content given as a list of text parts is joined`() {
+        val parts =
+            """{"model":"m","choices":[{"message":{"role":"assistant","content":[""" +
+                """{"type":"text","text":${JsonPrimitive(threeJson.take(40))}},""" +
+                """{"type":"text","text":${JsonPrimitive(threeJson.drop(40))}}]}}]}"""
+        val result = generateWith(ok(parts)) as SuggestionResult.Success
+        assertThat(result.suggestions.map { it.intent }).containsExactly("agree", "decline", "ask").inOrder()
+    }
+
+    @Test
+    fun `a 200 with a non-JSON body is bad output`() {
+        val result = generateWith(ok("<html>Bad gateway</html>"))
+        assertThat(result).isEqualTo(SuggestionResult.Failure.BadOutput("reply was not JSON"))
+    }
+
+    @Test
+    fun `reply cut off at the token limit says so`() {
+        val cut = """{"suggestions":[{"intent":"agree","text":"Haan"""
+        val result = generateWith(ok(completion(cut, finishReason = "length")))
+        assertThat(result).isEqualTo(SuggestionResult.Failure.BadOutput("reply cut off at the token limit"))
+        val empty = generateWith(ok(completion("", finishReason = "length")))
+        assertThat(empty).isEqualTo(SuggestionResult.Failure.BadOutput("reply cut off at the token limit"))
+    }
+
+    @Test
+    fun `finish_reason length with a valid reply still succeeds`() {
+        val result = generateWith(ok(completion(threeJson, finishReason = "length")))
+        assertThat(result).isInstanceOf(SuggestionResult.Success::class.java)
+    }
+
+    @Test
+    fun `parallel mode counts one request`() {
+        runBlocking { settings.update { it.copy(useParallelCalls = true) } }
+        server.dispatcher =
+            object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse =
+                    ok(completion("""{"suggestions":[{"intent":"x","text":"fine"}]}"""))
+            }
+        generate()
+        generate()
+        assertThat(server.requestCount).isEqualTo(6)
+        assertThat(costGuard.status.value.requestsToday).isEqualTo(2)
+    }
+
+    @Test
+    fun `other endpoints get no reasoning field`() {
+        server.enqueue(ok(completion(threeJson)))
+        generate()
+        assertThat(server.takeRequest().json().containsKey("reasoning")).isFalse()
+    }
+
+    @Test
+    fun `openrouter gets low reasoning effort`() {
+        val bodies = mutableListOf<String>()
+        val hosts = mutableListOf<String>()
+        val fake =
+            OkHttpClient
+                .Builder()
+                .addInterceptor { chain ->
+                    val sent = chain.request()
+                    hosts += sent.url.host
+                    bodies += Buffer().also { sent.body!!.writeTo(it) }.readUtf8()
+                    Response
+                        .Builder()
+                        .request(sent)
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(completion(threeJson).toResponseBody("application/json".toMediaType()))
+                        .build()
+                }.build()
+        runBlocking { settings.update { it.copy(endpoint = ReplylySettings.DEFAULT_ENDPOINT) } }
+        val result = runBlocking { OpenAiReplyGenerator(settings, keys, costGuard, fake).generate(request) }
+
+        assertThat(result).isInstanceOf(SuggestionResult.Success::class.java)
+        assertThat(hosts).containsExactly("openrouter.ai")
+        val reasoning = Json.parseToJsonElement(bodies.single()).jsonObject["reasoning"]!!.jsonObject
+        assertThat(reasoning["effort"]!!.jsonPrimitive.content).isEqualTo("low")
     }
 }

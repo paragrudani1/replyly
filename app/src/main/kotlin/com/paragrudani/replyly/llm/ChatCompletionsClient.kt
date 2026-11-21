@@ -1,5 +1,6 @@
 package com.paragrudani.replyly.llm
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -32,6 +33,8 @@ internal sealed interface CallOutcome {
         val content: String?,
         val usage: TokenUsage,
         val model: String?,
+        /** `"stop"`, `"length"` (hit `max_tokens`)... `null` if absent. */
+        val finishReason: String? = null,
     ) : CallOutcome
 
     data class Failed(
@@ -65,24 +68,33 @@ internal class ChatCompletionsClient(
                 )
                 put("max_tokens", maxTokens)
                 if (jsonMode) put("response_format", buildJsonObject { put("type", "json_object") })
+                // Keeps reasoning models from spending max_tokens on thinking. OpenRouter-only field.
+                if (isOpenRouter(url)) put("reasoning", buildJsonObject { put("effort", "low") })
             }
-        val request =
-            Request
-                .Builder()
-                .url(url)
-                .header("Authorization", "Bearer $apiKey")
-                .header("HTTP-Referer", OpenAiReplyGenerator.APP_REFERER)
-                .header("X-Title", OpenAiReplyGenerator.APP_TITLE)
-                .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
-                .build()
         val (code, text) =
             try {
+                val request =
+                    Request
+                        .Builder()
+                        .url(url)
+                        .header("Authorization", "Bearer $apiKey")
+                        .header("HTTP-Referer", OpenAiReplyGenerator.APP_REFERER)
+                        .header("X-Title", OpenAiReplyGenerator.APP_TITLE)
+                        .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
+                        .build()
                 http.newCall(request).await()
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: InterruptedIOException) {
                 // OkHttp's call/read/connect timeouts. Coroutine cancellation is not an IOException.
                 return CallOutcome.Failed(SuggestionResult.Failure.Timeout)
             } catch (e: IOException) {
                 return CallOutcome.Failed(SuggestionResult.Failure.Network(networkMessage(e)))
+            } catch (e: Exception) {
+                // e.g. IllegalArgumentException from a header value. Class name only: the message may hold the key.
+                return CallOutcome.Failed(
+                    SuggestionResult.Failure.Network("Could not send the request (${e.javaClass.simpleName})."),
+                )
             }
         return if (code in 200..299) parseSuccess(text) else httpFailure(code, text, jsonMode)
     }
@@ -110,9 +122,16 @@ internal class ChatCompletionsClient(
                 promptTokens = usage.int("prompt_tokens"),
                 completionTokens = usage.int("completion_tokens"),
             )
-        val message = ((root["choices"] as? JsonArray)?.firstOrNull() as? JsonObject)?.get("message") as? JsonObject
+        val choice = (root["choices"] as? JsonArray)?.firstOrNull() as? JsonObject
+        val message = choice?.get("message") as? JsonObject
         val model = (root["model"] as? JsonPrimitive)?.takeIf { it.isString }?.content
-        return CallOutcome.Ok(content = contentText(message?.get("content")), usage = tokens, model = model)
+        val finishReason = (choice?.get("finish_reason") as? JsonPrimitive)?.takeIf { it.isString }?.content
+        return CallOutcome.Ok(
+            content = contentText(message?.get("content")),
+            usage = tokens,
+            model = model,
+            finishReason = finishReason,
+        )
     }
 
     /** `content` is a string, or (some providers) a list of `{type:"text", text}` parts. */
@@ -151,6 +170,8 @@ internal class ChatCompletionsClient(
     companion object {
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         private val json = Json { ignoreUnknownKeys = true }
+
+        private fun isOpenRouter(url: HttpUrl) = url.host == "openrouter.ai" || url.host.endsWith(".openrouter.ai")
 
         /**
          * Fixed wording per status. The provider's own error text is never shown: it can quote

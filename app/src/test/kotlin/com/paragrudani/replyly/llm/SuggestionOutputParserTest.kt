@@ -82,4 +82,13 @@ class SuggestionOutputParserTest {
         val parsed = SuggestionOutputParser.parse(raw, expected = 1) as ParsedSuggestions.Ok
         assertThat(parsed.suggestions).containsExactly(Suggestion("whatever", "Theek hai"))
     }
+
+    @Test
+    fun `tolerates trailing commas`() {
+        val raw =
+            """{"suggestions":[{"intent":"agree","text":"yes",},{"intent":"decline","text":"no"},""" +
+                """{"intent":"ask","text":"when?"},],}"""
+        val parsed = SuggestionOutputParser.parse(raw) as ParsedSuggestions.Ok
+        assertThat(parsed.suggestions.map { it.intent }).containsExactly("agree", "decline", "ask").inOrder()
+    }
 }
