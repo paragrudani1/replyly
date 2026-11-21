@@ -110,7 +110,11 @@ class PassiveCaptureComponent(
         if (policy.evaluate(ScreenContext(packageName, snapshot, chat.chatKey)).blocked) return
 
         val outcome = history.mergeRead(chat)
-        if (outcome != MergeOutcome.NONE) log("capture merged inserted=${outcome.inserted} edited=${outcome.edited}")
+        if (outcome == MergeOutcome.NONE) {
+            log("capture unchanged")
+        } else {
+            log("capture merged inserted=${outcome.inserted} edited=${outcome.edited}")
+        }
         outcome.newAtEnd.lastOrNull { it.isMe }?.let { sent ->
             if (feedbackLog.attachFinalMessage(chat.chatKey, sent.text)) log("feedback final message attached")
         }

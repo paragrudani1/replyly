@@ -25,6 +25,7 @@ build that has #2 merged.
 1. Open a WhatsApp chat and stay still for 2 s. Then receive or send one message.
 2. Expect in logcat, about 1 s after the screen stops changing:
    `capture merged inserted=<n> edited=0` (first open: n = visible messages; after the new message: 1).
+   A capture that finds nothing new logs `capture unchanged`.
 3. Note the time between the message appearing and the log line (logcat timestamps).
    Target: about 1 to 1.5 s. Send back the measured delay if it is over 2 s, or if lines repeat
    many times per second while the screen is still (that would mean the wait never settles).
@@ -81,3 +82,48 @@ build that has #2 merged.
 1. In a chat with history, open the panel and use "Delete this chat's history".
 2. Expect: the next suggestion request for that chat has no older history in its prompt
    (only what is on screen now), and the contact note is still there.
+
+## 10. An unreadable history.db is recreated once, no crash loop
+
+Step 7 removes the DB and the key together, so it never tests a DB the key cannot open. This does.
+
+1. With some history saved (step 2), run:
+   `adb shell run-as com.paragrudani.replyly sh -c 'rm -f databases/history.db-wal databases/history.db-shm; head -c 4096 /dev/urandom > databases/history.db'`
+2. Run `adb shell am force-stop com.paragrudani.replyly`. If Settings > Accessibility now shows
+   Replyly off, turn it back on.
+3. Open a WhatsApp chat and wait 2 s.
+4. Expect in logcat: exactly one `history db unreadable, recreating: SQLiteDatabaseCorruptException`
+   line, **no** `new database passphrase` line (the key is fine), then `capture merged inserted=<n>`.
+   The app and the service do not crash or restart in a loop.
+5. Open another chat and wait 2 s. Expect no second `recreating` line.
+6. If it fails, send back: the `ReplylyHistoryDb`/`ReplylyCapture` lines, any
+   `capture failed: <ClassName>` line, and `adb logcat -b crash -d`. If there is no `recreating`
+   line but capture works and nothing crashed, send that back too (SQLCipher may have recreated
+   the file by itself).
+
+## 11. A screen that never stops changing is still captured
+
+The 1 s wait restarts on every screen change; it now fires at the latest 3 s after the first one.
+
+1. Open a 1:1 WhatsApp chat and ask the other person to keep typing for 15 s (the "typing…"
+   indicator), or play a GIF or a voice note in the chat.
+2. Expect in logcat, while it goes on: a `capture unchanged` or `capture merged` line about every
+   3 s. Not several per second, and not zero lines until it stops.
+3. While they are still typing, send a message yourself. Expect a `capture merged inserted=1`
+   line within about 3 s.
+4. If it fails, send back the `ReplylyCapture` lines with their logcat timestamps.
+
+## 12. A busy group after a gap: scrolling up does not overwrite history
+
+Checks that a read after a gap in history never turns an old message into an "edit".
+
+1. Pick a busy WhatsApp group. Open it, wait 2 s, and note the newest message (call it M).
+   Leave the group and do not open it while at least a screen of new messages arrives.
+2. Open the group again and wait 2 s. Expect `capture merged inserted=<n> edited=0`.
+3. Scroll up one screen slowly (so the top bubble is cut off), wait 2 s, then one more screen,
+   wait 2 s.
+4. Expect: every `capture merged` line says `edited=0` (unless someone really edited a message in
+   that time). An `edited=1` or more while nobody edited anything is the bug.
+5. If a prompt preview or the feedback screen (#4, #6) is available: the history around the gap
+   still shows M with its original text.
+6. If it fails, send back the `ReplylyCapture` lines and how many screens you scrolled.
