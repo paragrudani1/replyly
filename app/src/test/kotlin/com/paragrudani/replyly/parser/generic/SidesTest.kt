@@ -48,6 +48,28 @@ class SidesTest {
     }
 
     @Test
+    fun `a bubble is nearer the right only when it almost touches the right edge`() {
+        // Right gap 80 (7%) is smaller than the left gap 150, but an outgoing bubble hugs the edge.
+        assertThat(sides(box(150, 1000))).containsExactly(LEFT)
+        assertThat(sides(box(150, 1030))).containsExactly(RIGHT)
+    }
+
+    @Test
+    fun `known sides win over geometry and anchor the others`() {
+        // A labelled bubble hugging the right edge is still incoming; a ticked one on the left is mine.
+        // The third shares the labelled bubble's left edge, so it is incoming too.
+        val sides =
+            Sides.resolve(
+                listOf(box(150, 1035), box(40, 400), box(150, 900)),
+                listOf(false, true, false),
+                list,
+                known = listOf(LEFT, RIGHT, null),
+            )
+
+        assertThat(sides).containsExactly(LEFT, RIGHT, LEFT).inOrder()
+    }
+
+    @Test
     fun `centred boxes are recognised`() {
         assertThat(Sides.isCentered(box(450, 630), list)).isTrue()
         assertThat(Sides.isCentered(box(0, 1080), list)).isTrue()

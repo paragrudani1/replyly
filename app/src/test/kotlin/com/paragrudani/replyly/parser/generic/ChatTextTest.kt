@@ -60,8 +60,26 @@ class ChatTextTest {
         assertThat(ChatText.groupHint("last seen today at 9:01 pm")).isEqualTo(GroupHint.ONE_TO_ONE)
         assertThat(ChatText.groupHint("typing…")).isEqualTo(GroupHint.ONE_TO_ONE)
         // Only groups say who is typing.
-        assertThat(ChatText.groupHint("Asha is typing…")).isEqualTo(GroupHint.UNKNOWN)
+        assertThat(ChatText.groupHint("Asha is typing…")).isEqualTo(GroupHint.GROUP)
+        assertThat(ChatText.groupHint("Ravi is recording audio…")).isEqualTo(GroupHint.GROUP)
+        assertThat(ChatText.activeMember("Asha is typing…")).isEqualTo("Asha")
+        assertThat(ChatText.activeMember("online")).isNull()
         assertThat(ChatText.groupHint("Mumbai, India")).isEqualTo(GroupHint.UNKNOWN)
         assertThat(ChatText.groupHint(null)).isEqualTo(GroupHint.UNKNOWN)
+    }
+
+    @Test
+    fun `badges, pinned bars and labelled times`() {
+        assertThat(ChatText.isBadge("12")).isTrue()
+        assertThat(ChatText.isBadge("99+")).isTrue()
+        assertThat(ChatText.isBadge("Asha 2")).isFalse()
+        assertThat(ChatText.isPinnedLabel("Pinned message")).isTrue()
+        assertThat(ChatText.isPinnedLabel("Pinned Message: my OTP")).isTrue()
+        assertThat(ChatText.isPinnedLabel("Asha pinned a message")).isFalse()
+
+        assertThat(ChatText.timeOf("edited 6:42\u202Fpm")).isEqualTo("6:42\u202Fpm")
+        assertThat(ChatText.timeOf("Edited, 18:42")).isEqualTo("18:42")
+        assertThat(ChatText.timeOf("6:42 pm")).isEqualTo("6:42 pm")
+        assertThat(ChatText.timeOf("see you at 6:42 pm")).isNull()
     }
 }

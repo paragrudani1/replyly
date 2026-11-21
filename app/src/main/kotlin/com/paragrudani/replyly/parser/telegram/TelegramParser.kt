@@ -20,7 +20,7 @@ import com.paragrudani.replyly.screen.ScreenSnapshot
  * docs/device-checklist/ticket-2.md):
  *
  * ```
- * [Sender name]            (groups, incoming only)
+ * [Sender name]            (groups, incoming only; maybe left out of a follow-up cell)
  * [Forwarded from X]
  * message text (one or more lines)
  * Sent today at 6:42 PM, Read      |  Received today at 6:42 PM
@@ -37,13 +37,24 @@ class TelegramParser : ExplainingChatParser {
         val layout = ChatLayout.detect(tree)
         val hint = ChatText.groupHint(layout.subtitle)
         val isGroupBySubtitle = hint == GroupHint.GROUP
-        val cells =
+        // Screen order, not tree order: the chat list may lay its children out newest first.
+        val raws =
             tree.shownNodes
                 .filter { layout.list == null || layout.list.isAncestorOf(it) }
                 .mapNotNull { node ->
-                    CellDescription.parse(node.text, isGroupBySubtitle)
-                        ?: CellDescription.parse(node.description, isGroupBySubtitle)
-                }
+                    listOfNotNull(node.text, node.description)
+                        .firstOrNull { CellDescription.parse(it, isGroup = false) != null }
+                        ?.let { node to it }
+                }.sortedWith(compareBy(ScreenTree.readingOrder) { it.first })
+                .map { it.second }
+        val knownSenders =
+            if (isGroupBySubtitle) {
+                CellDescription.repeatedFirstLines(raws) +
+                    listOfNotNull(ChatText.activeMember(layout.subtitle))
+            } else {
+                emptySet()
+            }
+        val cells = raws.mapNotNull { CellDescription.parse(it, isGroupBySubtitle, knownSenders) }
 
         if (cells.isNotEmpty()) {
             val title = layout.title ?: return ParseReport(null, METHOD_DESCRIPTIONS, listOf("no chat title"))
@@ -102,27 +113,74 @@ internal data class CellDescription(
     companion object {
         private val status = Regex("""^(sent|received)\b(.*)$""", RegexOption.IGNORE_CASE)
         private val forwarded = Regex("""^forwarded from\b.*""", RegexOption.IGNORE_CASE)
+        private const val MAX_NAME = 40
+        private const val MAX_NAME_WORDS = 4
 
-        /**
-         * `null` if [raw] is not a message cell. The status line must be the last line and contain a
-         * time, so a message that merely starts with "Sent ..." is not mistaken for one.
-         */
-        fun parse(
-            raw: String?,
-            isGroup: Boolean,
-        ): CellDescription? {
+        private class Split(
+            val isMe: Boolean,
+            val body: List<String>,
+            val time: String,
+        )
+
+        private fun split(raw: String?): Split? {
             if (raw == null) return null
             val lines = raw.split('\n').map { it.trim() }.dropLastWhile { it.isEmpty() }
             if (lines.size < 2) return null
             val match = status.matchEntire(ChatText.squash(lines.last())) ?: return null
             val time = ChatText.findTime(lines.last()) ?: return null
-            val isMe = match.groupValues[1].equals("sent", ignoreCase = true)
-            var body = lines.dropLast(1)
-            val sender = if (isGroup && !isMe && body.size >= 2) body.first() else null
-            if (sender != null) body = body.drop(1)
-            body = body.filterNot { forwarded.matches(ChatText.squash(it)) }
-            val text = ChatText.clean(body.joinToString("\n"))?.takeUnless(ChatText::isDeletedPlaceholder)
-            return CellDescription(isMe, ChatText.clean(sender), text, time)
+            return Split(match.groupValues[1].equals("sent", ignoreCase = true), lines.dropLast(1), time)
         }
+
+        /**
+         * `null` if [raw] is not a message cell. The status line must be the last line and contain a
+         * time, so a message that merely starts with "Sent ..." is not mistaken for one.
+         *
+         * In a group, the first line of an incoming cell with two or more lines is the sender when it
+         * is in [knownSenders] or looks like a name ([looksLikeName]). Otherwise it is text: Telegram
+         * may leave the name out of a follow-up cell from the same person, whose sender then comes
+         * from the run above it. "Forwarded from ..." is never a sender.
+         */
+        fun parse(
+            raw: String?,
+            isGroup: Boolean,
+            knownSenders: Set<String> = emptySet(),
+        ): CellDescription? {
+            val cell = split(raw) ?: return null
+            var body = cell.body
+            val first = ChatText.clean(body.first())
+            val sender =
+                first?.takeIf {
+                    isGroup && !cell.isMe && body.size >= 2 && !isForwarded(it) &&
+                        (it in knownSenders || looksLikeName(it))
+                }
+            if (sender != null) body = body.drop(1)
+            body = body.filterNot(::isForwarded)
+            val text = ChatText.clean(body.joinToString("\n"))?.takeUnless(ChatText::isDeletedPlaceholder)
+            return CellDescription(cell.isMe, sender, text, cell.time)
+        }
+
+        /** First lines that start two or more incoming multi-line cells: names seen elsewhere on screen. */
+        fun repeatedFirstLines(raws: List<String>): Set<String> =
+            raws
+                .mapNotNull { raw ->
+                    split(raw)?.takeIf { !it.isMe && it.body.size >= 2 }?.let { ChatText.clean(it.body.first()) }
+                }.filterNot(::isForwarded)
+                .groupingBy { it }
+                .eachCount()
+                .filterValues { it >= 2 }
+                .keys
+
+        /**
+         * A short line of at most [MAX_NAME_WORDS] words, each starting with anything but a
+         * lower-case letter, not ending like a sentence: "Asha", "Ravi K", "Mom ❤️", "+91 98765 43210".
+         */
+        fun looksLikeName(line: String): Boolean {
+            val s = ChatText.squash(line)
+            if (s.isEmpty() || s.length > MAX_NAME || s.last() in ".?!,:;") return false
+            val words = s.split(' ')
+            return words.size <= MAX_NAME_WORDS && words.all { !it.first().isLowerCase() }
+        }
+
+        private fun isForwarded(line: String): Boolean = forwarded.matches(ChatText.squash(line))
     }
 }

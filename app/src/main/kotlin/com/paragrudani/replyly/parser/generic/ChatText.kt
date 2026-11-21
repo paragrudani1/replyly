@@ -108,6 +108,9 @@ object ChatText {
         return when {
             memberCount.matches(s) || s.contains("group info") -> GroupHint.GROUP
 
+            // "Asha is typing…" names someone, which WhatsApp and Telegram only do in groups.
+            someoneActive.containsMatchIn(s) -> GroupHint.GROUP
+
             // WhatsApp lists the members, me last: "Asha, Ravi, You".
             s.contains(
                 ", ",
@@ -118,6 +121,13 @@ object ChatText {
             else -> GroupHint.UNKNOWN
         }
     }
+
+    private val someoneActive = Regex(""" (?:is|are) (?:typing|recording)""")
+    private val activeName = Regex("""^(.+?) (?:is|are) (?:typing|recording)""")
+
+    /** "Asha" from the group subtitle "Asha is typing…"; `null` for any other subtitle. */
+    fun activeMember(subtitle: String?): String? =
+        subtitle?.let { activeName.find(squash(it))?.groupValues?.get(1) }?.takeUnless { it.contains(" and ") }
 
     /**
      * Subtitle phrases that carry no names: "online", "last seen ...", "typing…", "12 members".
@@ -135,6 +145,31 @@ object ChatText {
             s.startsWith("click here for") ||
             memberCount.matches(s)
     }
+
+    /** "Pinned message", "Pinned Message #2": the label of a pinned bar, whose other line is message text. */
+    fun isPinnedLabel(text: String): Boolean = squash(text).lowercase().startsWith("pinned message")
+
+    private val badge = Regex("""^\d{1,4}\+?$""")
+
+    /** A short all-digit text ("12", "99+"): an unread counter, never a title. */
+    fun isBadge(text: String): Boolean = badge.matches(squash(text))
+
+    private val labelledTime =
+        Regex(
+            """^(?:${bubbleLabels.joinToString("|")})[ ,·•]+(\d{1,2}:\d{2}(?: ?[ap]\.? ?m\.?)?)$""",
+            RegexOption.IGNORE_CASE,
+        )
+
+    /** A bubble label fused with the time in one view: "Edited 6:42 pm". */
+    fun isLabelledTime(text: String): Boolean = labelledTime.matches(squash(text))
+
+    /** The clock time of a time leaf ("6:42 pm", or "edited 6:42 pm"), as written; `null` otherwise. */
+    fun timeOf(text: String): String? =
+        when {
+            isTime(text) -> text
+            isLabelledTime(text) -> findTime(text)
+            else -> null
+        }
 
     /** A toolbar line that is a status, not a chat title. */
     fun isStatusLine(text: String): Boolean =

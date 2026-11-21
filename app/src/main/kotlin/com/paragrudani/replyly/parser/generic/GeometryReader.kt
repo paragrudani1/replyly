@@ -8,12 +8,14 @@ import kotlin.math.abs
  *
  * Each child of the message list is one unit (a row). Inside a unit:
  * - centred date separators, the encryption notice and unread banners are dropped;
- * - the bottom-right clock time is the bubble's time, never its text;
+ * - the bottom-right clock time is the bubble's time, never its text (also when fused with a label:
+ *   "edited 6:42 pm" as the last leaf);
  * - "Edited", "Forwarded", tick words are dropped;
  * - the last remaining text is the message; in [Mode.FULL] the text above it is either a sender
  *   label (first line of an incoming group bubble) or a reply-quote preview (skipped);
  * - a centred unit without a time is a system message and is dropped.
- * The bubble box (the smallest node holding all its text) gives the side: closer to the right = me.
+ * The bubble box (the widest container of its text inside the row, narrower than the row) gives
+ * the side ([Sides.resolve]).
  */
 class GeometryReader(
     private val mode: Mode,
@@ -60,13 +62,13 @@ class GeometryReader(
             skipped += all.size - leaves.size
             if (leaves.isEmpty()) continue
 
-            if (leaves.size == 1 && ChatText.isTime(leaves[0].text!!)) {
+            if (leaves.size == 1 && ChatText.timeOf(leaves[0].text!!) != null) {
                 // A time on its own (flat lists): it belongs to the bubble right above it.
                 val previous = pending.lastOrNull()
                 if (previous != null && previous.time == null &&
                     leaves[0].bounds.top - previous.box.bottom <= ADJACENT
                 ) {
-                    previous.time = leaves[0].text
+                    previous.time = ChatText.timeOf(leaves[0].text!!)
                 } else {
                     skipped++
                 }
@@ -85,12 +87,13 @@ class GeometryReader(
             }
             val textNodes = content + listOfNotNull(timeLeaf)
             val bubbleNode = ScreenTree.lowestCommonAncestor(textNodes)!!
+            // The bubble is the widest container of its text, inside the row, still narrower than a
+            // row: a lone text view sits inside the bubble's padding, which would hide its edge.
             val box =
-                if (bubbleNode.bounds.width < area.width * FULL_WIDTH) {
-                    bubbleNode.bounds
-                } else {
-                    textNodes.map { it.bounds }.union()
-                }
+                (sequenceOf(bubbleNode) + bubbleNode.ancestors().takeWhile { it === unit || unit.isAncestorOf(it) })
+                    .filter { it.bounds.width < area.width * FULL_WIDTH }
+                    .lastOrNull()
+                    ?.bounds ?: textNodes.map { it.bounds }.union()
             if (timeLeaf == null && Sides.isCentered(box, area)) {
                 // "Asha added Meera", "Missed voice call"...: system messages sit in the middle.
                 skipped++
@@ -100,7 +103,7 @@ class GeometryReader(
                 unit.descendantsAndSelf().any { n ->
                     n.shown && n.text == null && n.description?.let(ChatText::isTickDescription) == true
                 }
-            pending += Pending(content, timeLeaf?.text, bubbleNode, box, tick)
+            pending += Pending(content, timeLeaf?.text?.let(ChatText::timeOf), bubbleNode, box, tick)
         }
 
         Sides.resolve(pending.map { it.box }, pending.map { it.tick }, area).forEachIndexed { i, side ->
@@ -210,19 +213,28 @@ class GeometryReader(
         return chrome && Sides.isCentered(leaf.bounds, area)
     }
 
-    /** The time-like text furthest down and right: the bubble's own time sits in its bottom-right corner. */
+    /**
+     * The time-like text furthest down and right: the bubble's own time sits in its bottom-right
+     * corner. The last leaf also counts when it is a label fused with the time ("edited 6:42 pm").
+     */
     private fun latestTime(leaves: List<TreeNode>): TreeNode? =
-        leaves.filter { ChatText.isTime(it.text!!) }.reduceOrNull { best, next ->
-            val sameLine = abs(next.bounds.bottom - best.bounds.bottom) <= SAME_LINE * 2
-            val later =
-                if (sameLine) {
-                    next.bounds.right >= best.bounds.right
-                } else {
-                    next.bounds.bottom >
-                        best.bounds.bottom
-                }
-            if (later) next else best
-        }
+        leaves
+            .filter {
+                ChatText.isTime(it.text!!) || (it === leaves.last() && ChatText.isLabelledTime(it.text))
+            }.reduceOrNull {
+                best,
+                next,
+                ->
+                val sameLine = abs(next.bounds.bottom - best.bounds.bottom) <= SAME_LINE * 2
+                val later =
+                    if (sameLine) {
+                        next.bounds.right >= best.bounds.right
+                    } else {
+                        next.bounds.bottom >
+                            best.bounds.bottom
+                    }
+                if (later) next else best
+            }
 
     companion object {
         /** A box this wide (share of the list) is a row, not a bubble. */

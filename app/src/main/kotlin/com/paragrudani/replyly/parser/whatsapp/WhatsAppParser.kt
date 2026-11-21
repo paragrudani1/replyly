@@ -11,6 +11,7 @@ import com.paragrudani.replyly.parser.generic.GeometryReader
 import com.paragrudani.replyly.parser.generic.GroupHint
 import com.paragrudani.replyly.parser.generic.RawBubble
 import com.paragrudani.replyly.parser.generic.ScreenTree
+import com.paragrudani.replyly.parser.generic.Side
 import com.paragrudani.replyly.parser.generic.Sides
 import com.paragrudani.replyly.parser.generic.TreeNode
 import com.paragrudani.replyly.parser.generic.union
@@ -23,8 +24,8 @@ import com.paragrudani.replyly.screen.ScreenSnapshot
  * View ids first ([WhatsAppIds]): every `message_text`/`caption` is one message; its row gives the
  * time (`date`), the group sender label (`name_in_group_tv`) and the outgoing tick (`status`).
  * Quote previews, date dividers, system notices and banners have other ids, so they never count.
- * The side still comes from geometry (right = me). If no message ids are found, the whole screen
- * goes through [GeometryReader] instead.
+ * A label means incoming and a tick means mine; the other bubbles get their side from geometry
+ * (right = me). If no message ids are found, the whole screen goes through [GeometryReader] instead.
  */
 class WhatsAppParser : ExplainingChatParser {
     override val packages: Set<String> = setOf(TargetApps.WHATSAPP, TargetApps.WHATSAPP_BUSINESS)
@@ -123,7 +124,16 @@ class WhatsAppParser : ExplainingChatParser {
                 val text = message.text?.takeUnless(ChatText::isDeletedPlaceholder)
                 IdBubble(text, time?.text, label, tick, box)
             }
-        val sides = Sides.resolve(raw.map { it.box }, raw.map { it.tick }, area)
+        // A sender label only sits on incoming bubbles and a tick only on mine: those decide outright.
+        val known =
+            raw.map {
+                when {
+                    it.label != null -> Side.LEFT
+                    it.tick -> Side.RIGHT
+                    else -> null
+                }
+            }
+        val sides = Sides.resolve(raw.map { it.box }, raw.map { it.tick }, area, known)
         return raw.mapIndexed { i, b -> RawBubble(sides[i], b.label, b.text, b.time) }
     }
 

@@ -17,12 +17,18 @@ class ChatLayout(
     val list: TreeNode?,
     /** Where messages are: the list, or the band between the toolbar and the input. */
     val content: Bounds,
-    /** Everything above this y is the toolbar. */
+    /**
+     * Everything above this y is the toolbar: the list's top, or the top of its first row when the
+     * list starts at the very top of the screen (a toolbar drawn over the list, as Telegram may do).
+     */
     val headerBottom: Int,
-    /** Toolbar text lines in reading order (title first, then subtitle). */
+    /**
+     * Title candidates in reading order: text above [headerBottom], outside the list, minus pinned
+     * message bars, unread badges and anything entirely left of the status line (back-button badges).
+     */
     val headerTexts: List<TreeNode>,
 ) {
-    /** First toolbar line that is not a status or a time. */
+    /** First toolbar line that is not a status or a time. `null` when there is none. */
     val title: String? get() = titleNode?.text
 
     /** Toolbar line just below the title: "online", "Asha, Ravi, You", "5 members"... */
@@ -36,8 +42,11 @@ class ChatLayout(
         get() = headerTexts.firstOrNull { !ChatText.isStatusLine(it.text!!) && !ChatText.isTime(it.text) }
 
     companion object {
-        /** Toolbar height used when there is no list to mark where the toolbar ends. */
+        /** Toolbar height used when there is no list (or no row) to mark where the toolbar ends. */
         private const val HEADER_FRACTION = 0.13
+
+        /** A list whose top is above this share of the screen starts behind the toolbar. */
+        private const val LIST_BEHIND_TOOLBAR = 0.05
 
         fun detect(tree: ScreenTree): ChatLayout {
             val screen = tree.screen
@@ -54,13 +63,51 @@ class ChatLayout(
                             it.bounds.bottom <= inputTop + SLACK &&
                             it.bounds.height >= screen.height / 5
                     }.maxWithOrNull(compareBy<TreeNode>({ it.bounds.width.toLong() * it.bounds.height }, { it.depth }))
-            val headerBottom = list?.bounds?.top ?: (screen.height * HEADER_FRACTION).toInt()
+            val fallbackHeader = (screen.height * HEADER_FRACTION).toInt()
+            val headerBottom =
+                when {
+                    list == null -> {
+                        fallbackHeader
+                    }
+
+                    list.bounds.top >= screen.height * LIST_BEHIND_TOOLBAR -> {
+                        list.bounds.top
+                    }
+
+                    else -> {
+                        list.children.filter { it.shown && it.bounds.hasArea }.minOfOrNull { it.bounds.top }
+                            ?: fallbackHeader
+                    }
+                }
             val content = list?.bounds ?: Bounds(screen.left, headerBottom, screen.right, inputTop)
-            val headerTexts =
+            val above =
                 tree
                     .textLeaves()
                     .filter { it.bounds.bottom <= headerBottom + SLACK && (list == null || !list.isAncestorOf(it)) }
-            return ChatLayout(input, list, content, headerBottom, headerTexts)
+            return ChatLayout(input, list, content, headerBottom, titleCandidates(tree, above))
+        }
+
+        private fun titleCandidates(
+            tree: ScreenTree,
+            above: List<TreeNode>,
+        ): List<TreeNode> {
+            // A pinned bar ("Pinned message" + its text) holds message text: drop the whole bar, that
+            // is the label's parent, unless the parent also holds lines above it (the toolbar itself).
+            val pinnedBars =
+                above
+                    .filter { ChatText.isPinnedLabel(it.text!!) }
+                    .map { label ->
+                        label.parent?.takeIf { bar ->
+                            bar !== tree.root &&
+                                above.none { bar.isAncestorOf(it) && it.bounds.bottom <= label.bounds.top }
+                        } ?: label
+                    }
+            val status = above.firstOrNull { ChatText.isStatusLine(it.text!!) }
+            return above.filterNot { leaf ->
+                pinnedBars.any { it === leaf || it.isAncestorOf(leaf) } ||
+                    ChatText.isBadge(leaf.text!!) ||
+                    (status != null && leaf !== status && leaf.bounds.right <= status.bounds.left)
+            }
         }
 
         private const val SLACK = 16
@@ -93,22 +140,51 @@ object Sides {
     }
 
     /**
-     * Decides the side of each bubble (right = me). Incoming bubbles share one left edge and mine
-     * share one right edge, so the edges decide first:
-     * 1. the left anchor is the leftmost left edge of the bubbles nearer the left; the right anchor
-     *    is the rightmost right edge of the bubbles nearer the right;
+     * Largest right gap of a bubble that counts as "nearer the right": mine hug the right edge, while
+     * a wide incoming bubble pushed right by a group's avatar column stops short of it.
+     */
+    fun maxRightGap(area: Bounds): Int = area.width * RIGHT_GAP_PERCENT / 100
+
+    /** Nearer the right (-> +1), the left (-> -1), or centred (0), for picking the anchors. */
+    private fun nearer(
+        box: Bounds,
+        area: Bounds,
+    ): Int {
+        if (isCentered(box, area)) return 0
+        val (left, right) = gaps(box, area)
+        return if (right <= maxRightGap(area) && right < left) 1 else -1
+    }
+
+    /**
+     * Decides the side of each bubble (right = me). [known] holds sides already proven by the app
+     * (a sender label means left, an outgoing tick means right); those win, and the rest go by
+     * geometry. Incoming bubbles share one left edge and mine share one right edge, so the edges
+     * decide first:
+     * 1. a bubble is nearer the right only when its right gap is at most [maxRightGap]; otherwise it
+     *    is nearer the left (or centred). The left anchor is the leftmost left edge of the bubbles
+     *    known or nearer to be left; the right anchor is the rightmost right edge of the bubbles
+     *    known or nearer to be right;
      * 2. a bubble on exactly one anchor is on that side (a wide incoming group bubble, pushed right
      *    by the avatar column, still starts at the left anchor), unless it is nearly centred and
      *    ticks are on screen;
      * 3. if any bubble on screen has an outgoing tick, a tick means me and no tick means not me;
-     * 4. otherwise the side it is closer to, and left when it is centred.
+     * 4. otherwise right only when nearer the right, else left.
      */
     fun resolve(
         bubbles: List<Bounds>,
         tickHints: List<Boolean>,
         area: Bounds,
+        known: List<Side?> = emptyList(),
     ): List<Side> {
-        val nearer = bubbles.map { box -> gaps(box, area).let { (l, r) -> l.compareTo(r) } }
+        val fixed = bubbles.indices.map { known.getOrNull(it) }
+        val nearer =
+            bubbles.mapIndexed { i, box ->
+                when (fixed[i]) {
+                    Side.LEFT -> -1
+                    Side.RIGHT -> 1
+                    null -> nearer(box, area)
+                }
+            }
         val leftAnchor = bubbles.filterIndexed { i, _ -> nearer[i] < 0 }.minOfOrNull { it.left }
         val rightAnchor = bubbles.filterIndexed { i, _ -> nearer[i] > 0 }.maxOfOrNull { it.right }
         val ticksOnScreen = tickHints.any { it }
@@ -116,7 +192,7 @@ object Sides {
             val onLeft = leftAnchor != null && abs(box.left - leftAnchor) <= EDGE_MATCH
             val onRight = rightAnchor != null && abs(box.right - rightAnchor) <= EDGE_MATCH
             val anchorDecides = onLeft != onRight && (!ticksOnScreen || !isCentered(box, area))
-            when {
+            fixed[i] ?: when {
                 anchorDecides -> if (onLeft) Side.LEFT else Side.RIGHT
                 ticksOnScreen -> if (tickHints[i]) Side.RIGHT else Side.LEFT
                 nearer[i] > 0 -> Side.RIGHT
@@ -124,6 +200,9 @@ object Sides {
             }
         }
     }
+
+    /** See [maxRightGap]. Unverified on the S23: device checklist. */
+    private const val RIGHT_GAP_PERCENT = 5
 
     private const val EDGE_MATCH = 12
 }
