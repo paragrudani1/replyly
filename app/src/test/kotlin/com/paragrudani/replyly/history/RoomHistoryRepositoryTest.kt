@@ -88,28 +88,29 @@ class RoomHistoryRepositoryTest {
     fun `re-reads, repeats, scrolling up and edits survive the round trip through the DB`() =
         runTest {
             val key = ChatKey("com.whatsapp", "Asha")
-            history.merge(chat(them("c"), me("d", "6:45 pm")))
+            val e = them("e", "6:46 pm")
+            history.merge(chat(them("c"), me("d", "6:45 pm"), e))
 
-            assertThat(history.merge(chat(them("c"), me("d", "6:45 pm")))).isEqualTo(0)
-            assertThat(history.merge(chat(them("c"), me("d", "6:45 pm"), me("d", "6:45 pm")))).isEqualTo(1)
-            assertThat(history.merge(chat(them("a"), them("b"), them("c")))).isEqualTo(2)
-            history.merge(chat(them("c"), me("d", "6:45 pm"), me("d!", "6:45 pm")))
+            assertThat(history.merge(chat(them("c"), me("d", "6:45 pm"), e))).isEqualTo(0)
+            assertThat(history.merge(chat(them("c"), me("d", "6:45 pm"), me("d", "6:45 pm"), e))).isEqualTo(1)
+            assertThat(history.merge(chat(them("a"), them("b"), them("c"), me("d", "6:45 pm")))).isEqualTo(2)
+            history.merge(chat(them("c"), me("d", "6:45 pm"), me("d!", "6:45 pm"), e))
 
-            assertThat(texts(key)).containsExactly("a", "b", "c", "d", "d!").inOrder()
+            assertThat(texts(key)).containsExactly("a", "b", "c", "d", "d!", "e").inOrder()
         }
 
     @Test
     fun `an edit keeps when the message was first seen`() =
         runTest {
-            history.merge(chat(them("a"), me("typo", "6:45 pm")))
+            history.merge(chat(them("a"), me("typo", "6:45 pm"), them("b", "6:46 pm")))
             val firstSeen = clock.now
             clock.advance(Duration.ofMinutes(5))
 
-            history.merge(chat(them("a"), me("fixed", "6:45 pm")))
+            history.merge(chat(them("a"), me("fixed", "6:45 pm"), them("b", "6:46 pm")))
 
-            val last = history.lastMessages(ChatKey("com.whatsapp", "Asha"), 1).single()
-            assertThat(last.message.text).isEqualTo("fixed")
-            assertThat(last.firstSeenAt).isEqualTo(firstSeen)
+            val edited = history.lastMessages(ChatKey("com.whatsapp", "Asha"), 2).first()
+            assertThat(edited.message.text).isEqualTo("fixed")
+            assertThat(edited.firstSeenAt).isEqualTo(firstSeen)
         }
 
     @Test
@@ -121,6 +122,29 @@ class RoomHistoryRepositoryTest {
 
             assertThat(outcome.inserted).isEqualTo(2)
             assertThat(outcome.newAtEnd).containsExactly(them("c"), me("sent now", "6:50 pm")).inOrder()
+        }
+
+    @Test
+    fun `a long chat merges against its newest rows, and against all of them when needed`() =
+        runTest {
+            val smallTail = RoomHistoryRepository(handle, clock, tailSize = 3)
+            val key = ChatKey("com.whatsapp", "Asha")
+            val m = (1..10).map { them("m$it") }
+            smallTail.merge(chat(*m.toTypedArray()))
+
+            // At the tail: the newest 3 rows are enough.
+            assertThat(smallTail.merge(chat(m[8], m[9], me("new")))).isEqualTo(1)
+            // No overlap with the tail, but saved further up: nothing is duplicated.
+            assertThat(smallTail.merge(chat(m[2], m[3], m[4]))).isEqualTo(0)
+            // Reaches above the tail.
+            assertThat(smallTail.merge(chat(m[6], m[7], m[8], m[9]))).isEqualTo(0)
+            // Inserted between rows above the tail.
+            assertThat(smallTail.merge(chat(m[3], m[4], me("late", "6:50 pm"), m[5], m[6]))).isEqualTo(1)
+
+            assertThat(texts(key))
+                .containsExactlyElementsIn(
+                    listOf("m1", "m2", "m3", "m4", "m5", "late", "m6", "m7", "m8", "m9", "m10", "new"),
+                ).inOrder()
         }
 
     @Test

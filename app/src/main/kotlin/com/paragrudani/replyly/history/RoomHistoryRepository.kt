@@ -33,10 +33,17 @@ fun interface HistoryReadMerger {
     suspend fun mergeRead(chat: ParsedChat): MergeOutcome
 }
 
-/** [HistoryRepository] on the encrypted Room DB. Merge logic: [HistoryMerge]. */
+/**
+ * [HistoryRepository] on the encrypted Room DB. Merge logic: [HistoryMerge].
+ *
+ * Capture merges after every pause, so a merge first loads only the newest [tailSize] rows of the
+ * chat; it loads the whole chat only when the read does not overlap them (see
+ * [HistoryMerge.planAgainstTail]).
+ */
 class RoomHistoryRepository(
     private val handle: HistoryDatabaseHandle,
     private val clock: Clock,
+    private val tailSize: Int = DEFAULT_TAIL_SIZE,
 ) : HistoryRepository,
     HistoryReadMerger {
     // Passive capture and the assembler may merge the same chat at once; one merge at a time.
@@ -51,8 +58,14 @@ class RoomHistoryRepository(
         val chatKey = chat.chatKey.encoded
         return mergeLock.withLock {
             db.withTransaction {
-                val stored = dao.allInChat(chatKey).map { StoredRow(it.id, it.position, it.toMessage()) }
-                val plan = HistoryMerge.plan(stored, chat.messages)
+                val tail = dao.newestInChat(chatKey, tailSize).asReversed().map { it.toRow() }
+                val plan =
+                    if (tail.size < tailSize) {
+                        HistoryMerge.plan(tail, chat.messages) // The tail is the whole chat.
+                    } else {
+                        HistoryMerge.planAgainstTail(tail, chat.messages)
+                            ?: HistoryMerge.plan(dao.allInChat(chatKey).map { it.toRow() }, chat.messages)
+                    }
                 if (plan.isNoOp) return@withTransaction MergeOutcome.NONE
                 plan.moves.forEach { dao.move(it.id, it.position) }
                 plan.edits.forEach { edit ->
@@ -111,11 +124,17 @@ class RoomHistoryRepository(
     override suspend fun purgeOlderThan(cutoff: Instant): Int =
         mergeLock.withLock { handle.get().messages().deleteFirstSeenBefore(cutoff.toEpochMilli()) }
 
+    private fun MessageEntity.toRow() = StoredRow(id, position, toMessage())
+
     private fun MessageEntity.toMessage() =
         ChatMessage(sender = sender, text = text, timeShown = timeShown, isMe = isMe)
 
     private fun MessageEntity.toStored() =
         StoredMessage(ChatKey.decode(chatKey), toMessage(), Instant.ofEpochMilli(firstSeenAt))
+
+    companion object {
+        const val DEFAULT_TAIL_SIZE = 500
+    }
 }
 
 /** [ContactNoteStore] in the same encrypted DB. */
