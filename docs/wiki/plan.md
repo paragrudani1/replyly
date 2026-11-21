@@ -8,3 +8,7 @@
 
 ## PR log
 (none yet: blocked on the GitHub repo)
+
+## Wave 3 follow-ups collected (2026-11-21)
+- From #4 (`ticket-4-llm@6d81602`): Settings needs a "3 parallel calls" switch for `useParallelCalls` (#6 was briefed before that field existed). The manifest may need a `<queries>` entry so `PackageManager` can label generic apps. Consider OpenRouter's `reasoning` effort if `~openai/gpt-mini-latest` is slow. Remove `Stub*` LLM classes once #5 lands.
+- From #6 briefing: swap AppGraph `feedbackLog` to the SQLCipher implementation once #3 has merged.
