@@ -62,3 +62,4 @@
 - 2026-11-21: #24 fixes at `3f66af3` (698 tests; tap fuzzer 2,000 seeds clean). Merger running (expects conflicts with #20/#22).
 - 2026-11-21: #23 fixes at `4c7937b` (786 tests). A final merger waits for #24 to merge, then merges main into #23 (panel checklist steps become 11.C), merges on green and confirms the latest-debug APK.
 - 2026-11-21: #24 (P2 panel) merged as `1e65e27` (merge head `6c4ac40`, CI 44934049383, 802 tests). Panel checklist steps are 11.20–11.29 and 11.40–11.43 on main; the #23 merger moves them to 11.C.
+- 2026-11-21: Polish pass and provider profiles complete. #23 (P4 settings) merged as `d394065` (merge head `6933f5d`, CI 44934846375, 850 tests). Push run 44935397397 green; `latest-debug` → `d394065`, `replyly-debug.apk` 48,794,136 bytes, versionCode 48 / versionName 0.1.48. Checklist section 11 is lettered 11.A–11.E; section 12 is provider profiles. Issues #17 and #18 closed.
