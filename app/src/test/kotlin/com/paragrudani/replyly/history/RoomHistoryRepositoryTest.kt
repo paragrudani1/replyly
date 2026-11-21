@@ -57,6 +57,9 @@ class RoomHistoryRepositoryTest {
         limit: Int = 100,
     ) = history.lastMessages(key, limit).map { it.message.text }
 
+    /** Every row of a chat, whatever its current position. */
+    private suspend fun allTexts(key: ChatKey) = database.messages().allInChat(key.encoded).map { it.text }
+
     @Test
     fun `merge stores a chat and reads it back oldest first`() =
         runTest {
@@ -91,25 +94,29 @@ class RoomHistoryRepositoryTest {
     fun `re-reads, repeats, scrolling up and edits survive the round trip through the DB`() =
         runTest {
             val key = ChatKey("com.whatsapp", "Asha")
-            val e = them("e", "6:46 pm")
-            history.merge(chat(them("c"), me("d", "6:45 pm"), e))
+            val c = them("coming at 7?")
+            val e = them("see you then", "6:46 pm")
+            history.merge(chat(c, me("d", "6:45 pm"), e))
 
-            assertThat(history.merge(chat(them("c"), me("d", "6:45 pm"), e))).isEqualTo(0)
-            assertThat(history.merge(chat(them("c"), me("d", "6:45 pm"), me("d", "6:45 pm"), e))).isEqualTo(1)
-            assertThat(history.merge(chat(them("a"), them("b"), them("c"), me("d", "6:45 pm")))).isEqualTo(2)
-            history.merge(chat(them("c"), me("d", "6:45 pm"), me("d!", "6:45 pm"), e))
+            assertThat(history.merge(chat(c, me("d", "6:45 pm"), e))).isEqualTo(0)
+            assertThat(history.merge(chat(c, me("d", "6:45 pm"), me("d", "6:45 pm"), e))).isEqualTo(1)
+            assertThat(history.merge(chat(them("a"), them("b"), c, me("d", "6:45 pm")))).isEqualTo(2)
+            history.merge(chat(c, me("d", "6:45 pm"), me("d", "6:45 pm"), me("d!", "6:46 pm"), e))
+            history.merge(chat(c, me("d", "6:45 pm"), me("d", "6:45 pm"), me("d!!", "6:46 pm"), e))
 
-            assertThat(texts(key)).containsExactly("a", "b", "c", "d", "d!", "e").inOrder()
+            assertThat(allTexts(key))
+                .containsExactly("a", "b", "coming at 7?", "d", "d", "d!!", "see you then")
+                .inOrder()
         }
 
     @Test
     fun `an edit keeps when the message was first seen`() =
         runTest {
-            history.merge(chat(them("a"), me("typo", "6:45 pm"), them("b", "6:46 pm")))
+            history.merge(chat(them("are we on?"), me("typo", "6:45 pm"), them("b", "6:46 pm")))
             val firstSeen = clock.now
             clock.advance(Duration.ofMinutes(5))
 
-            history.merge(chat(them("a"), me("fixed", "6:45 pm"), them("b", "6:46 pm")))
+            history.merge(chat(them("are we on?"), me("fixed", "6:45 pm"), them("b", "6:46 pm")))
 
             val edited = history.lastMessages(ChatKey("com.whatsapp", "Asha"), 2).first()
             assertThat(edited.message.text).isEqualTo("fixed")
@@ -145,7 +152,7 @@ class RoomHistoryRepositoryTest {
             // Inserted between rows above the tail.
             assertThat(smallTail.merge(chat(m[3], m[4], me("late", "6:50 pm"), m[5], m[6]))).isEqualTo(1)
 
-            assertThat(texts(key))
+            assertThat(allTexts(key))
                 .containsExactlyElementsIn(
                     listOf("m1", "m2", "m3", "m4", "m5", "late", "m6", "m7", "m8", "m9", "m10", "new"),
                 ).inOrder()
@@ -179,6 +186,64 @@ class RoomHistoryRepositoryTest {
         }
 
     @Test
+    fun `lastMessages ends at the current position, not at an old block stored last`() =
+        runTest {
+            val key = ChatKey("com.whatsapp", "Asha")
+            history.merge(chat(them("a1", "6:00 pm"), me("a2", "6:01 pm"), them("a3", "6:02 pm")))
+            // A jump far up with no overlap: the old block is stored after the newest rows.
+            history.merge(chat(them("o1", "1:00 pm"), me("o2", "1:01 pm")))
+            assertThat(texts(key, limit = 2)).containsExactly("o1", "o2").inOrder()
+
+            // Back at the bottom (the assembler merges the screen right before reading).
+            history.merge(chat(me("a2", "6:01 pm"), them("a3", "6:02 pm"), me("a4", "6:05 pm")))
+
+            assertThat(texts(key, limit = 3)).containsExactly("a2", "a3", "a4").inOrder()
+            val sent = history.mergeRead(chat(them("a3", "6:02 pm"), me("a4", "6:05 pm"), me("a5", "6:06 pm")))
+            assertThat(sent.newAtEnd).containsExactly(me("a5", "6:06 pm"))
+            assertThat(texts(key, limit = 1)).containsExactly("a5")
+        }
+
+    @Test
+    fun `a re-read inside the history moves the current position`() =
+        runTest {
+            val key = ChatKey("com.whatsapp", "Asha")
+            history.merge(chat(them("a1", "6:00 pm"), me("a2", "6:01 pm"), them("a3", "6:02 pm"), me("a4", "6:03 pm")))
+
+            assertThat(history.merge(chat(them("a1", "6:00 pm"), me("a2", "6:01 pm")))).isEqualTo(0)
+
+            assertThat(texts(key)).containsExactly("a1", "a2").inOrder()
+        }
+
+    @Test
+    fun `style examples stop at the current position of each chat`() =
+        runTest {
+            history.merge(chat(me("recent to Ravi", "6:00 pm"), them("x", "6:01 pm"), title = "Ravi"))
+            clock.advance(Duration.ofMinutes(1))
+            history.merge(chat(me("old to Ravi", "1:00 pm"), them("y", "1:01 pm"), title = "Ravi"))
+            clock.advance(Duration.ofMinutes(1))
+            history.merge(chat(me("recent to Ravi", "6:00 pm"), them("x", "6:01 pm"), title = "Ravi"))
+
+            val examples =
+                history.recentOwnMessagesInOtherChats("com.whatsapp", excluding = ChatKey("com.whatsapp", "Asha"), 5)
+
+            assertThat(examples.map { it.message.text }).containsExactly("recent to Ravi")
+        }
+
+    @Test
+    fun `a purged current row falls back to the last row of the chat`() =
+        runTest {
+            val key = ChatKey("com.whatsapp", "Asha")
+            history.merge(chat(them("new 1", "6:00 pm"), me("new 2", "6:01 pm")))
+            clock.advance(Duration.ofDays(61))
+            history.merge(chat(them("fresh 1", "1:00 pm"), me("fresh 2", "1:01 pm")))
+            history.merge(chat(them("new 1", "6:00 pm"), me("new 2", "6:01 pm")))
+
+            history.purgeOlderThan(clock.now - Duration.ofDays(60))
+
+            assertThat(texts(key)).containsExactly("fresh 1", "fresh 2").inOrder()
+        }
+
+    @Test
     fun `deleting a chat removes its messages but keeps its note and other chats`() =
         runTest {
             val asha = ChatKey("com.whatsapp", "Asha")
@@ -189,6 +254,7 @@ class RoomHistoryRepositoryTest {
             history.deleteChat(asha)
 
             assertThat(texts(asha)).isEmpty()
+            assertThat(database.messages().currentRowId(asha.encoded)).isNull()
             assertThat(texts(ChatKey("com.whatsapp", "Ravi"))).containsExactly("r")
             assertThat(notes.get(asha)).isEqualTo("Sister")
         }

@@ -48,15 +48,27 @@ data class MergePlan(
     /** True when the read overlapped the saved history, so its place in the history is known. */
     val anchored: Boolean,
     /**
-     * Messages stored after the last saved message, in an anchored read whose overlap reaches the
-     * last saved message: these arrived or were sent since the last read. Empty otherwise, because
-     * then it is not known whether they are new (the history may have a gap).
+     * Messages stored after the end of the current segment (the segment that holds the current
+     * position, see [HistoryMerge]), in an anchored read whose overlap reaches that end: these
+     * arrived or were sent since the last read. Empty otherwise, because then it is not known
+     * whether they are new (the history may have a gap).
      */
     val newAtEnd: List<ChatMessage>,
     /** Saved rows whose [StoredRow.gapBefore] is cleared: the gap above them is closed or moved up. */
     val gapsCleared: List<Long> = emptyList(),
+    /**
+     * For each read message, in read order: the id of the saved row it is (or is an edit of), or
+     * null when it is stored as a new row (one of [inserts]).
+     */
+    val matchedRowIds: List<Long?> = emptyList(),
 ) {
     val isNoOp: Boolean get() = inserts.isEmpty() && edits.isEmpty() && moves.isEmpty() && gapsCleared.isEmpty()
+
+    /**
+     * The new current position: the saved row id of the read's last message, or null when that
+     * message is the last of [inserts]. Null for an empty read.
+     */
+    val currentRowId: Long? get() = matchedRowIds.lastOrNull()
 }
 
 /** The identity hash of a message: (isMe, sender, text, time shown), spec 5. */
@@ -92,79 +104,121 @@ object MessageHash {
  * alignment lives inside one segment: pairs, edits and sender or time fills never cross a marker,
  * and new messages are stored inside the segment of the rows they line up with.
  *
+ * **Current position.** The row of the last read's last message ([MergePlan.currentRowId]): the
+ * row it lined up with, or the row it was stored in. The caller keeps it per chat and passes it to
+ * the next merge. The segment that holds it is the *current segment*; "the end" below means the
+ * current segment's last row, not the history's last row, so a block of old messages stored last
+ * after a jump far up stops counting as the newest once the user is back at the bottom.
+ *
  * 1. **Find the overlap.** Every pair (read index `i`, saved index `j`) of *exactly* equal
  *    messages votes for its segment and the offset `d = j - i`. Exactly equal means both show the
  *    same time, and either the same hash, or someone else's message with the same text where one
  *    side has no sender (a group bubble whose name label is above the screen). The (segment,
  *    offset) with the most votes wins; ties go to the one whose overlap has the fewest messages
- *    that cannot match, then to the newest.
+ *    that cannot match, then the most exactly equal [DISTINCTIVE_LENGTH] texts, then the newest.
  * 2. **Align.** A longest common subsequence between the read and that segment pairs up equal
  *    messages, only within [BAND] rows of the voted offset's diagonal. Here two messages also count
  *    as equal when they differ only by a field the screen did not show: a `null` time (the
  *    bubble's top or bottom is cut off) or a `null` sender of someone else's message. Among equally
- *    long alignments it keeps the pairs closest to the diagonal, so when "ok", "ok" is saved and
- *    the screen shows "ok", "b", the "ok" pairs with the second one (the screen's top). A pair
- *    that is not exact is kept only when an exact pair sits right next to it, with no read or
- *    saved message skipped between them.
+ *    long alignments it keeps the most pairs with a [DISTINCTIVE_LENGTH] text, then weighs how
+ *    equal the pairs are (every field shown, then exactly equal) against how far they sit off the
+ *    diagonal (an exact pair one row off beats a time-less one on it), and closeness decides the
+ *    rest: when "ok", "ok" is saved and the screen shows "ok", "b", the "ok" pairs with the second
+ *    one (the screen's top). A pair that is not exact is kept only when an exact pair sits right next
+ *    to it, with no read or saved message skipped between them.
  * 3. **Accept the overlap** only if the alignment
- *    - has at least two pairs, one of them exact;
+ *    - has at least two pairs; at least one of them exact, or two when every paired text is
+ *      shorter than [DISTINCTIVE_LENGTH] ("ok", "😂", "gm", a sticker);
  *    - covers at least half of the read messages that fall inside the segment at the offset;
  *    - leaves at most one read message unpaired between its first and last pair;
+ *    - has no slot between two pairs where the read shows a message and the saved side skips a
+ *      row, unless the slot has as many read messages as saved rows and the read message is an
+ *      edit of that row (step 5) in an alignment with a distinctive exact pair: two messages missed in one place are less likely than a
+ *      coincidental alignment, or a run lined up one message off;
  *    - is not contradicted at its edges: a segment has no holes, so the read message right above
  *      the first pair must be the saved row right above it when both exist (likewise below the
- *      last pair), unless that slot looks like an edit.
+ *      last pair), even when it looks like an edit (same author and time: a burst in one minute
+ *      looks like that too).
  *
- *    One pair is enough only for new messages below the last saved row, with a text of at least
- *    [DISTINCTIVE_LENGTH] characters: the read's first message equals the saved last one in every
- *    field, or it is the saved last one with its time cut off (same author, sender and text; the
- *    saved one shows a time); and no read message equals another saved row at an offset where the
- *    read would fit just as well. This rejects a lone coincidence (yesterday's "gm" at 9:00 am, or
- *    a clipped "ok" that is the oldest saved row).
+ *    One pair is enough only for new messages below the end, with a text of at least
+ *    [DISTINCTIVE_LENGTH] characters: the read's first message equals the saved row at the end in
+ *    every field, or it is that row with its time cut off (same author, sender and text; the saved
+ *    one shows a time); and no read message equals another saved row at an offset where the read
+ *    would fit just as well. This rejects a lone coincidence (yesterday's "gm" at 9:00 am, or a
+ *    clipped "ok" that is the oldest saved row).
  * 4. **Close gaps.** If the read goes on past the end of its segment, and that remainder lines up
  *    on its own (step 1 to 3, two pairs or more) with the start of the next segment, the read
  *    shows that nothing is missing there: the two segments join and the marker is cleared. The
  *    same holds upwards for the previous segment.
- * 5. **Edits.** Only strictly between two aligned pairs of one segment, never before the first or
- *    after the last one (there the read may show a new message): a read message and the saved message in the same
- *    slot are taken for an edit when both show a time and it is the same, they have the same
- *    author, and for someone else's message both show the same sender. The saved row keeps its
- *    place and gets the new content. Pairing stops at the first slot that does not qualify.
+ * 5. **Edits.** Only in an alignment with an exact pair of [DISTINCTIVE_LENGTH] text, and only
+ *    strictly between two aligned pairs of one segment with as many read messages as saved rows
+ *    between them, never before the first or after the last one (there the read may show a new
+ *    message): a read message and the saved message in the same slot are taken for an edit
+ *    when both show a time and it is the same, they have the same author, and for someone else's
+ *    message both show the same sender; and not when the pair
+ *    before or after the slot could move into it (a neighbour equals the other side's message:
+ *    then the read message may be new and the saved row one this read skipped). The saved row
+ *    keeps its place and gets the new content. Pairing stops at the first slot that does not
+ *    qualify.
  * 6. **Fill in.** An aligned saved message stored without a time gets the time the read shows,
  *    and one from someone else stored without a sender gets the sender the read shows, so a row
- *    does not keep matching every message with its text.
+ *    does not keep matching every message with its text. Only for pairs with another pair on
+ *    each side, and not inside a run of the same text from the same side (two "ok"s in a row): at
+ *    the edge of the overlap, or inside a run, the read message may be one the history missed,
+ *    right next to that row.
  * 7. **Place new messages.** Each remaining read message is stored right before the saved row of
  *    the next read message that has one; messages after the last pair go right after that pair's
  *    row, inside its segment, even when later segments follow. New messages above the first row
  *    of a segment take over its gap marker. Saved rows that the read skips (deleted for me, or a
  *    parser miss) are kept.
  *
- * Results by case: an identical re-read or a read inside the saved range is a no-op; new messages
- * below the tail are appended and reported in [MergePlan.newAtEnd]; scrolling up stores the older
- * messages before the saved ones; a read with no accepted overlap is appended after the last
- * saved row with a gap marker (not reported in [MergePlan.newAtEnd]); reading the same screen
- * again then overlaps and adds nothing.
+ * Results by case: an identical re-read or a read inside the saved range is a no-op (it only moves
+ * the current position); new messages below the end are appended and reported in
+ * [MergePlan.newAtEnd]; scrolling up stores the older messages before the saved ones; a read with
+ * no accepted overlap is appended after the last saved row with a gap marker (not reported in
+ * [MergePlan.newAtEnd]) and becomes the current segment; reading the same screen again then
+ * overlaps and adds nothing.
  *
  * Known limits:
  * - A read far above the saved range with no overlap lands at the end, after newer rows, because
- *   nothing on screen says how old it is. Reads that continue it then anchor at the end of the
- *   history, so their messages are reported in [MergePlan.newAtEnd] although they are old.
+ *   nothing on screen says how old it is, and it stays there. While the user reads on from it,
+ *   it is the current segment, so messages below it are reported in [MergePlan.newAtEnd]
+ *   although they are old. Back at the bottom, the first read lines up with the newest rows
+ *   (before the old block) and moves the current position there; that read reports nothing in
+ *   [MergePlan.newAtEnd], the reads after it do.
  * - A scroll-up that shows only one saved message does not overlap; it is appended after a gap.
- *   So is a read whose only overlap is a short message ("ok", "😂", a sticker): it repeats too
+ *   So is a read whose only overlap is one short message ("ok", "😂", a sticker): it repeats too
  *   often to anchor on its own, so its new messages are not reported in [MergePlan.newAtEnd].
  * - A message deleted for me (or missed by the parser) right next to the first or last aligned
  *   message makes the read look like a coincidence: it is appended after a gap, and the messages
- *   it shares with the history are stored twice, in two segments.
- * - An edit of the first or last visible message is stored as a new message.
- * - The one-pair rules cannot tell the saved last message from a later or older message equal to
+ *   it shares with the history are stored twice, in two segments. The same happens to an edit of
+ *   the first or last visible message.
+ * - An edit right after or before a message equal to the edited one as shown (the second of two
+ *   "ok"s), or in an alignment of short messages only, is stored as a new message next to the old
+ *   one.
+ * - The read misses a message (a parser miss) in the slot where an earlier read missed another
+ *   one. Nobody can tell their order; with the same author and minute the read one is taken for
+ *   an edit of the saved one (it overwrites it), otherwise both are kept in a guessed order.
+ * - A run of identical messages that ends the current segment, with a saved row without a time:
+ *   saved `ok (no time), ok 8:03 pm, ok 8:03 pm`, read `ok 7:38 pm, ok 8:03 pm` three times. The
+ *   time-less row is taken for the 7:38 one, so one "ok 8:03 pm" is stored and reported in
+ *   [MergePlan.newAtEnd], although the time-less row may have been one of the 8:03 ones and
+ *   nothing arrived. Accepted: it only affects the feedback log (about 1 in 36,000 reads in the
+ *   simulator). Likewise, a run where an earlier read missed one message: the read that shows it
+ *   stores it last in the run, and reports it when the run ends the current segment.
+ * - The one-pair rules cannot tell the saved row at the end from a later or older message equal to
  *   it in every shown field (a clipped "see you soon" sent again, or "gm 9:00 am" from another
- *   day). The read is then placed after the last saved row without a gap marker: the messages
- *   between are missing, and if the read was older, its messages are reported as new.
+ *   day). The read is then placed after that row without a gap marker: the messages between are
+ *   missing, and if the read was older, its messages are reported as new.
  * - A read whose top or bottom bubble, as shown, could also be the message just above or below it
- *   (inside a run of identical "ok"s in one minute) cannot tell how many of the run it shows; the
- *   merge may store one too few, and a run member saved without a time (a clipped group bubble
- *   with no name label) may get the sender and time of its identical neighbour.
+ *   (inside a run of identical "ok"s in one minute, or next to a bubble missing from the read)
+ *   cannot tell how many of the run it shows; the merge may store one too few, and the current
+ *   position may be one row off inside the run.
+ * - A row saved without a time next to a message the history missed (same author and text) is
+ *   taken for that message when a read shows it: the missed one is not stored.
  * - A read whose overlap is made only of messages identical in every shown field to a saved run
- *   (same authors, texts and times, on another day) is taken for that run.
+ *   (same authors, texts and times, on another day, or a run of identical short messages in one
+ *   minute) is taken for that run, possibly one message off inside it.
  * - A read that spans a gap but lines up with only one side stores the messages of the other side
  *   again, inside this side's segment (a duplicate across the gap).
  *
@@ -186,34 +240,59 @@ object HistoryMerge {
     /** One pair anchors a read only with a text this long: not "ok", "😂" or a sticker. */
     const val DISTINCTIVE_LENGTH: Int = 8
 
-    /** Larger than any total diagonal distance, so match count always wins over closeness. */
-    private const val MATCH_WEIGHT: Long = 1L shl 32
+    /** Larger than any total of [DISTINCTIVE_WEIGHT]s, so match count always wins. */
+    private const val MATCH_WEIGHT: Long = 1L shl 40
 
-    /** Plans a read against every saved row of a chat ([stored] in position order). */
+    /** Larger than any total of fidelity and distance terms, so distinctive pairs win next. */
+    private const val DISTINCTIVE_WEIGHT: Long = 1L shl 30
+
+    /**
+     * Per fidelity level of a pair, against [DISTANCE_WEIGHT] per row off the diagonal: an exact
+     * pair one row off beats a pair with a missing time on the diagonal, but not three rows off.
+     */
+    private const val FIDELITY_WEIGHT: Long = 3
+
+    private const val DISTANCE_WEIGHT: Long = 2
+
+    /**
+     * Plans a read against every saved row of a chat ([stored] in position order). [currentRowId]
+     * is the chat's current position before this read (null: none known, the last row is used).
+     */
     fun plan(
         stored: List<StoredRow>,
         read: List<ChatMessage>,
-    ): MergePlan = planOrNull(stored, read, tailOnly = false)!!
+        currentRowId: Long? = null,
+    ): MergePlan = planOrNull(stored, read, currentRowId, tailOnly = false)!!
 
     /**
      * Plans a read against only the newest saved rows of a chat ([tail], in position order), so a
      * capture in a long chat does not load all of it. Returns `null` when the read may concern
      * older rows: no overlap with the tail, the read reaches above the tail's first row, the
-     * overlap is weak (a single pair, or a new or edited message between the pairs), or an insert
-     * needs every row renumbered. Then call [plan] with the whole chat.
+     * overlap is weak (a single pair, or a new or edited message between the pairs), the current
+     * position is above the tail, or an insert needs every row renumbered. Then call [plan] with
+     * the whole chat.
      */
     fun planAgainstTail(
         tail: List<StoredRow>,
         read: List<ChatMessage>,
-    ): MergePlan? = planOrNull(tail, read, tailOnly = true)
+        currentRowId: Long? = null,
+    ): MergePlan? = planOrNull(tail, read, currentRowId, tailOnly = true)
 
     private fun planOrNull(
         stored: List<StoredRow>,
         read: List<ChatMessage>,
+        currentRowId: Long?,
         tailOnly: Boolean,
     ): MergePlan? {
         if (read.isEmpty()) return MergePlan(emptyList(), emptyList(), emptyList(), anchored = false, emptyList())
-        val alignment = Aligner(stored, read).align()
+        val current = currentRowId?.let { id -> stored.indexOfFirst { it.id == id } }?.takeIf { it >= 0 }
+        if (tailOnly && currentRowId != null && current == null) return null
+        // The end of the current segment: new messages right after it are new (step 3, step 7).
+        val currentEnd =
+            (current ?: stored.lastIndex).let { c ->
+                if (c < 0) -1 else ((c + 1..stored.lastIndex).firstOrNull { stored[it].gapBefore } ?: stored.size) - 1
+            }
+        val alignment = Aligner(stored, read, currentEnd).align()
         val firstPair = alignment.pairs.firstOrNull()
         val lastPair = alignment.pairs.lastOrNull()
         if (tailOnly) {
@@ -258,12 +337,22 @@ object HistoryMerge {
                 listOfNotNull(gapGroup?.takeIf { firstPair != null }?.let { stored[it].id })
 
         val newAtEnd =
-            if (lastPair != null && lastPair.second == stored.lastIndex) groups[stored.size].orEmpty() else emptyList()
+            if (lastPair != null && lastPair.second == currentEnd) groups[currentEnd + 1].orEmpty() else emptyList()
+        val matched = read.indices.map { i -> alignment.counterpart[i].takeIf { it >= 0 }?.let { stored[it].id } }
         val placed = placeWithoutMoving(stored, groups, gapGroup)
         return when {
-            placed != null -> MergePlan(placed, edits, emptyList(), alignment.anchored, newAtEnd, gapsCleared)
-            tailOnly -> null
-            else -> renumber(stored, groups, gapGroup, edits, alignment.anchored, newAtEnd, gapsCleared)
+            placed != null -> {
+                MergePlan(placed, edits, emptyList(), alignment.anchored, newAtEnd, gapsCleared, matched)
+            }
+
+            tailOnly -> {
+                null
+            }
+
+            else -> {
+                renumber(stored, groups, gapGroup, edits, alignment.anchored, newAtEnd, gapsCleared)
+                    .copy(matchedRowIds = matched)
+            }
         }
     }
 
@@ -283,6 +372,8 @@ object HistoryMerge {
     private class Aligner(
         stored: List<StoredRow>,
         private val read: List<ChatMessage>,
+        /** The saved index of the current segment's last row (-1 for an empty history). */
+        private val currentEnd: Int,
     ) {
         private val saved = stored.map { it.message }
 
@@ -332,12 +423,16 @@ object HistoryMerge {
             }
             pairs.forEach { (i, j) -> counterpart[i] = j }
 
-            // Step 5: edits only strictly between two aligned pairs of one segment.
+            // Step 5: edits only strictly between two aligned pairs of one segment, in an alignment
+            // with a distinctive exact pair.
+            val strong = strongAnchor(pairs)
             pairs.zipWithNext { (i1, j1), (i2, j2) ->
-                if (segmentOf[j1] != segmentOf[j2]) return@zipWithNext
+                // A slot with as many read messages as saved rows; otherwise a saved row is missing
+                // from the read anyway, and the read message may as well be new.
+                if (!strong || segmentOf[j1] != segmentOf[j2] || i2 - i1 != j2 - j1) return@zipWithNext
                 var i = i1 + 1
                 var j = j1 + 1
-                while (i < i2 && j < j2 && isEdit(read[i], saved[j])) {
+                while (i < i2 && j < j2 && isEdit(read[i], saved[j]) && !shiftable(i, j)) {
                     counterpart[i] = j
                     edited[i] = true
                     i++
@@ -361,6 +456,20 @@ object HistoryMerge {
             return pairs.takeIf { credible(it, offset, range, segments[segment], oneAtEndAllowed) }
         }
 
+        /**
+         * Step 5: the pair before or after the slot could move into it (a neighbour equals the
+         * other side's message), so the read message may as well be new and the saved row one the
+         * read skipped. Then it is not taken for an edit: an insert never overwrites a message.
+         */
+        private fun shiftable(
+            i: Int,
+            j: Int,
+        ): Boolean =
+            sameMessage(read[i - 1], saved[j]) ||
+                sameMessage(read[i], saved[j - 1]) ||
+                (i + 1 < read.size && sameMessage(read[i + 1], saved[j])) ||
+                (j + 1 < saved.size && sameMessage(read[i], saved[j + 1]))
+
         /** Step 1: the best (segment index, offset `saved index - read index`), or null. */
         private fun bestAnchor(
             range: IntRange,
@@ -380,11 +489,23 @@ object HistoryMerge {
                 .minWithOrNull(
                     compareBy<Pair<Int, Int>>(
                         { (segment, offset) -> mismatches(offset, range, segments[segment]) },
+                        { (segment, offset) -> -distinctiveVotes(offset, range, segments[segment]) },
                         { -it.first },
                         { -it.second },
                     ),
                 )
         }
+
+        /** How many read messages with a [distinctive] text in [range] are exactly equal at [offset]. */
+        private fun distinctiveVotes(
+            offset: Int,
+            range: IntRange,
+            segment: IntRange,
+        ): Int =
+            range.count {
+                it + offset in segment && distinctive(read[it]) &&
+                    exactMatch(read[it], saved[it + offset])
+            }
 
         /** How many read messages in [range] that land inside [segment] at [offset] cannot match there. */
         private fun mismatches(
@@ -414,21 +535,47 @@ object HistoryMerge {
                 // Every field, sender included: a missing sender is too weak for a lone pair.
                 return oneAtEndAllowed &&
                     i == 0 &&
-                    j == saved.lastIndex &&
+                    j == currentEnd &&
                     read[i] == saved[j] &&
                     distinctive(read[i]) &&
                     !matchesElsewhere(j)
             }
             val (first, last) = pairs.first().first to pairs.last().first
-            return pairs.any { (i, j) -> exactMatch(read[i], saved[j]) } &&
+            val exact = pairs.count { (i, j) -> exactMatch(read[i], saved[j]) }
+            // Short texts repeat too often: with only those, a second exact pair is needed.
+            val exactNeeded = if (pairs.none { (i, _) -> distinctive(read[i]) }) 2 else 1
+            return exact >= exactNeeded &&
                 2 * pairs.size >= overlapLength(offset, range, segment) &&
-                last - first + 1 - pairs.size <= MAX_UNPAIRED_INSIDE
+                last - first + 1 - pairs.size <= MAX_UNPAIRED_INSIDE &&
+                !substitutes(pairs)
         }
+
+        /**
+         * Step 3: between two pairs, the read shows a message where the saved side skips a row,
+         * and the read message is not an edit of that row (another author, time or sender): the
+         * pairs around such a slot are more likely a coincidence, or a run lined up one message
+         * off, than two messages missed in the same place.
+         */
+        private fun substitutes(pairs: List<Pair<Int, Int>>): Boolean =
+            pairs.zipWithNext().any { (a, b) ->
+                val (i1, j1) = a
+                val (i2, j2) = b
+                val edit = i2 - i1 == j2 - j1 && strongAnchor(pairs) && isEdit(read[i1 + 1], saved[j1 + 1])
+                i2 > i1 + 1 && j2 > j1 + 1 && !edit
+            }
+
+        /**
+         * Steps 3 and 5: an exact pair with a [distinctive] text. Only such an alignment is sure
+         * enough to change a saved message's text (an edit): "gm" and "ok" pairs can be another day.
+         */
+        private fun strongAnchor(pairs: List<Pair<Int, Int>>): Boolean =
+            pairs.any { (i, j) -> distinctive(read[i]) && exactMatch(read[i], saved[j]) }
 
         /**
          * Step 3: a segment has no holes, so the read message right above the first pair must be
          * the saved row right above it, if both exist; the same below the last pair. A different
-         * message there means the pairs are a coincidence, unless it looks like an edit.
+         * message there means the pairs are a coincidence, even when it looks like an edit: edits
+         * are never applied at the edges, and a burst from one author in one minute looks like one.
          */
         private fun contradicted(
             pairs: List<Pair<Int, Int>>,
@@ -437,9 +584,7 @@ object HistoryMerge {
         ): Boolean {
             val (i0, j0) = pairs.first()
             val (i1, j1) = pairs.last()
-            val above = i0 > range.first && j0 > segment.first && !isEdit(read[i0 - 1], saved[j0 - 1])
-            val below = i1 < range.last && j1 < segment.last && !isEdit(read[i1 + 1], saved[j1 + 1])
-            return above || below
+            return (i0 > range.first && j0 > segment.first) || (i1 < range.last && j1 < segment.last)
         }
 
         /**
@@ -461,7 +606,7 @@ object HistoryMerge {
         /** Step 3, one pair: the read's top bubble is the saved last message with its time cut off. */
         private fun clippedTopOnly(): List<Pair<Int, Int>>? {
             val top = read.first()
-            val last = saved.lastOrNull() ?: return null
+            val last = saved.getOrNull(currentEnd) ?: return null
             val sameShown =
                 top.isMe == last.isMe &&
                     top.text == last.text &&
@@ -470,9 +615,9 @@ object HistoryMerge {
                     (top.isMe || top.sender != null)
             val clipped = top.timeShown == null && last.timeShown != null
             return if (sameShown && clipped &&
-                !matchesElsewhere(saved.lastIndex)
+                !matchesElsewhere(currentEnd)
             ) {
-                listOf(0 to saved.lastIndex)
+                listOf(0 to currentEnd)
             } else {
                 null
             }
@@ -494,8 +639,12 @@ object HistoryMerge {
         /**
          * Step 2: longest common subsequence of `read[range]` and [segment], as (read index, saved
          * index) pairs within [BAND] of the [offset] diagonal. Among alignments with the most
-         * matches it picks the one closest to the diagonal (smallest total `|j - i - offset|`),
-         * which settles which of two equal "ok"s a read message is.
+         * matches it picks the one with the most [distinctive] pairs (a "message 12" rather than
+         * an "ok" next to it), then by a score of how equal the pairs are (every field shown and
+         * equal, then [exactMatch], then only [sameMessage]) against how far they sit off the
+         * diagonal (`|j - i - offset|`): a read "ok 5:57 pm" pairs with the saved "ok 5:57 pm" one
+         * row off rather than a clipped "ok" on the diagonal, but not with one three rows off.
+         * Closeness also settles which of two equal "ok"s a read message is.
          */
         private fun commonSubsequence(
             range: IntRange,
@@ -520,9 +669,22 @@ object HistoryMerge {
             fun gain(
                 r: Int,
                 c: Int,
-            ): Long = MATCH_WEIGHT - abs(from + c - (range.first + r) - offset)
+            ): Long {
+                val i = range.first + r
+                val j = from + c
+                // Fully equal counts only with every field shown: two missing senders are not equal.
+                val fidelity =
+                    when {
+                        !exactMatch(read[i], saved[j]) -> 0
+                        read[i] == saved[j] && (read[i].isMe || read[i].sender != null) -> 2
+                        else -> 1
+                    }
+                val bonus = (if (distinctive(read[i])) DISTINCTIVE_WEIGHT else 0L) + fidelity * FIDELITY_WEIGHT
+                return MATCH_WEIGHT + bonus - DISTANCE_WEIGHT * abs(j - i - offset)
+            }
 
-            // score = matches * MATCH_WEIGHT - distance from the offset diagonal; higher is better.
+            // score = matches * MATCH_WEIGHT + distinctive matches * DISTINCTIVE_WEIGHT + fidelity *
+            // FIDELITY_WEIGHT - distance from the offset diagonal * DISTANCE_WEIGHT; higher is better.
             val score = Array(rows + 1) { LongArray(width + 1) }
             for (r in (0 until rows).reversed()) {
                 for (c in (0 until width).reversed()) {
@@ -593,13 +755,19 @@ object HistoryMerge {
         return read.isMe || (read.sender != null && read.sender == saved.sender)
     }
 
-    /** Step 6. */
+    /** Step 6: only pairs with another pair on each side, outside runs; see the KDoc. */
     private fun fills(
         stored: List<StoredRow>,
         read: List<ChatMessage>,
         pairs: List<Pair<Int, Int>>,
     ): List<PlannedEdit> =
-        pairs.mapNotNull { (i, j) ->
+        pairs.drop(1).dropLast(1).mapNotNull { (i, j) ->
+            // Inside a run ("ok" 10:18, "ok" 10:19), the row may be any of the run.
+            val inRun =
+                listOf(i - 1, i + 1).any { k ->
+                    read.getOrNull(k)?.let { it.isMe == read[i].isMe && it.text == read[i].text } == true
+                }
+            if (inRun) return@mapNotNull null
             val row = stored[j].message
             val filled =
                 row.copy(

@@ -41,6 +41,11 @@ For adb steps, turn on Developer options > USB debugging (or Wireless debugging)
 `adb devices` lists the phone. **See:** the phone listed as `device`. **Send:** the `adb devices`
 output if it says `unauthorized` or nothing.
 
+0.2 **Do:** if a build of ticket #3 from before 2026-11-21 evening is installed, clear Replyly's
+storage first (Settings > Apps > Replyly > Storage > Clear storage). The history schema changed
+without a version bump, so the old `history.db` would fail to open. Updates from later builds
+(2.2–2.4) keep history. **See:** nothing to check. **Send:** nothing.
+
 ## 1. Install and first run
 
 Start from a fresh install (uninstall Replyly first, or clear its storage). After each step, come
@@ -432,6 +437,14 @@ still works. **Send:** whether Accessibility still showed Replyly on, and any
 7.9 **Do:** after "Delete this chat's history" (4.10), ask for suggestions in that chat; open
 "Show prompt" in the feedback log. **See:** only on-screen messages in the prompt; the contact note
 still there. **Send:** whether older messages appeared.
+
+7.10 **Do:** in a 1:1 chat with a long history, wait 2 s at the bottom. Jump far up (tap the date
+header, or fling up several screens) so nothing from the first screen is visible; wait 2 s, scroll
+down one screen, wait 2 s. Go back to the bottom (down-arrow button), wait 2 s, focus the input and
+tap the button. **See:** the suggestions answer the newest messages at the bottom, not the old ones
+you read; in "Show prompt" (feedback log) the last message is the bottom bubble on screen. Then send
+a message using a suggestion and wait 2 s: Log `feedback final message attached`. **Send:** Log from
+the first step, and which messages the suggestions answered.
 
 ## 8. LLM and models
 
