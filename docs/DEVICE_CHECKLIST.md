@@ -646,3 +646,37 @@ dark mark; all text readable. **Send:** Screenshots of settings, button and pane
 11.9 **Do:** Settings > Display > Font size and style: set the font size two steps larger; open
 settings, onboarding and the panel. **See:** no text cut off or overlapping. **Send:** Screenshots
 of anything clipped.
+
+### Settings, feedback timeline and "What's new" (polish item 7 and 9)
+
+11.20 **Do:** install a CI build of Replyly over the one you have (do not uninstall), open
+Replyly. **See:** a "What's new in Replyly" sheet slides up from the bottom with 3 to 4 short
+points and a "Got it" button. Tap "Got it", close Replyly from Recents and open it again.
+**See:** the sheet does not come back. Settings > About > What's new shows it again on demand.
+**Send:** "11.20 ok", or a Screenshot plus whether it showed 0 times or more than once.
+
+11.21 **Do:** uninstall Replyly, install it fresh and finish onboarding until settings opens.
+**See:** no "What's new" sheet on a fresh install. **Send:** Screenshot if it appears.
+
+11.22 **Do:** in Settings > Appearance, toggle "Material You colours" on and off; then change
+"Daily request limit" and tap "Save" in the bar at the bottom. **See (feel):** a light tick on
+each toggle and a short confirm buzz on Save; nothing on other taps. **Send:** "too strong",
+"too weak" or "none" for each, if not right. (Haptics follow Settings > Sounds and vibration >
+System vibration; if that is off you will feel nothing.)
+
+11.23 **Do:** in Replyly settings, scroll from the top to "About" and back, slowly and with a
+fast fling; then tap into "About me" so the keyboard opens. **See:** smooth scrolling with no
+jumps or stutter; section headers (AI provider, Your style, Privacy, Limits and usage,
+Appearance, About) stay readable; the focused field stays above the keyboard and the Save bar
+sits above the keyboard too. **Send:** a screen recording if anything stutters or hides behind
+the keyboard.
+
+11.24 **Do:** Settings > Limits and usage. **See:** a ring that fills to today's share of the
+daily limit, with the % inside; at the limit it turns red. With "Remove animations" on (11.8)
+the ring appears filled at once. **Send:** Screenshot.
+
+11.25 **Do:** Settings > Privacy > Feedback log after a few suggestions. **See:** entries grouped
+under "Today", "Yesterday" or a date; each shows the chat, the 3 replies with the one you
+inserted on a blue background marked "Inserted", and "You sent" with your final message once it
+was seen. With TalkBack on, each reply reads with "Inserted" or "Not inserted". **Send:**
+Screenshot (blur private chats if you like).
