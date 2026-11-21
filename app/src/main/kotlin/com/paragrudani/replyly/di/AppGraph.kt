@@ -4,7 +4,8 @@ import android.app.Application
 import com.paragrudani.replyly.cost.CostGuard
 import com.paragrudani.replyly.cost.PersistentCostGuard
 import com.paragrudani.replyly.feedback.FeedbackLog
-import com.paragrudani.replyly.feedback.InMemoryFeedbackLog
+import com.paragrudani.replyly.feedback.RoomFeedbackLog
+import com.paragrudani.replyly.feedback.db.FeedbackDatabase
 import com.paragrudani.replyly.history.ContactNoteStore
 import com.paragrudani.replyly.history.HistoryRepository
 import com.paragrudani.replyly.history.RoomContactNoteStore
@@ -148,8 +149,14 @@ class AppGraph(
         )
     }
 
-    // Ticket #6: needs databaseKeyProvider, so keep the stub until #3 has merged.
-    val feedbackLog: FeedbackLog by lazy { InMemoryFeedbackLog(clock) }
+    // Ticket #6: opens the encrypted feedback.db on first use, off the main thread.
+    val feedbackLog: FeedbackLog by lazy {
+        RoomFeedbackLog(
+            { FeedbackDatabase.open(app, databaseKeyProvider) },
+            clock,
+            settingsRepository.settings.map { it.retentionDays },
+        )
+    }
 
     // Skeleton: the order components receive events in.
     fun accessibilityComponents(): List<AccessibilityComponent> = listOf(overlayComponent, captureComponent)

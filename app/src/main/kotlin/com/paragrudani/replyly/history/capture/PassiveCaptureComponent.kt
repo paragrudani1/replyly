@@ -44,7 +44,8 @@ import kotlin.time.Duration.Companion.seconds
  * 4. merges it into history;
  * 5. if the merge found a message I sent below the saved tail, gives the newest one to
  *    [FeedbackLog.attachFinalMessage] (the final sent text of the last inserted suggestion);
- * 6. purges old history if a day has passed ([HistoryRetention]); it also purges on connect.
+ * 6. purges old history if a day has passed ([HistoryRetention]); it also purges on connect,
+ *    together with the feedback log ([FeedbackLog.purgeExpired]).
  *
  * It never calls the LLM. Generic apps get no history. The wait runs on [scope]'s dispatcher,
  * so tests drive it with virtual time. Failures are logged by class name only.
@@ -76,6 +77,7 @@ class PassiveCaptureComponent(
         session =
             scope.launch {
                 launch { guarded("purge") { retention.purgeNow() } }
+                launch { guarded("feedback purge") { feedbackLog.purgeExpired() } }
                 changes.debounceAtMost(quietPeriod, maxWait).collect { packageName ->
                     guarded("capture") { capture(host, packageName) }
                 }

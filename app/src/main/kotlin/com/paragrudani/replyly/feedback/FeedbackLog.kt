@@ -56,6 +56,12 @@ interface FeedbackLog {
 
     suspend fun purgeOlderThan(cutoff: Instant): Int
 
+    /**
+     * Deletes entries older than the `retentionDays` setting. Passive capture calls it when the
+     * accessibility service connects. @return how many were deleted.
+     */
+    suspend fun purgeExpired(): Int = 0
+
     /** Deletes every entry ("Clear log" in settings). @return how many were deleted. */
     suspend fun clear(): Int = purgeOlderThan(Instant.ofEpochMilli(Long.MAX_VALUE))
 }

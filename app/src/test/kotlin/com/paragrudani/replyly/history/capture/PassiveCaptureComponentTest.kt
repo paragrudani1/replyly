@@ -3,6 +3,7 @@ package com.paragrudani.replyly.history.capture
 import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
 import com.google.common.truth.Truth.assertThat
+import com.paragrudani.replyly.feedback.FeedbackLog
 import com.paragrudani.replyly.feedback.InMemoryFeedbackLog
 import com.paragrudani.replyly.history.FakeHistory
 import com.paragrudani.replyly.history.HistoryReadMerger
@@ -102,6 +103,14 @@ class PassiveCaptureComponentTest {
     private val clock = MutableClock()
     private val history = InMemoryHistoryRepository(clock)
     private val feedback = InMemoryFeedbackLog(clock)
+    private var feedbackPurges = 0
+    private val countingFeedback =
+        object : FeedbackLog by feedback {
+            override suspend fun purgeExpired(): Int {
+                feedbackPurges++
+                return 0
+            }
+        }
     private val logs = mutableListOf<String>()
 
     private fun TestScope.component() =
@@ -113,7 +122,7 @@ class PassiveCaptureComponentTest {
             },
             parsers = registry,
             history = merger,
-            feedbackLog = feedback,
+            feedbackLog = countingFeedback,
             retention = HistoryRetention(history, InMemorySettingsRepository(), clock),
             activePackage = { activePackage() },
             log = { logs += it },
@@ -462,6 +471,14 @@ class PassiveCaptureComponentTest {
             component()
 
             assertThat(history.lastMessages(asha, 10)).isEmpty()
+        }
+
+    @Test
+    fun `connecting purges the feedback log too`() =
+        runTest {
+            component()
+
+            assertThat(feedbackPurges).isEqualTo(1)
         }
 
     @Test
