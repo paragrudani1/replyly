@@ -7,7 +7,16 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 
-enum class SecureWindowState { SECURE, NOT_SECURE, UNKNOWN }
+enum class SecureWindowState {
+    SECURE,
+    NOT_SECURE,
+
+    /** The window or its display went away before the check. */
+    GONE,
+
+    /** No certain answer (timeout, internal error, missing capability). Callers fail closed. */
+    UNKNOWN,
+}
 
 sealed interface ProbeResult {
     /** The system captured the window, so it is not FLAG_SECURE. The pixels are already discarded. */
@@ -34,7 +43,7 @@ fun interface WindowScreenshotProbe {
  * Cost: one window capture per check. Results are cached per window for [cacheMillis] (1 s by
  * default), which absorbs the screenshot API's own rate limit and a tap racing passive capture.
  * Not longer: one window can turn secure without changing id (a Telegram secret chat, a Chrome
- * incognito tab). Unknown results (other errors, no answer) are never cached.
+ * incognito tab). Unknown and gone results (other errors, no answer) are never cached.
  */
 class SecureWindowDetector(
     private val probe: WindowScreenshotProbe,
@@ -68,13 +77,19 @@ class SecureWindowDetector(
         val state =
             when (result) {
                 ProbeResult.Captured -> SecureWindowState.NOT_SECURE
+
                 ProbeResult.Failed(AccessibilityService.ERROR_TAKE_SCREENSHOT_SECURE_WINDOW) -> SecureWindowState.SECURE
+
+                ProbeResult.Failed(AccessibilityService.ERROR_TAKE_SCREENSHOT_INVALID_WINDOW),
+                ProbeResult.Failed(AccessibilityService.ERROR_TAKE_SCREENSHOT_INVALID_DISPLAY),
+                -> SecureWindowState.GONE
+
                 else -> SecureWindowState.UNKNOWN
             }
         if (state != SecureWindowState.NOT_SECURE) {
             log("secure check state=$state code=${(result as? ProbeResult.Failed)?.errorCode ?: "timeout"}")
         }
-        if (state != SecureWindowState.UNKNOWN) {
+        if (state == SecureWindowState.SECURE || state == SecureWindowState.NOT_SECURE) {
             synchronized(cache) {
                 if (cache.size > MAX_ENTRIES) cache.clear()
                 cache[windowId] = Entry(state, now())

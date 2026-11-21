@@ -1,10 +1,12 @@
 package com.paragrudani.replyly.service
 
 import android.accessibilityservice.AccessibilityService
+import android.annotation.SuppressLint
 import android.util.Log
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
+import android.view.accessibility.AccessibilityWindowInfo
 import com.paragrudani.replyly.appGraph
 import com.paragrudani.replyly.policy.AccessibilityScreenshotProbe
 import com.paragrudani.replyly.policy.SecureWindowDetector
@@ -59,24 +61,46 @@ class ReplylyAccessibilityService :
     }
 
     override suspend fun captureActiveWindowChecked(): ScreenSnapshot? =
-        rootInActiveWindow?.let { checkedSnapshotOf(it) }
+        windows.firstOrNull { it.isActive }?.let { checkedSnapshotOf(it) }
 
     override suspend fun captureWindowChecked(windowId: Int): ScreenSnapshot? =
-        windows.firstOrNull { it.id == windowId }?.root?.let { checkedSnapshotOf(it) }
+        windows.firstOrNull { it.id == windowId }?.let { checkedSnapshotOf(it) }
 
-    private suspend fun checkedSnapshotOf(root: AccessibilityNodeInfo): ScreenSnapshot =
-        snapshotOf(root, secure = secureWindows.check(root.windowId) == SecureWindowState.SECURE)
+    /**
+     * Probes before fetching the root: fetching it pre-loads node text into this process. Fails
+     * closed: anything but a certain "not secure" counts as secure. A gone window gives `null`.
+     *
+     * WrongConstant: getRoot's docs allow 0 ("either 0 or a combination of FLAG_PREFETCH_*"); lint's
+     * IntDef does not.
+     */
+    @SuppressLint("WrongConstant")
+    private suspend fun checkedSnapshotOf(window: AccessibilityWindowInfo): ScreenSnapshot? {
+        val state = secureWindows.check(window.id)
+        if (state == SecureWindowState.GONE) return null
+        if (state != SecureWindowState.NOT_SECURE) {
+            // The root node alone (no prefetching), for its package name only.
+            return secureSnapshot(
+                window
+                    .getRoot(NO_PREFETCH)
+                    ?.packageName
+                    ?.toString()
+                    .orEmpty(),
+            )
+        }
+        return window.root?.let { snapshotOf(it) }
+    }
+
+    private fun snapshotOf(root: AccessibilityNodeInfo): ScreenSnapshot {
+        val size = getSystemService(WindowManager::class.java).currentWindowMetrics.bounds
+        return AccessibilityNodeMapper.snapshot(root, size.width(), size.height(), appGraph.clock.instant())
+    }
 
     /** A secure window is not read: its snapshot has an empty root. */
-    private fun snapshotOf(
-        root: AccessibilityNodeInfo,
-        secure: Boolean = false,
-    ): ScreenSnapshot {
+    private fun secureSnapshot(packageName: String): ScreenSnapshot {
         val size = getSystemService(WindowManager::class.java).currentWindowMetrics.bounds
         val now = appGraph.clock.instant()
-        if (!secure) return AccessibilityNodeMapper.snapshot(root, size.width(), size.height(), now)
         return ScreenSnapshot(
-            packageName = root.packageName?.toString().orEmpty(),
+            packageName = packageName,
             capturedAt = now,
             screenWidth = size.width(),
             screenHeight = size.height(),
@@ -98,5 +122,6 @@ class ReplylyAccessibilityService :
 
     private companion object {
         const val TAG = "ReplylyA11y"
+        const val NO_PREFETCH = 0
     }
 }

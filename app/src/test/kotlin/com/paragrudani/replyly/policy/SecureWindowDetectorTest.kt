@@ -50,6 +50,25 @@ class SecureWindowDetectorTest {
         }
 
     @Test
+    fun `a missing screenshot capability is unknown`() =
+        runTest {
+            probe.answers += ProbeResult.Failed(AccessibilityService.ERROR_TAKE_SCREENSHOT_NO_ACCESSIBILITY_ACCESS)
+
+            assertThat(detector().check(7)).isEqualTo(SecureWindowState.UNKNOWN)
+        }
+
+    @Test
+    fun `window or display gone is gone`() =
+        runTest {
+            probe.answers += ProbeResult.Failed(AccessibilityService.ERROR_TAKE_SCREENSHOT_INVALID_WINDOW)
+            probe.answers += ProbeResult.Failed(AccessibilityService.ERROR_TAKE_SCREENSHOT_INVALID_DISPLAY)
+            val detector = detector()
+
+            assertThat(detector.check(7)).isEqualTo(SecureWindowState.GONE)
+            assertThat(detector.check(7)).isEqualTo(SecureWindowState.GONE)
+        }
+
+    @Test
     fun `no answer within the timeout is unknown`() =
         runTest {
             probe.answers += null

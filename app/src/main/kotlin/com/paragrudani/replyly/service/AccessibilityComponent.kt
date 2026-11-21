@@ -43,7 +43,8 @@ interface AccessibilityHost {
      * Like [captureActiveWindow], but first checks the window for FLAG_SECURE (API 34 window
      * screenshot probe, cached per window for about a second). A secure window is not read: the
      * result has [ScreenSnapshot.secureWindow] set and an empty root, and `SensitiveScreenPolicy`
-     * blocks it. If the check cannot tell, the window is read as usual.
+     * blocks it. If the check cannot tell, the window counts as secure (fails closed). The probe
+     * runs before the tree is fetched. `null` if there is no active window, or it went away.
      */
     suspend fun captureActiveWindowChecked(): ScreenSnapshot? = captureActiveWindow()
 
