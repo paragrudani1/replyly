@@ -57,3 +57,4 @@
 - 2026-11-21: #21 fixes at `46e78d9` (634 tests) and #22 fixes at `deb1994` (607 tests); merger agents land both on green CI.
 - 2026-11-21: #21 (P1 button) merged as `26683ca` on green CI 44930028824.
 - 2026-11-21: #20 fixes at `a0f7241` (655 tests); merger running. Provider-profile device checks are now section 12 of DEVICE_CHECKLIST.md. Follow-ups after #20: api.openai.com always gets `reasoning_effort`, which older non-reasoning models may reject without retry (extend the fallback to drop it on a 400 that names it); dead API-key UI state in `SettingsViewModel` (P4 deletes it).
+- 2026-11-21: #20 (API profiles) merged as `a0cce0b` (merge head `2d311c0`, CI 44930832486). P4 fix round started: one aiProvider slot hosting ProviderProfilesSection, ModelPickerList in the profile editor, OpenAI reasoning_effort fallback, and section 11 of the checklist renumbered by letter (11.A foundation, 11.B button, 11.C panel, 11.D onboarding, 11.E settings).
