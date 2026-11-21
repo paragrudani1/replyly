@@ -10,16 +10,50 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.put
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * One OpenAI-compatible `POST {baseUrl}/chat/completions`, non-streaming, `Authorization: Bearer`.
  * OpenRouter-only extras (`reasoning: {effort: low}` and the attribution headers) go only to an
  * openrouter.ai host.
+ *
+ * Token limit field: `api.openai.com` gets `max_completion_tokens` (its reasoning models reject
+ * `max_tokens`) plus `reasoning_effort: "low"`; every other host gets `max_tokens`. If a 400 names
+ * either field, the call is retried once with the other one, and that choice is remembered per
+ * URL and model for the rest of the process.
  */
 internal class ChatCompletionsClient(
     private val http: OkHttpClient,
 ) : LlmClient {
+    /** `url|model` -> true for `max_completion_tokens`, false for `max_tokens`. Learned from 400s. */
+    private val tokenField = ConcurrentHashMap<String, Boolean>()
+
     override suspend fun complete(request: CompletionRequest): CallOutcome {
+        val key = "${request.url}|${request.model}"
+        val useCompletion = tokenField[key] ?: isOpenAi(request.url)
+        val first = send(request, useCompletion)
+        if (first !is Sent.TokenFieldRejected) return first.outcome
+        val retry = send(request, !useCompletion)
+        if (retry !is Sent.TokenFieldRejected) tokenField[key] = !useCompletion
+        return retry.outcome
+    }
+
+    private sealed interface Sent {
+        val outcome: CallOutcome
+
+        data class Done(
+            override val outcome: CallOutcome,
+        ) : Sent
+
+        data class TokenFieldRejected(
+            override val outcome: CallOutcome,
+        ) : Sent
+    }
+
+    private suspend fun send(
+        request: CompletionRequest,
+        useCompletionTokens: Boolean,
+    ): Sent {
         val openRouter = isOpenRouter(request.url)
         val body =
             buildJsonObject {
@@ -31,11 +65,12 @@ internal class ChatCompletionsClient(
                         add(message("user", request.prompt.user))
                     },
                 )
-                put("max_tokens", request.maxTokens)
+                put(if (useCompletionTokens) "max_completion_tokens" else "max_tokens", request.maxTokens)
                 request.temperature?.let { put("temperature", it) }
                 if (request.jsonMode) put("response_format", buildJsonObject { put("type", "json_object") })
                 // Keeps reasoning models from spending max_tokens on thinking. OpenRouter-only field.
                 if (openRouter) put("reasoning", buildJsonObject { put("effort", "low") })
+                if (isOpenAi(request.url)) put("reasoning_effort", "low")
             }
         val headers =
             buildMap {
@@ -47,18 +82,24 @@ internal class ChatCompletionsClient(
             }
         return when (val reply = LlmHttp.post(http, request.url, headers, request.extraHeaders, body.toString())) {
             is HttpReply.Failed -> {
-                CallOutcome.Failed(reply.failure)
+                Sent.Done(CallOutcome.Failed(reply.failure))
             }
 
             is HttpReply.Body -> {
-                if (reply.code in 200..299) {
-                    parseSuccess(reply.text)
-                } else {
-                    httpFailure(reply.code, reply.text, request.jsonMode)
+                when {
+                    reply.code in 200..299 -> Sent.Done(parseSuccess(reply.text))
+                    rejectsTokenField(reply.code, reply.text) -> Sent.TokenFieldRejected(httpFailure(reply.code, reply.text, false))
+                    else -> Sent.Done(httpFailure(reply.code, reply.text, request.jsonMode))
                 }
             }
         }
     }
+
+    /** Covers both "use max_completion_tokens instead" and "unrecognized argument: max_completion_tokens". */
+    private fun rejectsTokenField(
+        code: Int,
+        text: String,
+    ): Boolean = code == 400 && text.lowercase().let { "max_tokens" in it || "max_completion_tokens" in it }
 
     private fun message(
         role: String,
@@ -132,5 +173,8 @@ internal class ChatCompletionsClient(
         private val json = Json { ignoreUnknownKeys = true }
 
         fun isOpenRouter(url: HttpUrl) = url.host == "openrouter.ai" || url.host.endsWith(".openrouter.ai")
+
+        /** OpenAI's own API (not Azure or other compatible servers). */
+        fun isOpenAi(url: HttpUrl) = url.host == "api.openai.com"
     }
 }

@@ -474,6 +474,114 @@ class OpenAiFormatGeneratorTest {
         assertThat(referers).containsExactly(LlmReplyGenerator.APP_REFERER)
     }
 
+    /** Answers every call with [replies] in turn (the last one repeats) and records the bodies. */
+    private fun fakeHttp(
+        bodies: MutableList<JsonObject>,
+        vararg replies: Pair<Int, String>,
+    ): OkHttpClient {
+        var call = 0
+        return OkHttpClient
+            .Builder()
+            .addInterceptor { chain ->
+                val sent = chain.request()
+                bodies += Json.parseToJsonElement(Buffer().also { sent.body!!.writeTo(it) }.readUtf8()).jsonObject
+                val (code, text) = replies[minOf(call++, replies.lastIndex)]
+                Response
+                    .Builder()
+                    .request(sent)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(code)
+                    .message("x")
+                    .body(text.toResponseBody("application/json".toMediaType()))
+                    .build()
+            }.build()
+    }
+
+    @Test
+    fun `api openai com gets max_completion_tokens and low reasoning effort`() {
+        val bodies = mutableListOf<JsonObject>()
+        updateProfile { it.copy(baseUrl = "https://api.openai.com/v1", maxTokens = 300) }
+        val http = fakeHttp(bodies, 200 to completion(threeJson))
+
+        val result = runBlocking { LlmReplyGenerator(settings, profiles, costGuard, http).generate(request) }
+
+        assertThat(result).isInstanceOf(SuggestionResult.Success::class.java)
+        val body = bodies.single()
+        assertThat(body["max_completion_tokens"]!!.jsonPrimitive.content).isEqualTo("300")
+        assertThat(body.containsKey("max_tokens")).isFalse()
+        assertThat(body["reasoning_effort"]!!.jsonPrimitive.content).isEqualTo("low")
+        assertThat(body.containsKey("reasoning")).isFalse()
+    }
+
+    @Test
+    fun `other openai-format hosts keep max_tokens and get no reasoning_effort`() {
+        server.enqueue(ok(completion(threeJson)))
+        generate()
+        val body = server.takeRequest().json()
+        assertThat(body.containsKey("max_tokens")).isTrue()
+        assertThat(body.containsKey("max_completion_tokens")).isFalse()
+        assertThat(body.containsKey("reasoning_effort")).isFalse()
+    }
+
+    @Test
+    fun `a 400 about max_tokens retries once with max_completion_tokens, and remembers per url and model`() {
+        val unsupported =
+            """{"error":{"message":"Unsupported parameter: 'max_tokens' is not supported with this model. """ +
+                """Use 'max_completion_tokens' instead."}}"""
+        server.enqueue(error(400, unsupported))
+        server.enqueue(ok(completion(threeJson)))
+        server.enqueue(ok(completion(threeJson)))
+        val generator = generator()
+
+        assertThat(runBlocking { generator.generate(request) }).isInstanceOf(SuggestionResult.Success::class.java)
+        assertThat(runBlocking { generator.generate(request) }).isInstanceOf(SuggestionResult.Success::class.java)
+
+        val first = server.takeRequest().json()
+        assertThat(first.containsKey("max_tokens")).isTrue()
+        val retry = server.takeRequest().json()
+        assertThat(retry.containsKey("max_tokens")).isFalse()
+        assertThat(retry["max_completion_tokens"]!!.jsonPrimitive.content).isEqualTo(first["max_tokens"]!!.jsonPrimitive.content)
+        assertThat(server.takeRequest().json().containsKey("max_completion_tokens")).isTrue()
+        assertThat(costGuard.status.value.requestsToday).isEqualTo(2)
+
+        // Another model on the same URL starts from the default field again.
+        updateProfile { it.copy(model = "test/other") }
+        server.enqueue(ok(completion(threeJson)))
+        runBlocking { generator.generate(request) }
+        assertThat(server.takeRequest().json().containsKey("max_tokens")).isTrue()
+    }
+
+    @Test
+    fun `a 400 about max_completion_tokens on api openai com retries with max_tokens`() {
+        val bodies = mutableListOf<JsonObject>()
+        updateProfile { it.copy(baseUrl = "https://api.openai.com/v1") }
+        val http =
+            fakeHttp(
+                bodies,
+                400 to """{"error":{"message":"Unrecognized request argument supplied: max_completion_tokens"}}""",
+                200 to completion(threeJson),
+            )
+
+        val result = runBlocking { LlmReplyGenerator(settings, profiles, costGuard, http).generate(request) }
+
+        assertThat(result).isInstanceOf(SuggestionResult.Success::class.java)
+        assertThat(bodies.map { it.containsKey("max_completion_tokens") }).containsExactly(true, false).inOrder()
+        assertThat(bodies[1].containsKey("max_tokens")).isTrue()
+    }
+
+    @Test
+    fun `the token field retry happens only once`() {
+        val bodies = mutableListOf<JsonObject>()
+        val http = fakeHttp(bodies, 400 to """{"error":{"message":"max_tokens and max_completion_tokens: bad"}}""")
+        updateProfile { it.copy(baseUrl = "https://proxy.example.com/v1") }
+
+        val result = runBlocking { LlmReplyGenerator(settings, profiles, costGuard, http).generate(request) }
+
+        assertThat((result as SuggestionResult.Failure.Http).code).isEqualTo(400)
+        assertThat(bodies).hasSize(2)
+        assertThat(costGuard.status.value.requestsToday).isEqualTo(1)
+    }
+
     @Test
     fun `profile extras are sent - headers, temperature and max tokens`() {
         updateProfile {
