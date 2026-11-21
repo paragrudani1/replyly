@@ -2,6 +2,7 @@ package com.paragrudani.replyly.security
 
 import android.content.Context
 import android.util.Log
+import com.paragrudani.replyly.history.db.HistoryDatabases
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -135,14 +136,14 @@ class KeystoreDatabaseKeyProvider(
     }
 }
 
-/** Every SQLite DB of the app is encrypted with the one passphrase, so a new passphrase wipes them all. */
+/**
+ * Replyly's own DBs are all encrypted with the one passphrase, so a new passphrase wipes them all.
+ * DBs of libraries (WorkManager, for example) are not Replyly's and are left alone.
+ */
 object EncryptedDatabases {
-    private val sidecarSuffixes = listOf("-journal", "-wal", "-shm")
+    /** History (ticket #3) and feedback (ticket #6, `FeedbackDatabase.NAME`). */
+    val NAMES: List<String> = listOf(HistoryDatabases.NAME, "feedback.db")
 
-    /** @return how many DBs were deleted. */
-    fun wipeAll(context: Context): Int =
-        context
-            .databaseList()
-            .filterNot { name -> sidecarSuffixes.any(name::endsWith) }
-            .count { context.deleteDatabase(it) }
+    /** Deletes each DB in [NAMES] with its journal files. @return how many DBs were deleted. */
+    fun wipeAll(context: Context): Int = NAMES.count { context.deleteDatabase(it) }
 }
