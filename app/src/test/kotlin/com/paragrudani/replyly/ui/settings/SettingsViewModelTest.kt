@@ -66,6 +66,23 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `the parallel calls switch is saved with the form`() =
+        runTest {
+            val vm = viewModel()
+            assertThat(
+                vm.state.value.draft
+                    ?.useParallelCalls,
+            ).isFalse()
+
+            vm.editDraft { it.copy(useParallelCalls = true) }
+            assertThat(vm.state.value.dirty).isTrue()
+            vm.save()
+
+            assertThat(settings.current().useParallelCalls).isTrue()
+            assertThat(vm.state.value.dirty).isFalse()
+        }
+
+    @Test
     fun `an invalid form is not saved and shows the errors`() =
         runTest {
             val vm = viewModel()

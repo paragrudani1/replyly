@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -26,6 +27,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -159,6 +162,14 @@ fun SettingsScreen(
                     onModel = { v -> vm.editDraft { it.copy(model = v) } },
                 )
             }
+            item {
+                SwitchRow(
+                    label = "3 parallel calls (faster on slow models)",
+                    supporting = "One call per reply instead of one for all 3. Still counts as 1 request.",
+                    checked = draft.useParallelCalls,
+                    onCheckedChange = { v -> vm.editDraft { it.copy(useParallelCalls = v) } },
+                )
+            }
             item { SectionHeader("Prompt") }
             item {
                 ValidatedField(
@@ -229,6 +240,30 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun SwitchRow(
+    label: String,
+    supporting: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(
+        modifier =
+            Modifier
+                .fillMaxWidth()
+                .toggleable(value = checked, role = Role.Switch, onValueChange = onCheckedChange),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyLarge)
+            Text(supporting, style = MaterialTheme.typography.bodySmall)
+        }
+        // The row handles the toggle, so the whole line is one touch target and one a11y node.
+        Switch(checked = checked, onCheckedChange = null)
     }
 }
 
