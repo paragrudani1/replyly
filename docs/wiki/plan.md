@@ -16,3 +16,4 @@
 - From #4 review: ApiKeyStore (#6) should trim the key on `set`.
 - From #6 review: the LLM client (#4) should itself refuse a non-https endpoint.
 - From #3 (`ticket-3-history@ef09e1c`): the #4 assembler should catch `DatabaseKeyUnavailableException` (fixed-wording failure). FLAG_SECURE detection belongs in the host (#1); capture should then pass it to the policy. Capture stores nothing until #2's parsers merge.
+- From #7 (`ticket-7-onboarding@361910c`): start destination is decided by a blocking check capped at 500 ms on the main thread; once real DataStore stores land, replace it with an async decision (review item). Finishing onboarding opened from Settings stacks two Settings screens; fix in NavHost (navigate back).
