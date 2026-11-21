@@ -59,6 +59,7 @@ One lazy binding per interface, all real implementations:
 | `replyPanel` | `ComposeReplyPanel` | |
 | `settingsRepository`, `apiKeyStore`, `costGuard` | DataStore-backed (`settings`, `api_key` AES-GCM, `cost`) | |
 | `feedbackLog` | `RoomFeedbackLog` | `feedback.db`, opened on first use off the main thread. |
+| `themeSettings` | `ThemeSettings` | The "Material You colours" flag as a hot `StateFlow`, so overlay windows theme their first frame. |
 
 `InMemory…` classes next to the interfaces are test fakes. Add behaviour to the service as a new
 `AccessibilityComponent`, never in the service itself.
@@ -103,4 +104,7 @@ One lazy binding per interface, all real implementations:
 - Accessibility config (`res/xml/accessibility_service_config.xml`): all packages, view ids,
   interactive windows, not-important views, `canTakeScreenshot` (for the FLAG_SECURE probe).
   Components filter by package.
+- UI: every surface uses `ui/theme/ReplylyTheme` (also the overlay windows); the floating button
+  is a View coloured by `replylyColorScheme`. Rules in [DESIGN.md](DESIGN.md); screenshot tests in
+  [SCREENSHOTS.md](SCREENSHOTS.md).
 - Device checks that only the S23 can confirm: [DEVICE_CHECKLIST.md](DEVICE_CHECKLIST.md).

@@ -603,3 +603,46 @@ but everything works).
 10.13 **Do:** uninstall Replyly, install again, set up, open a chat. **See:** by design the key,
 counters and history are gone (one `NO_SAVED_PASSPHRASE` line, a fresh `capture merged`).
 **Send:** anything that survived the uninstall.
+
+## 11. Polish
+
+Look and feel from the UI polish pass (issue #17). The parallel polish PRs add their own steps
+here (button animation and drag, panel motion, haptics, onboarding transitions).
+
+11.1 **Do:** after installing, look at Replyly on the home screen and in the app drawer.
+**See:** an ink-blue icon with a white chat bubble (two blue text lines) and a yellow four-point
+sparkle top right; nothing clipped by the icon shape, the mark roughly centred. **Send:**
+Screenshot of the home screen.
+
+11.2 **Do:** Settings > Wallpaper and style > Color palette: turn on "Themed icons" (or Home screen
+settings > Themed icons). **See:** the Replyly icon turns into the One UI themed colours with the
+same bubble and sparkle, text lines cut out. **Send:** Screenshot of the home screen.
+
+11.3 **Do:** long-press the Replyly icon, or drag it into a folder. **See:** the round/folder
+version still shows the whole mark. **Send:** Screenshot if anything is cut off.
+
+11.4 **Do:** open Replyly settings. **See:** "replyly" with a small yellow sparkle above
+"Settings"; long-pressing it still opens the debug screen. **Send:** Screenshot.
+
+11.5 **Do:** Settings > Appearance > turn on "Material You colours", go back to the home screen
+and return; then open a WhatsApp chat and tap the button. **See:** settings, the floating button
+and the panel switch to your wallpaper colours (buttons, switches, the button fill). Turn it off
+again: everything goes back to ink blue. **Send:** two Screenshots (on and off) of settings and
+of the button over a chat.
+
+11.6 **Do:** with "Material You colours" on, change the wallpaper (Settings > Wallpaper and
+style) to one with a clearly different colour, then reopen Replyly. **See:** Replyly picks up the
+new palette. **Send:** Screenshot if it keeps the old colours.
+
+11.7 **Do:** turn on dark mode (quick settings), open Replyly settings and a WhatsApp chat with
+the button and the panel. **See:** dark backgrounds, light text, a light periwinkle button with a
+dark mark; all text readable. **Send:** Screenshots of settings, button and panel.
+
+11.8 **Do:** Settings > Accessibility > Visibility enhancements > turn on "Remove animations"
+(on some One UI versions: Advanced settings > Remove animations). Use the button and panel.
+**See:** everything still works, things appear without animating. Turn it off afterwards.
+**Send:** anything that looks stuck half-way.
+
+11.9 **Do:** Settings > Display > Font size and style: set the font size two steps larger; open
+settings, onboarding and the panel. **See:** no text cut off or overlapping. **Send:** Screenshots
+of anything clipped.
