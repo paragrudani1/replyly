@@ -32,24 +32,3 @@ sealed interface SensitivityVerdict {
 fun interface SensitiveScreenPolicy {
     fun evaluate(context: ScreenContext): SensitivityVerdict
 }
-
-/**
- * Stub until ticket #1. Blocks only the two cases that need no settings (password field,
- * FLAG_SECURE). Blocklists and banking apps are #1's job.
- */
-object MinimalSensitiveScreenPolicy : SensitiveScreenPolicy {
-    override fun evaluate(context: ScreenContext): SensitivityVerdict =
-        when {
-            context.secureWindow -> {
-                SensitivityVerdict.Blocked(BlockReason.SECURE_WINDOW)
-            }
-
-            context.snapshot?.allNodes()?.any { it.password } == true -> {
-                SensitivityVerdict.Blocked(BlockReason.PASSWORD_FIELD)
-            }
-
-            else -> {
-                SensitivityVerdict.Allowed
-            }
-        }
-}

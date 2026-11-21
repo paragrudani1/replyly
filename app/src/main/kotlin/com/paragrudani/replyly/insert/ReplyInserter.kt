@@ -22,8 +22,3 @@ sealed interface InsertResult {
         val reason: String,
     ) : InsertResult
 }
-
-/** Stub until ticket #1. */
-object UnavailableReplyInserter : ReplyInserter {
-    override suspend fun insert(text: String): InsertResult = InsertResult.Failed("Inserter not implemented yet (#1)")
-}

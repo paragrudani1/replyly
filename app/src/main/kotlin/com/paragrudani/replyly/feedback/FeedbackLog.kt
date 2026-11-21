@@ -69,7 +69,7 @@ interface FeedbackLog {
 /** A message sent later than this after the suggestion is not treated as its final version. */
 val FINAL_MESSAGE_WINDOW: Duration = Duration.ofHours(6)
 
-/** Stub until ticket #6. Not persisted. */
+/** In-memory fake for tests (AppGraph binds the real one). Not persisted. */
 class InMemoryFeedbackLog(
     private val clock: Clock,
 ) : FeedbackLog {

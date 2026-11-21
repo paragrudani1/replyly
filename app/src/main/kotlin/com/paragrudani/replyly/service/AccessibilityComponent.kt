@@ -26,8 +26,6 @@ interface AccessibilityComponent {
     fun onDisconnected() {}
 }
 
-object NoOpAccessibilityComponent : AccessibilityComponent
-
 /** What a component can use from the running service. */
 interface AccessibilityHost {
     /** For WindowManager (overlay windows), `windows` and `rootInActiveWindow`. */

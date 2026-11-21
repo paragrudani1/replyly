@@ -56,7 +56,7 @@ interface ApiKeyStore {
     suspend fun set(key: String)
 }
 
-/** Stub until ticket #6. Not persisted. */
+/** In-memory fake for tests (AppGraph binds the real one). Not persisted. */
 class InMemorySettingsRepository(
     initial: ReplylySettings = ReplylySettings(),
 ) : SettingsRepository {
@@ -66,7 +66,7 @@ class InMemorySettingsRepository(
     override suspend fun update(transform: (ReplylySettings) -> ReplylySettings) = state.update(transform)
 }
 
-/** Stub until ticket #6. Not persisted, not encrypted. */
+/** In-memory fake for tests (AppGraph binds the real one). Not persisted, not encrypted. */
 class InMemoryApiKeyStore : ApiKeyStore {
     private val key = MutableStateFlow<String?>(null)
     private val present = MutableStateFlow(false)
