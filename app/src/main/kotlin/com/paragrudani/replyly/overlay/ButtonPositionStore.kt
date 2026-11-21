@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.channels.Channel
@@ -29,6 +30,9 @@ class ButtonPositionStore(
 
     /** Keys changed before the load finished: the load must not bring back their old values. */
     private val touchedBeforeLoad = mutableSetOf<String>()
+
+    /** [resetAll] ran before the load finished: nothing read from disk may come back. */
+    private var clearedBeforeLoad = false
     private var loadedFlag = false
     private val loaded = CompletableDeferred<Unit>()
     private val lock = Any()
@@ -36,24 +40,18 @@ class ButtonPositionStore(
 
     init {
         scope.launch {
-            val disk =
-                try {
-                    dataStore.data
-                        .first()
-                        .asMap()
-                        .mapNotNull { (key, value) ->
-                            val pkg = key.name.removePrefix(PREFIX).takeIf { key.name.startsWith(PREFIX) }
-                            if (pkg != null && value is Float) pkg to value else null
-                        }.toMap()
-                } catch (e: java.io.IOException) {
-                    emptyMap()
+            try {
+                val disk = readDisk()
+                synchronized(lock) {
+                    if (!clearedBeforeLoad) cache = disk.filterKeys { it !in touchedBeforeLoad } + cache
+                    loadedFlag = true
+                    touchedBeforeLoad.clear()
+                    clearedBeforeLoad = false
                 }
-            synchronized(lock) {
-                cache = disk.filterKeys { it !in touchedBeforeLoad } + cache
-                loadedFlag = true
-                touchedBeforeLoad.clear()
+            } finally {
+                // Also on an unexpected failure or cancellation: sync() must never wait forever.
+                loaded.complete(Unit)
             }
-            loaded.complete(Unit)
             for (write in writes) {
                 try {
                     write()
@@ -63,6 +61,22 @@ class ButtonPositionStore(
             }
         }
     }
+
+    /** Every saved spot on disk; empty if the file can't be read (default spots, nothing lost in memory). */
+    private suspend fun readDisk(): Map<String, Float> =
+        try {
+            dataStore.data
+                .first()
+                .asMap()
+                .mapNotNull { (key, value) ->
+                    val pkg = key.name.removePrefix(PREFIX).takeIf { key.name.startsWith(PREFIX) }
+                    if (pkg != null && value is Float) pkg to value else null
+                }.toMap()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            emptyMap()
+        }
 
     /** The remembered gap for [packageName] in dp, or `null` if the user never dragged it there. */
     fun liftDp(packageName: String): Float? = cache[packageName]
@@ -84,7 +98,7 @@ class ButtonPositionStore(
     /** Back to the default spot in every app (for a future "Reset button position" setting). */
     fun resetAll() {
         synchronized(lock) {
-            if (!loadedFlag) touchedBeforeLoad += cache.keys
+            if (!loadedFlag) clearedBeforeLoad = true
             cache = emptyMap()
         }
         writes.trySend {
