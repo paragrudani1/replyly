@@ -1,14 +1,17 @@
 package com.paragrudani.replyly.llm
 
 import com.google.common.truth.Truth.assertThat
+import com.paragrudani.replyly.history.HistoryRepository
 import com.paragrudani.replyly.history.InMemoryContactNoteStore
 import com.paragrudani.replyly.history.InMemoryHistoryRepository
 import com.paragrudani.replyly.parser.ChatMessage
 import com.paragrudani.replyly.parser.ParsedChat
+import com.paragrudani.replyly.security.DatabaseKeyUnavailableException
 import com.paragrudani.replyly.settings.InMemorySettingsRepository
 import com.paragrudani.replyly.settings.ReplylySettings
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import java.io.IOException
 import java.time.Clock
 
 class HistorySuggestionRequestAssemblerTest {
@@ -91,5 +94,44 @@ class HistorySuggestionRequestAssemblerTest {
             assertThat(request.history.map { it.text }).containsExactly("b", "c", "d").inOrder()
             assertThat(request.styleExamples).containsExactly("b", "d").inOrder()
             assertThat(history.lastMessages(generic.chatKey, 10)).isEmpty()
+        }
+
+    @Test
+    fun `an unavailable database key becomes the StorageLocked failure`() =
+        runBlocking {
+            val locked =
+                object : HistoryRepository by history {
+                    override suspend fun merge(chat: ParsedChat): Int =
+                        throw IllegalStateException(
+                            "open failed",
+                            DatabaseKeyUnavailableException(IOException("keystore")),
+                        )
+                }
+            val lockedAssembler = HistorySuggestionRequestAssembler(locked, notes, settings)
+
+            val thrown = runCatching { lockedAssembler.assemble(chat(messages = listOf(them("hi"))), null) }
+
+            val failure = (thrown.exceptionOrNull() as SuggestionFailureException).failure
+            assertThat(failure).isEqualTo(SuggestionResult.Failure.StorageLocked)
+        }
+
+    @Test
+    fun `other storage errors are rethrown unchanged`() =
+        runBlocking {
+            val broken =
+                object : HistoryRepository by history {
+                    override suspend fun merge(chat: ParsedChat): Int = throw IOException("disk full")
+                }
+
+            val thrown =
+                runCatching {
+                    HistorySuggestionRequestAssembler(
+                        broken,
+                        notes,
+                        settings,
+                    ).assemble(chat(messages = listOf(them("hi"))), null)
+                }
+
+            assertThat(thrown.exceptionOrNull()).isInstanceOf(IOException::class.java)
         }
 }

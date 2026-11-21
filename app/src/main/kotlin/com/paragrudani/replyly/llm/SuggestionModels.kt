@@ -73,6 +73,15 @@ sealed interface SuggestionResult {
             val detail: String?,
         ) : Failure
 
+        /**
+         * The key of Replyly's encrypted databases could not be read right now (a transient Android
+         * Keystore failure). Nothing was deleted; trying again later usually works.
+         */
+        data object StorageLocked : Failure {
+            /** Fixed wording for the error card. */
+            const val MESSAGE: String = "Replyly's encrypted storage is locked right now. Try again in a moment."
+        }
+
         /** The reply was not the expected JSON with 3 suggestions. */
         data class BadOutput(
             val reason: String,
@@ -81,3 +90,11 @@ sealed interface SuggestionResult {
         ) : Failure
     }
 }
+
+/**
+ * Thrown by [SuggestionRequestAssembler.assemble] when the request cannot be built for a known
+ * reason the panel shows as [failure]. The message is the failure's class name only.
+ */
+class SuggestionFailureException(
+    val failure: SuggestionResult.Failure,
+) : Exception(failure::class.simpleName)

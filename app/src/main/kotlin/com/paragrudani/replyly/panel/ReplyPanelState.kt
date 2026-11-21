@@ -7,6 +7,7 @@ import com.paragrudani.replyly.insert.InsertResult
 import com.paragrudani.replyly.insert.ReplyInserter
 import com.paragrudani.replyly.llm.ReplyGenerator
 import com.paragrudani.replyly.llm.Suggestion
+import com.paragrudani.replyly.llm.SuggestionFailureException
 import com.paragrudani.replyly.llm.SuggestionRequest
 import com.paragrudani.replyly.llm.SuggestionRequestAssembler
 import com.paragrudani.replyly.llm.SuggestionResult
@@ -134,9 +135,15 @@ class ReplyPanelState(
         generation =
             ownScope.launch {
                 val suggestionRequest =
-                    assembleOrNull(instruction) ?: run {
-                        mutableState.update { it.copy(suggestions = SuggestionsUi.Error(HISTORY_READ_ERROR)) }
-                        return@launch
+                    when (val assembled = assemble(instruction)) {
+                        is Assembled.Ok -> {
+                            assembled.request
+                        }
+
+                        is Assembled.Failed -> {
+                            mutableState.update { it.copy(suggestions = SuggestionsUi.Error(assembled.error)) }
+                            return@launch
+                        }
                     }
                 val next =
                     when (val result = ignoringErrors { deps.generator.generate(suggestionRequest) }) {
@@ -270,8 +277,27 @@ class ReplyPanelState(
             deps.feedbackLog.record(request.chat.chatKey, result.model, result.promptSent, result.suggestions)
         }
 
-    private suspend fun assembleOrNull(instruction: String?): SuggestionRequest? =
-        ignoringErrors { deps.assembler.assemble(request.chat, instruction) }
+    private sealed interface Assembled {
+        data class Ok(
+            val request: SuggestionRequest,
+        ) : Assembled
+
+        data class Failed(
+            val error: PanelError,
+        ) : Assembled
+    }
+
+    /** A known assembler failure gets its own card; anything else is a generic history read error. */
+    private suspend fun assemble(instruction: String?): Assembled =
+        try {
+            Assembled.Ok(deps.assembler.assemble(request.chat, instruction))
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: SuggestionFailureException) {
+            Assembled.Failed(e.failure.toPanelError())
+        } catch (_: Exception) {
+            Assembled.Failed(HISTORY_READ_ERROR)
+        }
 }
 
 /** Runs [block]; any exception except cancellation becomes null. Exception text is never shown or logged. */

@@ -16,6 +16,8 @@ interface ReplyGenerator {
 /**
  * Gathers history, About me, contact note and style examples into a [SuggestionRequest]
  * (ticket #4). Merges [chat] into history first, so the request includes what is on screen now.
+ * Throws [SuggestionFailureException] for failures the panel can explain (for example
+ * [SuggestionResult.Failure.StorageLocked]); any other exception is shown as a generic read error.
  */
 interface SuggestionRequestAssembler {
     suspend fun assemble(
