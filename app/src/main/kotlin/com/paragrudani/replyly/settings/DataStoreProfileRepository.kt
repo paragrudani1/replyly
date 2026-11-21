@@ -28,6 +28,8 @@ import java.util.UUID
  * and is made active. Idempotent: it runs once per process at most, and the transaction that
  * stores the list only writes if the list is still absent, so a second run (another process,
  * a restart) changes nothing. The legacy key is copied, not deleted, so an older build still works.
+ * If encrypting the copy fails (Keystore), nothing is written and the migration runs again on the
+ * next read; until then the list is empty.
  */
 class DataStoreProfileRepository(
     private val dataStore: DataStore<Preferences>,
@@ -99,12 +101,13 @@ class DataStoreProfileRepository(
         if (migrated) return
         migration.withLock {
             if (migrated) return
-            if (dataStore.data.first()[PROFILES] == null) migrate()
+            if (dataStore.data.first()[PROFILES] == null && !migrate()) return
             migrated = true
         }
     }
 
-    private suspend fun migrate() {
+    /** False when the key could not be copied: nothing is written and the next read tries again. */
+    private suspend fun migrate(): Boolean {
         val legacy = legacySettings.settings.first()
         val profile =
             ProviderProfile(
@@ -122,7 +125,17 @@ class DataStoreProfileRepository(
             } catch (_: Exception) {
                 null // A Keystore failure: the user enters the key again on the profile.
             }
-        if (!key.isNullOrBlank()) secrets.setApiKey(profile.id, key)
+        if (!key.isNullOrBlank()) {
+            try {
+                secrets.setApiKey(profile.id, key)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                // Encrypting failed (Keystore). The legacy key stays where it is; skip for now.
+                runCatching { secrets.deleteAll(profile.id) }
+                return false
+            }
+        }
         var written = false
         dataStore.edit { prefs ->
             if (prefs[PROFILES] == null) {
@@ -133,6 +146,7 @@ class DataStoreProfileRepository(
         }
         // Another writer stored a list first: drop the copy we made.
         if (!written) secrets.deleteAll(profile.id)
+        return true
     }
 
     private fun Preferences.profiles(): List<ProviderProfile> =

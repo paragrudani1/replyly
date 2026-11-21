@@ -7,10 +7,14 @@ import com.paragrudani.replyly.llm.SuggestionResult
 import com.paragrudani.replyly.settings.ApiFormat
 import com.paragrudani.replyly.settings.InMemoryProfileRepository
 import com.paragrudani.replyly.settings.InMemoryProfileSecretStore
+import com.paragrudani.replyly.settings.ProfileRepository
+import com.paragrudani.replyly.settings.ProfilesState
 import com.paragrudani.replyly.settings.ProviderProfile
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -221,6 +225,19 @@ class ProfilesViewModelTest {
 
             assertThat(vm.state.value.errors).isEmpty()
             assertThat(secrets.apiKey("or")).isNull()
+        }
+
+    @Test
+    fun `a failing profile store shows fixed text instead of crashing`() =
+        runTest {
+            val broken =
+                object : ProfileRepository by repo {
+                    override val state: Flow<ProfilesState> =
+                        flow { throw java.security.KeyStoreException("secret detail") }
+                }
+            val vm = ProfilesViewModel(broken, secrets, tester)
+            assertThat(vm.state.value.message).isEqualTo(ProfilesViewModel.LOAD_ERROR)
+            assertThat(vm.state.value.message).doesNotContain("secret detail")
         }
 
     @Test

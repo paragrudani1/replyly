@@ -13,6 +13,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
@@ -80,6 +81,9 @@ class ProfilesViewModel(
                             s.profiles.mapIndexed { i, p -> ProfileRow(p, p.id == s.active?.id, keys[i]) }
                         }
                     }
+                }.catch {
+                    // A storage or Keystore failure: fixed text, never the exception's.
+                    mutable.update { it.copy(loaded = true, message = LOAD_ERROR) }
                 }.collect { rows ->
                     mutable.update { state ->
                         // Keep the editor's "key saved" flag in step with storage.
@@ -208,5 +212,6 @@ class ProfilesViewModel(
     companion object {
         const val SAVE_ERROR = "Could not save the profile securely. Try again."
         const val TEST_ERROR = "Something went wrong. Try again."
+        const val LOAD_ERROR = "Could not load the provider profiles. Close Settings and try again."
     }
 }

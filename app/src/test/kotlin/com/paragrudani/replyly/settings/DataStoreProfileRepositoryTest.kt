@@ -123,6 +123,41 @@ class DataStoreProfileRepositoryTest {
         }
 
     @Test
+    fun `a Keystore failure while copying the key skips the migration and keeps the legacy key`() =
+        runBlocking<Unit> {
+            legacy = EncryptedApiKeyStore(stores.open(ReplylyDataStores.API_KEY), AesGcmCipher { key })
+            legacy.set(legacyKeyValue)
+            secrets = EncryptedProfileSecretStore(stores.open(ReplylyDataStores.PROFILE_SECRETS), { key })
+            var failing = true
+            val flaky =
+                object : ProfileSecretStore by secrets {
+                    override suspend fun setApiKey(
+                        profileId: String,
+                        key: String,
+                    ) {
+                        if (failing) throw java.security.KeyStoreException("boom")
+                        secrets.setApiKey(profileId, key)
+                    }
+                }
+            val repo =
+                DataStoreProfileRepository(
+                    stores.open(ReplylyDataStores.PROFILES),
+                    flaky,
+                    legacySettings,
+                    legacy,
+                    newId = { "id-${++ids}" },
+                )
+
+            assertThat(repo.state.first().profiles).isEmpty()
+            assertThat(legacy.get()).isEqualTo(legacyKeyValue)
+
+            // Next time (e.g. the next screen open) it migrates.
+            failing = false
+            assertThat(repo.state.first().profiles).hasSize(1)
+            assertThat(repo.resolveActive()!!.apiKey).isEqualTo(legacyKeyValue)
+        }
+
+    @Test
     fun `a non-OpenRouter legacy endpoint is migrated as Custom`() =
         runBlocking<Unit> {
             val repo =
