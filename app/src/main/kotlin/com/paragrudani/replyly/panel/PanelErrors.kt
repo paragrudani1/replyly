@@ -61,3 +61,6 @@ internal val HISTORY_READ_ERROR =
         "Try again. If it keeps failing, close and reopen the panel.",
         ErrorAction.Retry,
     )
+
+/** The generator threw instead of returning a Failure (a bug in #4). */
+internal val UNEXPECTED_ERROR = PanelError("Something went wrong", "Could not get suggestions. Try again.", ErrorAction.Retry)

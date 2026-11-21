@@ -2,7 +2,10 @@ package com.paragrudani.replyly.panel
 
 import com.google.common.truth.Truth.assertThat
 import com.paragrudani.replyly.insert.InsertResult
+import com.paragrudani.replyly.insert.ReplyInserter
+import com.paragrudani.replyly.llm.ReplyGenerator
 import com.paragrudani.replyly.llm.Suggestion
+import com.paragrudani.replyly.llm.SuggestionRequest
 import com.paragrudani.replyly.llm.SuggestionResult
 import com.paragrudani.replyly.parser.ParsedChat
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -223,6 +226,183 @@ class ReplyPanelStateTest {
             assertThat(inserter.inserted).hasSize(1)
             assertThat(feedback.marked).isEmpty()
             assertThat(closed).isEqualTo(1)
+        }
+
+    @Test
+    fun `contact note opens with the saved note, saves the edit and closes the editor`() =
+        runTest {
+            notes.notes.value = mapOf(whatsAppChat.chatKey to "College friend")
+            val panel = panel()
+
+            panel.openNote()
+            advanceUntilIdle()
+            assertThat(panel.state.value.note).isEqualTo(NoteEditorUi(text = "College friend"))
+
+            panel.onNoteChange("College friend, lives in Pune")
+            panel.saveNote()
+            advanceUntilIdle()
+
+            assertThat(notes.notes.value[whatsAppChat.chatKey]).isEqualTo("College friend, lives in Pune")
+            assertThat(panel.state.value.note).isNull()
+        }
+
+    @Test
+    fun `cancel closes the note editor without saving`() =
+        runTest {
+            val panel = panel()
+            panel.openNote()
+            advanceUntilIdle()
+            assertThat(panel.state.value.note).isEqualTo(NoteEditorUi(text = ""))
+
+            panel.onNoteChange("draft")
+            panel.cancelNote()
+            advanceUntilIdle()
+
+            assertThat(notes.notes.value).isEmpty()
+            assertThat(panel.state.value.note).isNull()
+        }
+
+    @Test
+    fun `a failed note save keeps the editor open with an error`() =
+        runTest {
+            notes.failSet = true
+            val panel = panel()
+            panel.openNote()
+            advanceUntilIdle()
+            panel.onNoteChange("draft")
+
+            panel.saveNote()
+            advanceUntilIdle()
+
+            assertThat(panel.state.value.note)
+                .isEqualTo(NoteEditorUi(text = "draft", error = "Could not save the note. Try again."))
+        }
+
+    @Test
+    fun `the note is capped at 1000 characters`() =
+        runTest {
+            val panel = panel()
+            panel.openNote()
+            advanceUntilIdle()
+
+            panel.onNoteChange("n".repeat(1_200))
+
+            assertThat(panel.state.value.note!!.text).hasLength(1_000)
+        }
+
+    @Test
+    fun `deleting this chat's history asks first, then deletes`() =
+        runTest {
+            val panel = panel()
+
+            panel.requestDelete()
+            assertThat(panel.state.value.confirmingDelete).isTrue()
+            assertThat(history.deleted).isEmpty()
+
+            panel.confirmDelete()
+            advanceUntilIdle()
+
+            assertThat(history.deleted).containsExactly(whatsAppChat.chatKey)
+            assertThat(panel.state.value.confirmingDelete).isFalse()
+            assertThat(panel.state.value.notice).isEqualTo("Saved messages for this chat were deleted.")
+        }
+
+    @Test
+    fun `cancelling the delete confirmation deletes nothing`() =
+        runTest {
+            val panel = panel()
+            panel.requestDelete()
+            panel.cancelDelete()
+            advanceUntilIdle()
+
+            assertThat(history.deleted).isEmpty()
+            assertThat(panel.state.value.confirmingDelete).isFalse()
+        }
+
+    @Test
+    fun `a failed delete says so`() =
+        runTest {
+            history.failDelete = true
+            val panel = panel()
+            panel.requestDelete()
+            panel.confirmDelete()
+            advanceUntilIdle()
+
+            assertThat(panel.state.value.notice).isEqualTo("Could not delete this chat's history. Try again.")
+        }
+
+    @Test
+    fun `generic apps have no note or delete actions`() =
+        runTest {
+            val panel = panel(chat = genericChat)
+            assertThat(panel.state.value.showChatActions).isFalse()
+
+            panel.openNote()
+            panel.requestDelete()
+            panel.confirmDelete()
+            advanceUntilIdle()
+
+            assertThat(panel.state.value.note).isNull()
+            assertThat(panel.state.value.confirmingDelete).isFalse()
+            assertThat(history.deleted).isEmpty()
+            assertThat(panel(chat = whatsAppChat).state.value.showChatActions).isTrue()
+        }
+
+    @Test
+    fun `an inserter that throws shows a fixed error and keeps the panel open`() =
+        runTest {
+            val panel =
+                ReplyPanelState(
+                    request = PanelRequest(whatsAppChat),
+                    deps =
+                        ReplyPanelDependencies(
+                            assembler,
+                            FakeGenerator(),
+                            object : ReplyInserter {
+                                override suspend fun insert(text: String): InsertResult = throw IllegalStateException(text)
+                            },
+                            feedback,
+                            notes,
+                            history,
+                        ),
+                    scope = this,
+                    onClose = { closed++ },
+                )
+            panel.start()
+            advanceUntilIdle()
+
+            panel.insert(0)
+            advanceUntilIdle()
+
+            assertThat(panel.state.value.insertError).isEqualTo("Could not insert the reply.")
+            assertThat(closed).isEqualTo(0)
+        }
+
+    @Test
+    fun `a generator that throws shows a retryable error, without exception text`() =
+        runTest {
+            val throwing =
+                object : ReplyGenerator {
+                    override suspend fun generate(request: SuggestionRequest): SuggestionResult =
+                        throw IllegalStateException("secret chat text")
+                }
+            val panel =
+                ReplyPanelState(
+                    request = PanelRequest(whatsAppChat),
+                    deps = ReplyPanelDependencies(assembler, throwing, inserter, feedback, notes, history),
+                    scope = this,
+                    onClose = { closed++ },
+                )
+
+            panel.start()
+            advanceUntilIdle()
+
+            assertThat(panel.state.value.suggestions)
+                .isEqualTo(
+                    SuggestionsUi.Error(
+                        PanelError("Something went wrong", "Could not get suggestions. Try again.", ErrorAction.Retry),
+                    ),
+                )
         }
 
     @Test
