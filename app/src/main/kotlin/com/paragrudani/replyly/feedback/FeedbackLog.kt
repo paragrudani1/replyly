@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 
 data class FeedbackEntry(
@@ -41,8 +42,9 @@ interface FeedbackLog {
     )
 
     /**
-     * Attaches [text] to the newest entry of [chatKey] that has an insert but no final message.
-     * Called when history sees a new message from me after an insert.
+     * Attaches [text] to the newest entry of [chatKey] that has an insert but no final message and
+     * is younger than [FINAL_MESSAGE_WINDOW]. Called when history sees a new message from me after
+     * an insert.
      * @return true if an entry was updated.
      */
     suspend fun attachFinalMessage(
@@ -53,7 +55,13 @@ interface FeedbackLog {
     fun observeRecent(limit: Int): Flow<List<FeedbackEntry>>
 
     suspend fun purgeOlderThan(cutoff: Instant): Int
+
+    /** Deletes every entry ("Clear log" in settings). @return how many were deleted. */
+    suspend fun clear(): Int = purgeOlderThan(Instant.ofEpochMilli(Long.MAX_VALUE))
 }
+
+/** A message sent later than this after the suggestion is not treated as its final version. */
+val FINAL_MESSAGE_WINDOW: Duration = Duration.ofHours(6)
 
 /** Stub until ticket #6. Not persisted. */
 class InMemoryFeedbackLog(
@@ -85,9 +93,13 @@ class InMemoryFeedbackLog(
         text: String,
     ): Boolean {
         var updated = false
+        val oldest = clock.instant().minus(FINAL_MESSAGE_WINDOW)
         entries.update { list ->
             val target =
-                list.lastOrNull { it.chatKey == chatKey && it.insertedIndex != null && it.finalSentText == null }
+                list.lastOrNull {
+                    it.chatKey == chatKey && it.insertedIndex != null && it.finalSentText == null &&
+                        it.createdAt > oldest
+                }
             updated = target != null
             list.map { if (it.id == target?.id) it.copy(finalSentText = text) else it }
         }

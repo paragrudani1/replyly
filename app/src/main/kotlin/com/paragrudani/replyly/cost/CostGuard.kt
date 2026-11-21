@@ -26,6 +26,9 @@ interface CostGuard {
     suspend fun tryAcquire(): Boolean
 
     suspend fun recordUsage(usage: TokenUsage)
+
+    /** Recomputes [status] for the current day, e.g. when a screen resumes after deep sleep. */
+    fun refresh() {}
 }
 
 /** Stub until ticket #6. Not persisted, never resets. */
