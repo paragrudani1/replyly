@@ -101,7 +101,8 @@ if (!motion.reduced) Shimmer() else StaticSkeleton()
 When the user turned on "Remove animations" (`ANIMATOR_DURATION_SCALE == 0`), `motion.reduced`
 is true: `tween`/`spring` snap, `staggerDelay` is 0, `viewDuration` is 0. Loops (shimmer,
 pulsing) must check `motion.reduced` and not start. View animations use
-`ReplylyMotion.forContext(context).viewDuration(MotionDurations.MEDIUM)`.
+`ReplylyMotion.forContext(context).viewDuration(MotionDurations.MEDIUM)` and
+`MotionEasing.viewInterpolator(MotionEasing.Enter)` (never copy the curve's control points).
 
 Motion answers a user action (tap, open, dismiss). No idle animation, no decorative entrance on
 every element.

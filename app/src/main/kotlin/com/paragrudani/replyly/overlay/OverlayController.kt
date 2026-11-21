@@ -12,7 +12,12 @@ interface OverlayUi {
     /** Shows the button at [ButtonSlot.position], or moves it there if it is already shown. */
     fun showButton(slot: ButtonSlot)
 
-    fun hideButton()
+    /**
+     * Hides the button: scales and fades it out, or, with [immediate], removes it at once (also a
+     * button still fading out). Immediate is for screen off and service stop, where the display
+     * may stop drawing frames and a half-faded window must not stay.
+     */
+    fun hideButton(immediate: Boolean = false)
 
     fun openPanel(request: PanelRequest)
 
@@ -145,7 +150,10 @@ class OverlayController(
     private fun clear() {
         pending?.cancel()
         tapJob?.cancel()
-        hide()
+        shown = null
+        shownAt = null
+        // Always, even when already hidden: a button may still be fading out.
+        ui.hideButton(immediate = true)
         if (panelOpen) closePanel()
     }
 

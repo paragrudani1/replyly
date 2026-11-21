@@ -6,6 +6,7 @@ import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityNodeInfo
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.toArgb
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.paragrudani.replyly.R
@@ -15,6 +16,7 @@ import com.paragrudani.replyly.ui.theme.ReplylyMotion
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 
 /** The button View's touch handling (drag versus tap), accessibility, and the window it drags. */
@@ -197,6 +199,77 @@ class OverlayButtonViewTest {
         checkNotNull(windows.buttonView).performAccessibilityAction(R.id.overlay_action_move_down, null)
 
         assertThat(moved).containsExactly(896, 1000, 1050).inOrder()
+
+        // At the bottom of the range: "Move down" is not offered and does nothing.
+        val button = checkNotNull(windows.buttonView)
+        assertThat(button.actionIds()).contains(R.id.overlay_action_move_up)
+        assertThat(button.actionIds()).doesNotContain(R.id.overlay_action_move_down)
+        assertThat(button.performAccessibilityAction(R.id.overlay_action_move_down, null)).isFalse()
+        assertThat(moved).hasSize(3)
         windows.hideButton()
+    }
+
+    @Test
+    fun `at the top of the range only move down is offered`() {
+        val windows = OverlayWindows(context, noPanel, buttonSizePx = 104, onButtonTap = {}, onPanelDismiss = {})
+        windows.showButton(ButtonSlot(ButtonPosition(900, 400), minY = 400, maxY = 1050))
+
+        val ids = checkNotNull(windows.buttonView).actionIds()
+
+        assertThat(ids).doesNotContain(R.id.overlay_action_move_up)
+        assertThat(ids).contains(R.id.overlay_action_move_down)
+        windows.hideButton(immediate = true)
+    }
+
+    @Test
+    fun `a fading button stops taking touches, and an immediate hide removes it at once`() {
+        val windows = OverlayWindows(context, noPanel, buttonSizePx = 104, onButtonTap = {}, onPanelDismiss = {})
+        windows.showButton(ButtonSlot(ButtonPosition(900, 1000), minY = 400, maxY = 1200))
+        val button = checkNotNull(windows.buttonView)
+
+        windows.hideButton()
+
+        // Fading out (the looper is paused, so the fade has not ended yet).
+        assertThat(windows.leavingView).isSameInstanceAs(button)
+        assertThat(button.parent).isNotNull()
+        val flags = (button.layoutParams as WindowManager.LayoutParams).flags
+        assertThat(flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE).isNotEqualTo(0)
+
+        windows.hideButton(immediate = true)
+
+        assertThat(windows.leavingView).isNull()
+        assertThat(button.parent).isNull()
+    }
+
+    @Test
+    fun `an immediate hide removes a shown button without a fade`() {
+        val windows = OverlayWindows(context, noPanel, buttonSizePx = 104, onButtonTap = {}, onPanelDismiss = {})
+        windows.showButton(ButtonSlot(ButtonPosition(900, 1000), minY = 400, maxY = 1200))
+        val button = checkNotNull(windows.buttonView)
+
+        windows.hideButton(immediate = true)
+
+        assertThat(windows.buttonView).isNull()
+        assertThat(windows.leavingView).isNull()
+        assertThat(button.parent).isNull()
+    }
+
+    @Test
+    fun `a dark mode flip while showing recolours the button`() {
+        val light = view.mark.backgroundTintList?.defaultColor
+
+        RuntimeEnvironment.setQualifiers("+night")
+        view.dispatchConfigurationChanged(context.resources.configuration)
+
+        val dark = overlayButtonScheme(context)
+        assertThat(view.mark.backgroundTintList?.defaultColor).isEqualTo(dark.primary.toArgb())
+        assertThat(view.mark.imageTintList?.defaultColor).isEqualTo(dark.onPrimary.toArgb())
+        assertThat(view.mark.backgroundTintList?.defaultColor).isNotEqualTo(light)
+    }
+
+    private fun View.actionIds(): List<Int> {
+        val info = AccessibilityNodeInfo.obtain()
+        onInitializeAccessibilityNodeInfo(info)
+        return info.actionList.map { it.id }
     }
 }

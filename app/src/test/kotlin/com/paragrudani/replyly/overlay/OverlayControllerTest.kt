@@ -25,7 +25,11 @@ class OverlayControllerTest {
             button = slot.position
         }
 
-        override fun hideButton() {
+        /** Every hide call, `true` for an immediate one. */
+        val hides = mutableListOf<Boolean>()
+
+        override fun hideButton(immediate: Boolean) {
+            hides += immediate
             button = null
         }
 
@@ -388,6 +392,53 @@ class OverlayControllerTest {
 
             assertThat(ui.button).isNull()
             assertThat(ui.panel).isNull()
+        }
+
+    @Test
+    fun `screen off and stop remove the button at once, without a fade`() =
+        runTest {
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+
+            controller.onScreenOff()
+            assertThat(ui.button).isNull()
+            assertThat(ui.hides).containsExactly(true)
+
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+            controller.stop()
+            assertThat(ui.hides).containsExactly(true, true).inOrder()
+        }
+
+    @Test
+    fun `screen off right after a normal hide still removes the fading button at once`() =
+        runTest {
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+            facts = facts.copy(windows = listOf(chatWindow))
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+            assertThat(ui.hides).containsExactly(false)
+
+            controller.onScreenOff()
+
+            assertThat(ui.hides).containsExactly(false, true).inOrder()
+        }
+
+    @Test
+    fun `the button shows again after screen off`() =
+        runTest {
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+            controller.onScreenOff()
+
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+
+            assertThat(ui.button).isNotNull()
         }
 
     @Test

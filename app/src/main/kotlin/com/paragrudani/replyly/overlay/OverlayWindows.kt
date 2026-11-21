@@ -96,8 +96,14 @@ class OverlayWindows(
 
             override fun onMoveStep(direction: Int) {
                 val params = buttonParams() ?: return
-                moveButtonTo(params.y + direction * moveStepPx)
-                onButtonMoved(params.y)
+                val y = moveButtonTo(params.y + direction * moveStepPx) ?: return
+                onButtonMoved(y)
+            }
+
+            override fun canMoveStep(direction: Int): Boolean {
+                val params = buttonParams() ?: return false
+                val target = params.y + direction * moveStepPx
+                return (slot?.clampY(target) ?: target) != params.y
             }
         }
 
@@ -131,12 +137,31 @@ class OverlayWindows(
         button?.setBusy(busy)
     }
 
-    override fun hideButton() {
-        val view = button ?: return
+    override fun hideButton(immediate: Boolean) {
+        val view = button
         button = null
         slot = null
         dragging = false
-        leaving?.let(::remove)
+        leaving?.let {
+            it.animate().cancel()
+            remove(it)
+        }
+        leaving = null
+        if (view == null) return
+        if (immediate) {
+            view.animate().cancel()
+            remove(view)
+            return
+        }
+        // The fading window must not block touches meant for the chat app underneath.
+        (view.layoutParams as? WindowManager.LayoutParams)?.let { params ->
+            params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            try {
+                windowManager.updateViewLayout(view, params)
+            } catch (e: IllegalArgumentException) {
+                // Not attached any more; the fade below still ends in remove().
+            }
+        }
         leaving = view
         view.animateOut {
             if (leaving === view) leaving = null
@@ -148,15 +173,22 @@ class OverlayWindows(
     @VisibleForTesting
     internal val buttonView: OverlayButtonView? get() = button
 
+    /** The button window playing its hide animation, if any (tests). */
+    @VisibleForTesting
+    internal val leavingView: OverlayButtonView? get() = leaving
+
     private fun buttonParams() = button?.layoutParams as? WindowManager.LayoutParams
 
-    private fun moveButtonTo(y: Int) {
-        val view = button ?: return
-        val params = buttonParams() ?: return
+    /** Moves the button window to [y] clamped to the slot; returns the clamped y (`null`: no button). */
+    private fun moveButtonTo(y: Int): Int? {
+        val view = button ?: return null
+        val params = buttonParams() ?: return null
         val clamped = slot?.clampY(y) ?: y
-        if (params.y == clamped) return
-        params.y = clamped
-        windowManager.updateViewLayout(view, params)
+        if (params.y != clamped) {
+            params.y = clamped
+            windowManager.updateViewLayout(view, params)
+        }
+        return clamped
     }
 
     override fun openPanel(request: PanelRequest) {

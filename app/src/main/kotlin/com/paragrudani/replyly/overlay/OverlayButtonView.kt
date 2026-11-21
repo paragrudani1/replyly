@@ -5,21 +5,23 @@ import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.Configuration
 import android.view.Gravity
-import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
 import android.view.accessibility.AccessibilityNodeInfo
-import android.view.animation.PathInterpolator
+import android.view.animation.Interpolator
 import android.widget.FrameLayout
 import android.widget.ImageView
 import androidx.compose.material3.ColorScheme
 import androidx.compose.ui.graphics.toArgb
 import com.paragrudani.replyly.R
 import com.paragrudani.replyly.ui.theme.Elevation
+import com.paragrudani.replyly.ui.theme.HapticEvent
 import com.paragrudani.replyly.ui.theme.MotionDurations
+import com.paragrudani.replyly.ui.theme.MotionEasing
 import com.paragrudani.replyly.ui.theme.ReplylyMotion
 import com.paragrudani.replyly.ui.theme.dynamicColorSetting
+import com.paragrudani.replyly.ui.theme.performReplylyHaptic
 import com.paragrudani.replyly.ui.theme.replylyColorScheme
 import kotlin.math.roundToInt
 
@@ -54,6 +56,12 @@ class OverlayButtonView(
 
         /** Accessibility action: move one step up (`-1`) or down (`+1`). */
         fun onMoveStep(direction: Int) {}
+
+        /**
+         * Whether a step in [direction] would move the button at all. The action that can't (the
+         * button is at the top or bottom of its range) is not offered to TalkBack.
+         */
+        fun canMoveStep(direction: Int): Boolean = true
     }
 
     private val density = resources.displayMetrics.density
@@ -86,6 +94,12 @@ class OverlayButtonView(
         applyColors(overlayButtonScheme(context))
     }
 
+    /** Dark mode flipped (or another config change) while the button shows: recolour it. */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        applyColors(overlayButtonScheme(context, newConfig))
+    }
+
     fun applyColors(scheme: ColorScheme) {
         mark.backgroundTintList = ColorStateList.valueOf(scheme.primary.toArgb())
         mark.imageTintList = ColorStateList.valueOf(scheme.onPrimary.toArgb())
@@ -112,7 +126,7 @@ class OverlayButtonView(
             is DragStep.DragStart -> {
                 setPressedLook(false)
                 setDragging(true)
-                performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                performReplylyHaptic(HapticEvent.DragSnap)
                 listener.onDragStart()
                 listener.onDrag(step.dy)
             }
@@ -129,7 +143,7 @@ class OverlayButtonView(
 
             DragStep.Tap -> {
                 setPressedLook(false)
-                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                performReplylyHaptic(HapticEvent.Tap)
                 performClick()
             }
 
@@ -147,18 +161,22 @@ class OverlayButtonView(
     override fun onInitializeAccessibilityNodeInfo(info: AccessibilityNodeInfo) {
         super.onInitializeAccessibilityNodeInfo(info)
         info.className = android.widget.Button::class.java.name
-        info.addAction(
-            AccessibilityNodeInfo.AccessibilityAction(
-                R.id.overlay_action_move_up,
-                context.getString(R.string.overlay_button_move_up),
-            ),
-        )
-        info.addAction(
-            AccessibilityNodeInfo.AccessibilityAction(
-                R.id.overlay_action_move_down,
-                context.getString(R.string.overlay_button_move_down),
-            ),
-        )
+        if (listener.canMoveStep(-1)) {
+            info.addAction(
+                AccessibilityNodeInfo.AccessibilityAction(
+                    R.id.overlay_action_move_up,
+                    context.getString(R.string.overlay_button_move_up),
+                ),
+            )
+        }
+        if (listener.canMoveStep(1)) {
+            info.addAction(
+                AccessibilityNodeInfo.AccessibilityAction(
+                    R.id.overlay_action_move_down,
+                    context.getString(R.string.overlay_button_move_down),
+                ),
+            )
+        }
     }
 
     override fun performAccessibilityAction(
@@ -167,19 +185,23 @@ class OverlayButtonView(
     ): Boolean =
         when (action) {
             R.id.overlay_action_move_up -> {
-                listener.onMoveStep(-1)
-                true
+                moveStep(-1)
             }
 
             R.id.overlay_action_move_down -> {
-                listener.onMoveStep(1)
-                true
+                moveStep(1)
             }
 
             else -> {
                 super.performAccessibilityAction(action, arguments)
             }
         }
+
+    private fun moveStep(direction: Int): Boolean {
+        if (!listener.canMoveStep(direction)) return false
+        listener.onMoveStep(direction)
+        return true
+    }
 
     // Looks -------------------------------------------------------------------------------------
 
@@ -210,7 +232,7 @@ class OverlayButtonView(
             scale,
             if (busy) BUSY_ALPHA else 1f,
             motion.viewDuration(durationMillis),
-            MotionInterpolators.standard,
+            MotionEasing.viewInterpolator(MotionEasing.Standard),
         )
     }
 
@@ -219,13 +241,24 @@ class OverlayButtonView(
         scaleX = HIDDEN_SCALE
         scaleY = HIDDEN_SCALE
         alpha = 0f
-        animateTo(1f, 1f, motion.viewDuration(MotionDurations.MEDIUM), MotionInterpolators.enter)
+        animateTo(
+            1f,
+            1f,
+            motion.viewDuration(MotionDurations.MEDIUM),
+            MotionEasing.viewInterpolator(MotionEasing.Enter),
+        )
     }
 
     /** Scale and fade out, then [onEnd] (remove the window). */
     fun animateOut(onEnd: () -> Unit) {
         isEnabled = false
-        animateTo(HIDDEN_SCALE, 0f, motion.viewDuration(MotionDurations.MEDIUM), MotionInterpolators.exit, onEnd)
+        animateTo(
+            HIDDEN_SCALE,
+            0f,
+            motion.viewDuration(MotionDurations.MEDIUM),
+            MotionEasing.viewInterpolator(MotionEasing.Exit),
+            onEnd,
+        )
     }
 
     companion object {
@@ -236,18 +269,11 @@ class OverlayButtonView(
     }
 }
 
-/** The M3 curves of [com.paragrudani.replyly.ui.theme.MotionEasing], for View animations. */
-private object MotionInterpolators {
-    val standard get() = PathInterpolator(0.2f, 0f, 0f, 1f)
-    val enter get() = PathInterpolator(0.05f, 0.7f, 0.1f, 1f)
-    val exit get() = PathInterpolator(0.3f, 0f, 0.8f, 0.15f)
-}
-
 private fun View.animateTo(
     scale: Float,
     alpha: Float,
     durationMillis: Long,
-    interpolator: PathInterpolator,
+    interpolator: Interpolator,
     onEnd: (() -> Unit)? = null,
 ) {
     animate().cancel()
@@ -271,9 +297,10 @@ private fun View.animateTo(
 /** The scheme for the button right now: system dark mode plus the user's colour setting. */
 internal fun overlayButtonScheme(
     context: Context,
+    configuration: Configuration = context.resources.configuration,
     dynamicColor: Boolean = context.dynamicColorSetting(),
 ): ColorScheme {
-    val night = context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
+    val night = configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK
     return replylyColorScheme(
         context,
         darkTheme = night == Configuration.UI_MODE_NIGHT_YES,
