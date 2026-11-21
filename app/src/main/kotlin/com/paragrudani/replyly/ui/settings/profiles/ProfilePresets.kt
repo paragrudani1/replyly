@@ -49,3 +49,25 @@ fun ApiFormat.label(): String =
         ApiFormat.OpenAi -> "OpenAI-compatible"
         ApiFormat.Anthropic -> "Anthropic"
     }
+
+/**
+ * Quick picks for the model of an OpenRouter profile (spec 6 shortlist), shown as a radio list in
+ * the profile editor. Any other id can still be typed.
+ */
+val MODEL_SHORTLIST = listOf("anthropic/claude-haiku-5.5", "google/gemini-3.8-flash", "~openai/gpt-mini-latest")
+
+/**
+ * The model ids offered as a list in the profile editor for this provider: the shortlist on
+ * OpenRouter, Anthropic's Haiku on the Anthropic format, nothing otherwise (OpenAI and custom
+ * endpoints name their models too differently to guess). The editor always adds an "Other model
+ * id" choice for anything not listed.
+ */
+fun modelChoices(
+    format: ApiFormat,
+    baseUrl: String,
+): List<String> =
+    when {
+        format == ApiFormat.OpenAi && "openrouter.ai" in baseUrl -> MODEL_SHORTLIST
+        format == ApiFormat.Anthropic -> listOf(ANTHROPIC_HAIKU)
+        else -> emptyList()
+    }

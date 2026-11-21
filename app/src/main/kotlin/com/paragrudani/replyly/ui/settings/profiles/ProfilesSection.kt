@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -16,13 +17,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.paragrudani.replyly.appGraph
+import com.paragrudani.replyly.ui.theme.MinTouchTarget
+import com.paragrudani.replyly.ui.theme.Spacing
 
 /** Settings entry point: the provider profiles with their own view model. */
 @Composable
@@ -66,7 +67,11 @@ fun ProviderProfilesSection(modifier: Modifier = Modifier) {
     }
 }
 
-/** Stateless list: tap a row to make it active (the quick switch). */
+/**
+ * Stateless list: tap a row to make it active (the quick switch). It sits inside Settings' "AI
+ * provider" section, which gives it its heading, so it has none of its own. Rows are at least
+ * 48 dp tall.
+ */
 @Composable
 fun ProviderProfilesContent(
     state: ProfilesUiState,
@@ -76,9 +81,12 @@ fun ProviderProfilesContent(
     onAdd: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text("Provider profiles", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-        Text("The selected profile is used for suggestions.", style = MaterialTheme.typography.bodySmall)
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(Spacing.S)) {
+        Text(
+            "The selected profile is used for suggestions.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
         if (!state.loaded) Text("Loading…")
         state.message?.takeIf { state.editor == null }?.let {
             Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
@@ -109,9 +117,10 @@ private fun ProfileRowItem(
             modifier =
                 Modifier
                     .fillMaxWidth()
+                    .heightIn(min = MinTouchTarget)
                     .selectable(selected = row.active, role = Role.RadioButton, onClick = onSelect),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.S),
         ) {
             // The row handles the click, so the whole line is one touch target.
             RadioButton(selected = row.active, onClick = null)
@@ -120,6 +129,7 @@ private fun ProfileRowItem(
                 Text(
                     "${row.profile.format.label()} · ${row.profile.model}",
                     style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 if (!row.hasKey) {
                     Text(

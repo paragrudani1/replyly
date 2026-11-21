@@ -1,12 +1,26 @@
 package com.paragrudani.replyly.ui.settings
 
+import android.content.pm.ApplicationInfo
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.test.core.app.ApplicationProvider
+import com.google.common.truth.Truth.assertThat
+import com.paragrudani.replyly.feedback.FeedbackEntry
+import com.paragrudani.replyly.llm.Suggestion
+import com.paragrudani.replyly.parser.ChatKey
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
+import java.time.Duration
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
+import java.util.Locale
 
 @RunWith(RobolectricTestRunner::class)
 class FeedbackLogScreenTest {
@@ -14,19 +28,23 @@ class FeedbackLogScreenTest {
     val compose = createComposeRule()
 
     @Test
-    fun `a storage error is shown in place of the empty-log hint`() {
+    fun `a storage error is shown in place of the empty-log hint, with a working Try again`() {
+        var retries = 0
         compose.setContent {
             FeedbackLogScreen(
                 entries = emptyList(),
                 error = SettingsViewModel.STORAGE_LOCKED,
                 onClear = {},
                 onBack = {},
+                onRetry = { retries++ },
             )
         }
 
-        compose.onNodeWithText("Secure storage is locked. Try again.").assertExists()
+        compose.onNodeWithText("Secure storage is locked", substring = true).assertExists()
         compose.onNodeWithText("No entries yet", substring = true).assertDoesNotExist()
         compose.onNodeWithText("Clear log").assertIsNotEnabled()
+        compose.onNodeWithText("Try again").performClick()
+        assertThat(retries).isEqualTo(1)
     }
 
     @Test
@@ -34,6 +52,76 @@ class FeedbackLogScreenTest {
         compose.setContent { FeedbackLogScreen(entries = emptyList(), error = null, onClear = {}, onBack = {}) }
 
         compose.onNodeWithText("No entries yet", substring = true).assertExists()
-        compose.onNodeWithText("Secure storage is locked. Try again.").assertDoesNotExist()
+        compose.onNodeWithText("Secure storage is locked", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `entries show the app name and follow the 24-hour setting`() {
+        val zone = ZoneId.of("Asia/Kolkata")
+        val entry =
+            FeedbackEntry(
+                id = 1,
+                chatKey = ChatKey("com.whatsapp", "Riya"),
+                createdAt = LocalDateTime.of(2026, 11, 21, 14, 5).atZone(zone).toInstant(),
+                model = "m",
+                prompt = "p",
+                suggestions = listOf(Suggestion("agree", "Yes")),
+                insertedIndex = null,
+                finalSentText = null,
+            )
+        compose.setContent {
+            FeedbackLogScreen(
+                listOf(entry),
+                null,
+                {},
+                {},
+                zone = zone,
+                today = LocalDate.of(2026, 11, 21),
+                use24Hour = true,
+                appLabel = { if (it == "com.whatsapp") "WhatsApp" else it },
+            )
+        }
+        compose.onNodeWithText("WhatsApp · m", substring = true).assertExists()
+        compose.onNodeWithText("14:05", substring = true).assertExists()
+        compose.onNodeWithText("com.whatsapp", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    fun `time format follows the 12 or 24-hour choice`() {
+        val time = LocalTime.of(14, 5)
+        assertThat(feedbackTimeFormatter(true, Locale.US).format(time)).isEqualTo("14:05")
+        assertThat(feedbackTimeFormatter(false, Locale.US).format(time)).isEqualTo("2:05 PM")
+    }
+
+    @Test
+    fun `app label falls back to the package id when the app is not visible`() {
+        val context = ApplicationProvider.getApplicationContext<android.content.Context>()
+        val pm = context.packageManager
+        shadowOf(pm).installPackage(
+            android.content.pm.PackageInfo().apply {
+                packageName = "com.whatsapp"
+                applicationInfo =
+                    ApplicationInfo().apply {
+                        packageName = "com.whatsapp"
+                        nonLocalizedLabel = "WhatsApp"
+                    }
+            },
+        )
+        assertThat(appLabel(pm, "com.whatsapp")).isEqualTo("WhatsApp")
+        assertThat(appLabel(pm, "org.example.gone")).isEqualTo("org.example.gone")
+    }
+
+    @Test
+    fun `the day rolls over just after local midnight, across clock changes`() {
+        val ny = ZoneId.of("America/New_York")
+        val before = LocalDateTime.of(2026, 11, 21, 23, 59, 30).atZone(ny).toInstant()
+        assertThat(durationUntilNextDay(before, ny)).isEqualTo(Duration.ofSeconds(30).plusMillis(1))
+        // 1 Nov 2026 is 25 hours long in New York (DST ends).
+        val dstStart = LocalDateTime.of(2026, 11, 1, 0, 0).atZone(ny).toInstant()
+        assertThat(durationUntilNextDay(dstStart, ny)).isEqualTo(Duration.ofHours(25).plusMillis(1))
+        // Exactly at midnight: wait for the next one, never 0.
+        assertThat(durationUntilNextDay(dstStart, ny).isNegative).isFalse()
+        val waited = dstStart.plus(durationUntilNextDay(dstStart, ny))
+        assertThat(waited.atZone(ny).toLocalDate()).isEqualTo(LocalDate.of(2026, 11, 2))
     }
 }

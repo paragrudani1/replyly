@@ -1,6 +1,10 @@
 package com.paragrudani.replyly.ui.settings.profiles
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.assertIsNotEnabled
+import androidx.compose.ui.test.assertIsSelected
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
@@ -80,5 +84,60 @@ class ProfilesUiTest {
         compose.onNodeWithText("X-Org: value saved").performScrollTo().assertExists()
         compose.onNodeWithText("Temperature (optional)").assertDoesNotExist()
         compose.onNodeWithText("Delete profile").performScrollTo().assertIsNotEnabled()
+    }
+
+    private fun editor(
+        draft: () -> ProfileDraft,
+        onChange: ((ProfileDraft) -> ProfileDraft) -> Unit = {},
+    ) = compose.setContent {
+        ProfileEditor(
+            draft = draft(),
+            errors = emptyMap(),
+            canDelete = true,
+            message = null,
+            actions = ProfileEditorActions(onChange, {}, {}, {}, {}, {}, {}),
+        )
+    }
+
+    @Test
+    fun `the model is a radio list on OpenRouter, with a free-text Other choice`() {
+        var draft by mutableStateOf(ProfileDraft.from(openRouter, keySaved = true))
+        editor({ draft }) { transform -> draft = transform(draft) }
+
+        compose.onNodeWithText("anthropic/claude-haiku-5.5").performScrollTo().assertIsSelected()
+        compose.onNodeWithText("Model id").assertDoesNotExist()
+        compose.onNodeWithText("google/gemini-3.8-flash").performScrollTo().performClick()
+        assertThat(draft.model).isEqualTo("google/gemini-3.8-flash")
+
+        compose.onNodeWithText("Other model id").performScrollTo().performClick()
+        compose.onNodeWithText("Other model id").assertIsSelected()
+        compose.onNodeWithText("Model id").performScrollTo().assertExists()
+        assertThat(draft.model).isEqualTo("google/gemini-3.8-flash") // kept until the user types
+    }
+
+    @Test
+    fun `a custom model id opens on Other with the field`() {
+        editor({ ProfileDraft.from(openRouter.copy(model = "meta/llama-9"), keySaved = true) })
+        compose.onNodeWithText("Other model id").performScrollTo().assertIsSelected()
+        compose.onNodeWithText("Model id").performScrollTo().assertExists()
+    }
+
+    @Test
+    fun `providers without known ids show only the field`() {
+        editor({
+            ProfileDraft.from(
+                ProviderProfile("oa", "OpenAI", ApiFormat.OpenAi, "https://api.openai.com/v1", "gpt-5.5-mini"),
+                keySaved = true,
+            )
+        })
+        compose.onNodeWithText("Other model id").assertDoesNotExist()
+        compose.onNodeWithText("Model").performScrollTo().assertExists()
+    }
+
+    @Test
+    fun `model choices per provider`() {
+        assertThat(modelChoices(ApiFormat.OpenAi, "https://openrouter.ai/api/v1")).isEqualTo(MODEL_SHORTLIST)
+        assertThat(modelChoices(ApiFormat.Anthropic, "https://api.anthropic.com/v1")).containsExactly(ANTHROPIC_HAIKU)
+        assertThat(modelChoices(ApiFormat.OpenAi, "https://api.openai.com/v1")).isEmpty()
     }
 }

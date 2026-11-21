@@ -13,7 +13,6 @@ import androidx.compose.ui.test.performTouchInput
 import com.google.common.truth.Truth.assertThat
 import com.paragrudani.replyly.cost.InMemoryCostGuard
 import com.paragrudani.replyly.feedback.InMemoryFeedbackLog
-import com.paragrudani.replyly.settings.InMemoryApiKeyStore
 import com.paragrudani.replyly.settings.InMemorySettingsRepository
 import com.paragrudani.replyly.settings.current
 import com.paragrudani.replyly.testing.MutableClock
@@ -32,14 +31,20 @@ class SettingsScreenTest {
     private val settings = InMemorySettingsRepository()
     private val clock = MutableClock.atLocal(LocalDateTime.of(2026, 11, 21, 10, 0))
     private val vm =
-        SettingsViewModel(settings, InMemoryApiKeyStore(), InMemoryCostGuard(), InMemoryFeedbackLog(clock), clock)
+        SettingsViewModel(settings, InMemoryCostGuard(), InMemoryFeedbackLog(clock), clock)
 
     @Test
     fun `long-pressing the title opens the debug screen and the wordmark reads as Replyly`() {
         var debugOpened = 0
         compose.setContent {
             ReplylyTheme(dynamicColor = false) {
-                SettingsScreen(vm, onOpenOnboarding = {}, onOpenDebug = { debugOpened++ }, onOpenFeedbackLog = {})
+                SettingsScreen(
+                    vm,
+                    onOpenOnboarding = {},
+                    onOpenDebug = { debugOpened++ },
+                    onOpenFeedbackLog = {},
+                    aiProvider = {},
+                )
             }
         }
         compose.onNodeWithContentDescription("Replyly", useUnmergedTree = true).assertExists()
@@ -51,7 +56,7 @@ class SettingsScreenTest {
     fun `the Material You switch saves at once`() {
         compose.setContent {
             ReplylyTheme(dynamicColor = false) {
-                SettingsScreen(vm, onOpenOnboarding = {}, onOpenDebug = {}, onOpenFeedbackLog = {})
+                SettingsScreen(vm, onOpenOnboarding = {}, onOpenDebug = {}, onOpenFeedbackLog = {}, aiProvider = {})
             }
         }
         compose.onNode(hasScrollAction()).performScrollToNode(hasText("Material You colours"))

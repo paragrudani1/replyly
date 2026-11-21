@@ -20,7 +20,9 @@ import java.util.concurrent.ConcurrentHashMap
  * Token limit field: `api.openai.com` gets `max_completion_tokens` (its reasoning models reject
  * `max_tokens`) plus `reasoning_effort: "low"`; every other host gets `max_tokens`. If a 400 names
  * either field, the call is retried once with the other one, and that choice is remembered per
- * URL and model for the rest of the process.
+ * URL and model for the rest of the process. Likewise, if a 400 names `reasoning_effort` (models
+ * without reasoning reject it), the call is retried once without it, and it is left out for that
+ * URL and model from then on. Each fix is tried at most once per call.
  */
 internal class ChatCompletionsClient(
     private val http: OkHttpClient,
@@ -28,14 +30,33 @@ internal class ChatCompletionsClient(
     /** `url|model` -> true for `max_completion_tokens`, false for `max_tokens`. Learned from 400s. */
     private val tokenField = ConcurrentHashMap<String, Boolean>()
 
+    /** `url|model` keys whose model rejected `reasoning_effort`. Learned from 400s. */
+    private val noReasoningEffort: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
     override suspend fun complete(request: CompletionRequest): CallOutcome {
         val key = "${request.url}|${request.model}"
-        val useCompletion = tokenField[key] ?: isOpenAi(request.url)
-        val first = send(request, useCompletion)
-        if (first !is Sent.TokenFieldRejected) return first.outcome
-        val retry = send(request, !useCompletion)
-        if (retry !is Sent.TokenFieldRejected) tokenField[key] = !useCompletion
-        return retry.outcome
+        var useCompletion = tokenField[key] ?: isOpenAi(request.url)
+        var sendEffort = isOpenAi(request.url) && key !in noReasoningEffort
+        var triedTokenField = false
+        while (true) {
+            val sent = send(request, useCompletion, sendEffort)
+            when {
+                sent is Sent.ReasoningEffortRejected && sendEffort -> {
+                    noReasoningEffort += key
+                    sendEffort = false
+                }
+
+                sent is Sent.TokenFieldRejected && !triedTokenField -> {
+                    triedTokenField = true
+                    useCompletion = !useCompletion
+                }
+
+                else -> {
+                    if (triedTokenField && sent !is Sent.TokenFieldRejected) tokenField[key] = useCompletion
+                    return sent.outcome
+                }
+            }
+        }
     }
 
     private sealed interface Sent {
@@ -48,11 +69,16 @@ internal class ChatCompletionsClient(
         data class TokenFieldRejected(
             override val outcome: CallOutcome,
         ) : Sent
+
+        data class ReasoningEffortRejected(
+            override val outcome: CallOutcome,
+        ) : Sent
     }
 
     private suspend fun send(
         request: CompletionRequest,
         useCompletionTokens: Boolean,
+        sendReasoningEffort: Boolean,
     ): Sent {
         val openRouter = isOpenRouter(request.url)
         val body =
@@ -70,7 +96,7 @@ internal class ChatCompletionsClient(
                 if (request.jsonMode) put("response_format", buildJsonObject { put("type", "json_object") })
                 // Keeps reasoning models from spending max_tokens on thinking. OpenRouter-only field.
                 if (openRouter) put("reasoning", buildJsonObject { put("effort", "low") })
-                if (isOpenAi(request.url)) put("reasoning_effort", "low")
+                if (sendReasoningEffort) put("reasoning_effort", "low")
             }
         val headers =
             buildMap {
@@ -87,18 +113,34 @@ internal class ChatCompletionsClient(
 
             is HttpReply.Body -> {
                 when {
-                    reply.code in 200..299 -> Sent.Done(parseSuccess(reply.text))
+                    reply.code in 200..299 -> {
+                        Sent.Done(parseSuccess(reply.text))
+                    }
+
+                    rejectsReasoningEffort(reply.code, reply.text) -> {
+                        Sent.ReasoningEffortRejected(httpFailure(reply.code, reply.text, request.jsonMode))
+                    }
 
                     rejectsTokenField(
                         reply.code,
                         reply.text,
-                    ) -> Sent.TokenFieldRejected(httpFailure(reply.code, reply.text, false))
+                    ) -> {
+                        Sent.TokenFieldRejected(httpFailure(reply.code, reply.text, false))
+                    }
 
-                    else -> Sent.Done(httpFailure(reply.code, reply.text, request.jsonMode))
+                    else -> {
+                        Sent.Done(httpFailure(reply.code, reply.text, request.jsonMode))
+                    }
                 }
             }
         }
     }
+
+    /** "Unsupported parameter: 'reasoning_effort'…" or "Unrecognized request argument supplied: reasoning_effort". */
+    private fun rejectsReasoningEffort(
+        code: Int,
+        text: String,
+    ): Boolean = code == 400 && "reasoning_effort" in text.lowercase()
 
     /** Covers both "use max_completion_tokens instead" and "unrecognized argument: max_completion_tokens". */
     private fun rejectsTokenField(

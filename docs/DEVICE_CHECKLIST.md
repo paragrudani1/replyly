@@ -606,25 +606,29 @@ counters and history are gone (one `NO_SAVED_PASSPHRASE` line, a fresh `capture 
 
 ## 11. Polish
 
-Look and feel from the UI polish pass (issue #17). The parallel polish PRs add their own steps
-here (button animation and drag, panel motion, haptics, onboarding transitions).
+Look and feel from the UI polish pass (issue #17). Steps are numbered by area so the parallel
+polish PRs never collide: `11.A…` foundation (icon, colours, dark mode, animations, font size),
+`11.B…` floating button, `11.C…` panel, `11.D…` onboarding, `11.E…` settings. Each PR adds its
+steps under its own letter; numbers inside a letter only grow.
 
-11.1 **Do:** after installing, look at Replyly on the home screen and in the app drawer.
+### Foundation (polish #0)
+
+11.A1 **Do:** after installing, look at Replyly on the home screen and in the app drawer.
 **See:** an ink-blue icon with a white chat bubble (two blue text lines) and a yellow four-point
 sparkle top right; nothing clipped by the icon shape, the mark roughly centred. **Send:**
 Screenshot of the home screen.
 
-11.2 **Do:** Settings > Wallpaper and style > Color palette: turn on "Themed icons" (or Home screen
+11.A2 **Do:** Settings > Wallpaper and style > Color palette: turn on "Themed icons" (or Home screen
 settings > Themed icons). **See:** the Replyly icon turns into the One UI themed colours with the
 same bubble and sparkle, text lines cut out. **Send:** Screenshot of the home screen.
 
-11.3 **Do:** long-press the Replyly icon, or drag it into a folder. **See:** the round/folder
+11.A3 **Do:** long-press the Replyly icon, or drag it into a folder. **See:** the round/folder
 version still shows the whole mark. **Send:** Screenshot if anything is cut off.
 
-11.4 **Do:** open Replyly settings. **See:** "replyly" with a small yellow sparkle above
+11.A4 **Do:** open Replyly settings. **See:** "replyly" with a small yellow sparkle above
 "Settings"; long-pressing it still opens the debug screen. **Send:** Screenshot.
 
-11.5 **Do:** Settings > Appearance > turn on "Material You colours", go back to the home screen
+11.A5 **Do:** Settings > Appearance > turn on "Material You colours", go back to the home screen
 and return; then open a WhatsApp chat and tap the button. **See:** settings, the floating button
 and the panel switch to your wallpaper colours (buttons, switches, the button fill). Turn it off
 again: everything goes back to ink blue. Also force-stop Replyly with Material You on and open
@@ -632,173 +636,26 @@ it again: a brief flash of ink blue before the wallpaper colours appear is possi
 loads after the first frame). **Send:** two Screenshots (on and off) of settings and of the
 button over a chat, and say whether the cold-start flash is noticeable.
 
-11.6 **Do:** with "Material You colours" on, change the wallpaper (Settings > Wallpaper and
+11.A6 **Do:** with "Material You colours" on, change the wallpaper (Settings > Wallpaper and
 style) to one with a clearly different colour, then reopen Replyly. **See:** Replyly picks up the
 new palette. **Send:** Screenshot if it keeps the old colours.
 
-11.7 **Do:** turn on dark mode (quick settings), open Replyly settings and a WhatsApp chat with
+11.A7 **Do:** turn on dark mode (quick settings), open Replyly settings and a WhatsApp chat with
 the button and the panel. **See:** dark backgrounds, light text, a light periwinkle button with a
 dark mark; all text readable. **Send:** Screenshots of settings, button and panel.
 
-11.8 **Do:** Settings > Accessibility > Visibility enhancements > turn on "Remove animations"
+11.A8 **Do:** Settings > Accessibility > Visibility enhancements > turn on "Remove animations"
 (on some One UI versions: Advanced settings > Remove animations). Use the button and panel.
 **See:** everything still works, things appear without animating. Turn it off afterwards.
 **Send:** anything that looks stuck half-way.
 
-11.9 **Do:** Settings > Display > Font size and style: set the font size two steps larger; open
+11.A9 **Do:** Settings > Display > Font size and style: set the font size two steps larger; open
 settings, onboarding and the panel. **See:** no text cut off or overlapping. **Send:** Screenshots
 of anything clipped.
 
-### Suggestion panel (items 11.20–11.29, 11.40–11.43)
-
-Panel motion, gestures and the instruction chips. The last four are numbered 11.40–11.43 so they
-do not collide with the onboarding items. Do 11.20–11.29 with "Remove animations" OFF, then 11.40
-with it on. Haptics need "Touch interactions" vibration on (Settings > Sounds and
-vibration > System sound/vibration control).
-
-11.20 **Do:** in a WhatsApp chat, tap the button. **See:** the chat dims while the sheet slides up
-from the bottom edge with a soft settle (a hint of overshoot, no wobble), in about half a second;
-no flash of the sheet at its final place before it slides. **Send:** a screen recording
-(Quick settings > Screen recorder) if it jumps, stutters or bounces more than once.
-
-11.21 **Do:** watch the panel while it loads. **See:** 3 grey placeholder cards with a soft light
-band sweeping left to right, about once a second, and no spinner; then the 3 real cards fade and
-slide up one after another (a short, even ripple, top card first). **Send:** a screen recording if
-the shimmer is choppy or the cards appear all at once.
-
-11.22 **Do:** look at the coloured tags on the cards (light and dark mode). **See:** "Agree" green,
-"Decline" red, "Ask" amber, any other word grey-blue; all readable. **Send:** Screenshot.
-
-11.23 **Do:** tap a card. **See and feel:** the card turns blue briefly, one light tick from the
-vibration motor, the sheet slides down, and WhatsApp's message box holds the text (nothing sent).
-**Send:** whether you felt the tick, and a screen recording if the panel closes before the card
-turns blue or the text is missing.
-
-11.24 **Do:** open the panel again and press and hold a card for about half a second. **See and
-feel:** a stronger vibration, a dark "Copied" pill at the top of the panel for about 1.5 s, the
-panel stays open, WhatsApp's box unchanged. Then long-press WhatsApp's message box and paste.
-**See:** the copied reply. Open Gboard's clipboard strip. **See:** the clip is hidden or shown as
-dots (marked sensitive). **Send:** Screenshot of Gboard's clipboard strip.
-
-11.25 **Do:** tap Regenerate (the round arrow). **See:** the cards fade down and out, the
-placeholders shimmer, then 3 new cards ripple in. Replyly settings' usage count for today goes up
-by exactly one per tap (note it before, check after). **Send:** the counts, and a screen recording
-if the cards jump instead of fading.
-
-11.26 **Do:** tap the "Shorter" chip. **See:** it shows a check mark, the cards regenerate once,
-the replies get shorter. While the placeholders shimmer, tap "Shorter" and "Add emoji" quickly
-several times. **See:** the chips are greyed out and nothing changes; the usage count in settings
-goes up by exactly one for the first tap. Tap "Shorter" again when the cards are back. **See:** the check
-goes away and the cards regenerate once without it. **Send:** the counter before and after.
-
-11.27 **Do:** tap the instruction field (Gboard opens), type "say I'll call at 6", then tap the
-"In English" chip without closing the keyboard. **See:** the keyboard closes, the chip row stays
-visible above Gboard while typing (not hidden behind it), and the new replies follow both the
-chip and the text. Repeat with Gboard's emoji strip open. **Send:** Screenshot with the keyboard
-open, and one if the chips are under the keyboard.
-
-11.28 **Do:** with the panel open, put a finger on the panel's top bar and drag it down past about
-a third of its height, let go. Open it again, scroll the cards to the top and keep dragging down
-inside the cards; open it again and flick down quickly from the top bar; open it again and drag
-down only a little, let go. **See:** the first three close the panel smoothly (sliding down, the
-dim fading), the last one springs back. **Send:** a screen recording of anything that sticks half
-way or closes when you only meant to scroll the cards.
-
-11.29 **Do:** tap the dimmed chat above the panel; open it again and press Back. **See:** both
-slide the panel down (not a cut) and the WhatsApp field keeps its cursor. **Send:** a screen
-recording if either closes abruptly or leaves a dim layer behind.
-
-11.40 **Do:** turn on "Remove animations" (11.8) and repeat 11.20, 11.21, 11.23 and 11.28.
-**See:** the panel appears and closes at once, the placeholders are static (no sweeping band), the
-cards appear together; tapping, long-press copy and swipe-down still work. **Send:** anything that
-still animates or gets stuck. Turn it off afterwards.
-
-11.41 **Do:** with TalkBack on (Settings > Accessibility > TalkBack), open the panel and swipe
-through it. **See:** each card is read once as its tag and text ("Agree. Haan pakka…"), with
-"double-tap to insert"; the TalkBack menu (swipe up then right, or three-finger tap) offers
-"Insert" and "Copy"; the chips read as "Shorter, checkbox/selected" style toggles; the arrow reads
-"Regenerate replies"; "Copied" and errors are announced. **Send:** a TalkBack audio/screen
-recording of anything read twice, unlabelled or missing.
-
-11.42 **Do:** in a WhatsApp chat, open the panel and tap the instruction field so Gboard opens (also
-try with Gboard's emoji or clipboard strip open, and with display size set to the largest under
-Settings > Display > Font size and style / Screen zoom). **See:** the whole top bar (grabber, chat
-name, note and Close icons) stays fully below the status bar (clock, battery); the cards scroll in
-the space between. **Send:** a screenshot with the keyboard open if any part of the top bar is
-under the status bar or cut.
-
-11.43 **Do:** turn on all four chips, then paste or type a long instruction (more than 200
-characters) into the field. **See:** a small "n/m" counter appears under the right end of the field
-when about 30 characters are left; typing stops at the limit and the counter turns red; an emoji at
-the limit is either whole or not added (never a broken box). Now turn one chip off and on again
-with a full field. **See:** turning it on shortens the text in the field (visible), and the new
-replies follow the whole field. **Send:** a screenshot of the counter, and one if a broken
-character appears.
-
-### Onboarding welcome flow
-
-Numbered from 11.30 so the parallel polish PRs do not collide in this section.
-
-11.30 **Do:** uninstall Replyly (or Settings > Apps > Replyly > Storage > Clear data), install and
-open it. **See:** the welcome flow opens on "Replies in your style" with three page dots; "Skip"
-top right, "Next" bottom right. Swipe left and right between the three pages with your thumb.
-**See:** the page follows your finger, settles softly (no hard jump, no bounce past the edge),
-the neighbouring page fades in; the dots stretch to the current page. **Send:** a screen
-recording if a swipe stutters or settles on the wrong page.
-
-11.31 **Do:** on the first page tap "Next", "Next", then "Back"; then go to page 1 and tap "Skip";
-then use the system Back gesture on the checklist. **See:** each button slides to the right page
-(about half a second); "Skip" lands on "Set up your phone"; Back on the checklist goes to the
-privacy page, Back on the first page leaves the app. **Send:** what happened instead.
-
-11.32 **Do:** on "Set up your phone", tap "Open Accessibility", turn Replyly on, come back with
-Back. **See:** within a second step 2 (and step 1) tick: the ring fills blue, then a white check
-draws itself; "N of 5 done" goes up. Repeat for "Allow" (battery: accept the dialog), "Open
-battery settings" + "I've done this" (sleeping apps), and "Open settings" (enter key and model,
-then Back). **See:** each step ticks on return without touching anything. **Send:** the step
-that did not tick, and whether it ticked after leaving and reopening Replyly.
-
-11.33 **Do:** Settings > Accessibility > Replyly: turn it off while on the checklist (via the
-notification shade quick settings or recents), come back. **See:** step 2 goes back to an empty
-ring with "Not done", no crash. Turn it back on: it ticks again. **Send:** a screenshot if the
-ring and the text disagree.
-
-11.34 **Do:** with every step done, reopen Replyly. **See:** it opens on Settings. Tap "Setup
-steps". **See:** it opens straight on the checklist (page 3, five ticks shown at once, no
-animation), Back returns to Settings. **Send:** a screenshot if it opens on the first page.
-
-11.35 **Do:** turn on TalkBack and open "Setup steps". Swipe through the checklist. **See:**
-TalkBack reads "Set up", the title as a heading, then each step as one item, e.g. "Battery:
-done", "Sleeping apps: not confirmed", then its instruction and buttons. While TalkBack is on,
-complete one step and come back: TalkBack announces the new state once ("Battery: done"), not
-the "N of 5 done" counter as well. Swipe to the
-page dots: "Page 3 of 3". **Send:** anything read twice, skipped, or read as "unlabelled".
-
-11.36 **Do:** with "Remove animations" on (11.8), page through the welcome flow and complete a
-step. **See:** pages change at once and the tick appears at once, nothing half-drawn.
-**Send:** a screenshot of anything stuck half-way.
-
-11.37 **Do:** clear Replyly's data (Settings > Apps > Replyly > Storage > Clear data) with at
-least one step not done, open Replyly, and on the first page tap "Skip", then "Skip for now" at
-the bottom of the checklist. On Settings, tap "Setup steps". **See:** it opens straight on "Set
-up your phone" (page 3), not on "Replies in your style". Press Back once. **See:** you are back
-on Settings, without passing through the privacy or first page. Repeat from the checklist's step
-5 button ("Open settings") > "Setup steps": same result. **Send:** a screen recording of the
-pages Back passes through if it is not straight to Settings.
-
-11.38 **Do:** turn on auto-rotate. In the welcome flow go to "Your privacy" and rotate the phone
-to landscape and back; then do the same on "Set up your phone", once from first run and once
-from Settings > "Setup steps". Then turn on Developer options > "Don't keep activities", and for
-each of those screens press Home, reopen Replyly from recents, and rotate again. **See:** every
-time it stays on the same page, ticks already shown do not replay, and Back from the checklist
-still goes where it did before (Settings when opened from "Setup steps", the privacy page on
-first run). Turn "Don't keep activities" off afterwards. **Send:** which screen jumped page or
-where Back went instead.
-
 ### Floating button (polish #3)
 
-Numbered `11.B…` so the parallel polish PRs do not collide on numbers. Use WhatsApp and Telegram
-with Gboard (or Samsung Keyboard).
+Use WhatsApp and Telegram with Gboard (or Samsung Keyboard).
 
 11.B1 **Do:** open a WhatsApp chat and tap the message field so the keyboard opens; close the
 keyboard (Back) and open it again a few times. **See:** the button grows and fades in (about a
@@ -851,7 +708,7 @@ Actions): "Move up" and "Move down" are listed and each moves the button about o
 height; at the highest spot only "Move down" is listed, at the lowest only "Move up"; double-tap
 still opens the panel. **Send:** what TalkBack reads, if different.
 
-11.B10 **Do:** turn on "Remove animations" (see 11.8) and repeat 11.B1 and 11.B4. **See:** the
+11.B10 **Do:** turn on "Remove animations" (see 11.A8) and repeat 11.B1 and 11.B4. **See:** the
 button appears and disappears at once, dragging still works. **Send:** anything stuck half-way.
 
 11.B11 **Do:** with the keyboard open in WhatsApp, drag the button as high as it goes and look
@@ -890,6 +747,201 @@ goes back to your spot. **Send:** a screenshot if the button covers the bar or t
 turn it on again (lock screen visible, do not unlock yet). **See:** no Replyly button, not even
 a faded one, on the lock screen. Unlock: the button comes back over the chat as usual. **Send:**
 a photo of the lock screen if the button shows there.
+
+### Suggestion panel (polish #2)
+
+Panel motion, gestures and the instruction chips. Do 11.C1–11.C10 with "Remove animations" OFF,
+then 11.C11 with it on. Haptics need "Touch interactions" vibration on (Settings > Sounds and
+vibration > System sound/vibration control).
+
+11.C1 **Do:** in a WhatsApp chat, tap the button. **See:** the chat dims while the sheet slides up
+from the bottom edge with a soft settle (a hint of overshoot, no wobble), in about half a second;
+no flash of the sheet at its final place before it slides. **Send:** a screen recording
+(Quick settings > Screen recorder) if it jumps, stutters or bounces more than once.
+
+11.C2 **Do:** watch the panel while it loads. **See:** 3 grey placeholder cards with a soft light
+band sweeping left to right, about once a second, and no spinner; then the 3 real cards fade and
+slide up one after another (a short, even ripple, top card first). **Send:** a screen recording if
+the shimmer is choppy or the cards appear all at once.
+
+11.C3 **Do:** look at the coloured tags on the cards (light and dark mode). **See:** "Agree" green,
+"Decline" red, "Ask" amber, any other word grey-blue; all readable. **Send:** Screenshot.
+
+11.C4 **Do:** tap a card. **See and feel:** the card turns blue briefly, one light tick from the
+vibration motor, the sheet slides down, and WhatsApp's message box holds the text (nothing sent).
+**Send:** whether you felt the tick, and a screen recording if the panel closes before the card
+turns blue or the text is missing.
+
+11.C5 **Do:** open the panel again and press and hold a card for about half a second. **See and
+feel:** a stronger vibration, a dark "Copied" pill at the top of the panel for about 1.5 s, the
+panel stays open, WhatsApp's box unchanged. Then long-press WhatsApp's message box and paste.
+**See:** the copied reply. Open Gboard's clipboard strip. **See:** the clip is hidden or shown as
+dots (marked sensitive). **Send:** Screenshot of Gboard's clipboard strip.
+
+11.C6 **Do:** tap Regenerate (the round arrow). **See:** the cards fade down and out, the
+placeholders shimmer, then 3 new cards ripple in. Replyly settings' usage count for today goes up
+by exactly one per tap (note it before, check after). **Send:** the counts, and a screen recording
+if the cards jump instead of fading.
+
+11.C7 **Do:** tap the "Shorter" chip. **See:** it shows a check mark, the cards regenerate once,
+the replies get shorter. While the placeholders shimmer, tap "Shorter" and "Add emoji" quickly
+several times. **See:** the chips are greyed out and nothing changes; the usage count in settings
+goes up by exactly one for the first tap. Tap "Shorter" again when the cards are back. **See:** the check
+goes away and the cards regenerate once without it. **Send:** the counter before and after.
+
+11.C8 **Do:** tap the instruction field (Gboard opens), type "say I'll call at 6", then tap the
+"In English" chip without closing the keyboard. **See:** the keyboard closes, the chip row stays
+visible above Gboard while typing (not hidden behind it), and the new replies follow both the
+chip and the text. Repeat with Gboard's emoji strip open. **Send:** Screenshot with the keyboard
+open, and one if the chips are under the keyboard.
+
+11.C9 **Do:** with the panel open, put a finger on the panel's top bar and drag it down past about
+a third of its height, let go. Open it again, scroll the cards to the top and keep dragging down
+inside the cards; open it again and flick down quickly from the top bar; open it again and drag
+down only a little, let go. **See:** the first three close the panel smoothly (sliding down, the
+dim fading), the last one springs back. **Send:** a screen recording of anything that sticks half
+way or closes when you only meant to scroll the cards.
+
+11.C10 **Do:** tap the dimmed chat above the panel; open it again and press Back. **See:** both
+slide the panel down (not a cut) and the WhatsApp field keeps its cursor. **Send:** a screen
+recording if either closes abruptly or leaves a dim layer behind.
+
+11.C11 **Do:** turn on "Remove animations" (11.A8) and repeat 11.C1, 11.C2, 11.C4 and 11.C9.
+**See:** the panel appears and closes at once, the placeholders are static (no sweeping band), the
+cards appear together; tapping, long-press copy and swipe-down still work. **Send:** anything that
+still animates or gets stuck. Turn it off afterwards.
+
+11.C12 **Do:** with TalkBack on (Settings > Accessibility > TalkBack), open the panel and swipe
+through it. **See:** each card is read once as its tag and text ("Agree. Haan pakka…"), with
+"double-tap to insert"; the TalkBack menu (swipe up then right, or three-finger tap) offers
+"Insert" and "Copy"; the chips read as "Shorter, checkbox/selected" style toggles; the arrow reads
+"Regenerate replies"; "Copied" and errors are announced. **Send:** a TalkBack audio/screen
+recording of anything read twice, unlabelled or missing.
+
+11.C13 **Do:** in a WhatsApp chat, open the panel and tap the instruction field so Gboard opens (also
+try with Gboard's emoji or clipboard strip open, and with display size set to the largest under
+Settings > Display > Font size and style / Screen zoom). **See:** the whole top bar (grabber, chat
+name, note and Close icons) stays fully below the status bar (clock, battery); the cards scroll in
+the space between. **Send:** a screenshot with the keyboard open if any part of the top bar is
+under the status bar or cut.
+
+11.C14 **Do:** turn on all four chips, then paste or type a long instruction (more than 200
+characters) into the field. **See:** a small "n/m" counter appears under the right end of the field
+when about 30 characters are left; typing stops at the limit and the counter turns red; an emoji at
+the limit is either whole or not added (never a broken box). Now turn one chip off and on again
+with a full field. **See:** turning it on shortens the text in the field (visible), and the new
+replies follow the whole field. **Send:** a screenshot of the counter, and one if a broken
+character appears.
+
+### Onboarding welcome flow
+
+11.D1 **Do:** uninstall Replyly (or Settings > Apps > Replyly > Storage > Clear data), install and
+open it. **See:** the welcome flow opens on "Replies in your style" with three page dots; "Skip"
+top right, "Next" bottom right. Swipe left and right between the three pages with your thumb.
+**See:** the page follows your finger, settles softly (no hard jump, no bounce past the edge),
+the neighbouring page fades in; the dots stretch to the current page. **Send:** a screen
+recording if a swipe stutters or settles on the wrong page.
+
+11.D2 **Do:** on the first page tap "Next", "Next", then "Back"; then go to page 1 and tap "Skip";
+then use the system Back gesture on the checklist. **See:** each button slides to the right page
+(about half a second); "Skip" lands on "Set up your phone"; Back on the checklist goes to the
+privacy page, Back on the first page leaves the app. **Send:** what happened instead.
+
+11.D3 **Do:** on "Set up your phone", tap "Open Accessibility", turn Replyly on, come back with
+Back. **See:** within a second step 2 (and step 1) tick: the ring fills blue, then a white check
+draws itself; "N of 5 done" goes up. Repeat for "Allow" (battery: accept the dialog), "Open
+battery settings" + "I've done this" (sleeping apps), and "Open settings" (enter key and model,
+then Back). **See:** each step ticks on return without touching anything. **Send:** the step
+that did not tick, and whether it ticked after leaving and reopening Replyly.
+
+11.D4 **Do:** Settings > Accessibility > Replyly: turn it off while on the checklist (via the
+notification shade quick settings or recents), come back. **See:** step 2 goes back to an empty
+ring with "Not done", no crash. Turn it back on: it ticks again. **Send:** a screenshot if the
+ring and the text disagree.
+
+11.D5 **Do:** with every step done, reopen Replyly. **See:** it opens on Settings. Tap "Setup
+steps". **See:** it opens straight on the checklist (page 3, five ticks shown at once, no
+animation), Back returns to Settings. **Send:** a screenshot if it opens on the first page.
+
+11.D6 **Do:** turn on TalkBack and open "Setup steps". Swipe through the checklist. **See:**
+TalkBack reads "Set up", the title as a heading, then each step as one item, e.g. "Battery:
+done", "Sleeping apps: not confirmed", then its instruction and buttons. While TalkBack is on,
+complete one step and come back: TalkBack announces the new state once ("Battery: done"), not
+the "N of 5 done" counter as well. Swipe to the
+page dots: "Page 3 of 3". **Send:** anything read twice, skipped, or read as "unlabelled".
+
+11.D7 **Do:** with "Remove animations" on (11.A8), page through the welcome flow and complete a
+step. **See:** pages change at once and the tick appears at once, nothing half-drawn.
+**Send:** a screenshot of anything stuck half-way.
+
+11.D8 **Do:** clear Replyly's data (Settings > Apps > Replyly > Storage > Clear data) with at
+least one step not done, open Replyly, and on the first page tap "Skip", then "Skip for now" at
+the bottom of the checklist. On Settings, tap "Setup steps". **See:** it opens straight on "Set
+up your phone" (page 3), not on "Replies in your style". Press Back once. **See:** you are back
+on Settings, without passing through the privacy or first page. Repeat from the checklist's step
+5 button ("Open settings") > "Setup steps": same result. **Send:** a screen recording of the
+pages Back passes through if it is not straight to Settings.
+
+11.D9 **Do:** turn on auto-rotate. In the welcome flow go to "Your privacy" and rotate the phone
+to landscape and back; then do the same on "Set up your phone", once from first run and once
+from Settings > "Setup steps". Then turn on Developer options > "Don't keep activities", and for
+each of those screens press Home, reopen Replyly from recents, and rotate again. **See:** every
+time it stays on the same page, ticks already shown do not replay, and Back from the checklist
+still goes where it did before (Settings when opened from "Setup steps", the privacy page on
+first run). Turn "Don't keep activities" off afterwards. **Send:** which screen jumped page or
+where Back went instead.
+
+### Settings, feedback timeline and "What's new" (polish item 7 and 9)
+
+11.E1 **Do:** install a CI build of Replyly over the one you have (do not uninstall), open
+Replyly's Settings (if onboarding shows first, finish it; the sheet waits for Settings). **See:** a "What's new in Replyly" sheet slides up from the bottom with 3 to 4 short
+points and a "Got it" button. Tap "Got it", close Replyly from Recents and open it again.
+**See:** the sheet does not come back. Settings > About > What's new shows it again on demand.
+**Send:** "11.E1 ok", or a Screenshot plus whether it showed 0 times or more than once.
+
+11.E2 **Do:** uninstall Replyly, install it fresh and finish onboarding until settings opens.
+**See:** no "What's new" sheet on a fresh install. **Send:** Screenshot if it appears.
+
+11.E3 **Do:** in Settings > Appearance, toggle "Material You colours" on and off; then change
+"Daily request limit" and tap "Save" in the bar at the bottom. **See (feel):** a light tick on
+each toggle and a short confirm buzz once Save has stored the change; nothing on other taps. Now
+type 0 as the daily limit and tap Save: "Fix the marked fields" shows and there is no buzz. **Send:** "too strong",
+"too weak" or "none" for each, if not right. (Haptics follow Settings > Sounds and vibration >
+System vibration; if that is off you will feel nothing.)
+
+11.E4 **Do:** in Replyly settings, scroll from the top to "About" and back, slowly and with a
+fast fling; then tap into "About me" so the keyboard opens. **See:** smooth scrolling with no
+jumps or stutter; section headers (AI provider, Your style, Privacy, Limits and usage,
+Appearance, About) stay readable; the focused field stays above the keyboard and the Save bar
+sits above the keyboard too. **Send:** a screen recording if anything stutters or hides behind
+the keyboard.
+
+11.E5 **Do:** Settings > Limits and usage. **See:** a ring that fills to today's share of the
+daily limit, with the % inside; at the limit it turns red. With "Remove animations" on (11.A8)
+the ring appears filled at once. With TalkBack on, the whole card is one item that reads the
+requests, the tokens and the percentage once. **Send:** Screenshot, and what TalkBack reads if it
+stops on the ring separately.
+
+11.E6 **Do:** Settings > Privacy > Feedback log after a few suggestions. **See:** entries grouped
+under "Today", "Yesterday" or a date; each shows the chat, the app's name (e.g. "WhatsApp", not
+"com.whatsapp") with the model, the time in your phone's 12- or 24-hour style (Settings > General
+management > Date and time > Use 24-hour format: switch it and reopen the log), the 3 replies
+with the one you inserted on a blue background marked "Inserted", and "You sent" with your final
+message once it was seen. With TalkBack on, only the inserted reply says "Inserted"; the others
+read just their text. **Send:** Screenshot (blur private chats if you like), and the app name if
+it shows a package id instead.
+
+11.E7 **Do:** Settings > AI provider > Edit on an OpenRouter profile. **See:** under "Model" a
+list of radio rows (the three shortlist ids and "Other model id"), the current model selected;
+tapping a row selects it. Tap "Other model id": a "Model id" field appears where you can type any
+id; Save keeps it, and reopening the editor shows "Other model id" selected with your id. On an
+Anthropic profile the list has the Haiku id and "Other model id"; on an OpenAI profile there is
+just the field. **Send:** Screenshot of the editor if a row is cut off or the field is missing.
+
+11.E8 **Do:** leave the Feedback log open across midnight (or set the phone's clock to 23:59 with
+automatic time off, open the log, wait two minutes). **See:** entries from before midnight move
+under "Yesterday" without leaving the screen. Turn automatic time back on. **Send:** Screenshot if
+they still say "Today".
 
 ## 12. Provider profiles (issue #18)
 

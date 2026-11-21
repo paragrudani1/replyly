@@ -10,7 +10,6 @@ import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.llm.TokenUsage
 import com.paragrudani.replyly.parser.ChatKey
 import com.paragrudani.replyly.security.DatabaseKeyUnavailableException
-import com.paragrudani.replyly.settings.InMemoryApiKeyStore
 import com.paragrudani.replyly.settings.InMemorySettingsRepository
 import com.paragrudani.replyly.settings.ReplylySettings
 import com.paragrudani.replyly.settings.SettingsRepository
@@ -37,7 +36,6 @@ import java.time.LocalDateTime
 class SettingsViewModelTest {
     private val clock = MutableClock.atLocal(LocalDateTime.of(2026, 11, 21, 10, 0))
     private val settings = InMemorySettingsRepository(ReplylySettings(retentionDays = 60))
-    private val apiKeys = InMemoryApiKeyStore()
     private val cost = InMemoryCostGuard(dailyRequestLimit = 200)
     private val feedback = InMemoryFeedbackLog(clock)
 
@@ -45,7 +43,7 @@ class SettingsViewModelTest {
 
     @After fun tearDown() = Dispatchers.resetMain()
 
-    private fun viewModel() = SettingsViewModel(settings, apiKeys, cost, feedback, clock)
+    private fun viewModel() = SettingsViewModel(settings, cost, feedback, clock)
 
     @Test
     fun `the form starts from the stored settings`() =
@@ -69,6 +67,19 @@ class SettingsViewModelTest {
             assertThat(settings.current().dailyRequestLimit).isEqualTo(50)
             assertThat(vm.state.value.dirty).isFalse()
             assertThat(vm.state.value.errors).isEmpty()
+        }
+
+    @Test
+    fun `savedCount goes up only when Save wrote the settings`() =
+        runTest {
+            val vm = viewModel()
+            assertThat(vm.state.value.savedCount).isEqualTo(0)
+            vm.editDraft { it.copy(dailyRequestLimit = "0") }
+            vm.save()
+            assertThat(vm.state.value.savedCount).isEqualTo(0) // invalid: nothing written
+            vm.editDraft { it.copy(dailyRequestLimit = "50") }
+            vm.save()
+            assertThat(vm.state.value.savedCount).isEqualTo(1)
         }
 
     @Test
@@ -167,11 +178,12 @@ class SettingsViewModelTest {
                         backing.update(transform)
                     }
                 }
-            val vm = SettingsViewModel(failing, apiKeys, cost, feedback, clock)
+            val vm = SettingsViewModel(failing, cost, feedback, clock)
 
             vm.editDraft { it.copy(dailyRequestLimit = "50") }
             vm.save()
             assertThat(vm.state.value.saveError).isEqualTo("Could not save settings")
+            assertThat(vm.state.value.savedCount).isEqualTo(0) // no confirm haptic for a failed write
             assertThat(vm.state.value.dirty).isTrue() // the edit stays so the user can retry
             assertThat(settings.current().dailyRequestLimit).isEqualTo(200)
 
@@ -199,7 +211,7 @@ class SettingsViewModelTest {
                         refreshed++
                     }
                 }
-            SettingsViewModel(settings, apiKeys, guard, feedback, clock).refreshUsage()
+            SettingsViewModel(settings, guard, feedback, clock).refreshUsage()
             assertThat(refreshed).isEqualTo(1)
         }
 
@@ -264,7 +276,7 @@ class SettingsViewModelTest {
     @Test
     fun `a locked feedback DB on open shows the fixed message instead of crashing`() =
         runTest {
-            val vm = SettingsViewModel(settings, apiKeys, cost, LockedFeedbackLog(feedback), clock)
+            val vm = SettingsViewModel(settings, cost, LockedFeedbackLog(feedback), clock)
 
             assertThat(vm.state.value.storageError).isEqualTo("Secure storage is locked. Try again.")
             assertThat(vm.state.value.storageError).isEqualTo(SettingsViewModel.STORAGE_LOCKED)
@@ -275,7 +287,7 @@ class SettingsViewModelTest {
     @Test
     fun `a locked feedback DB shows an empty log with the fixed message`() =
         runTest {
-            val vm = SettingsViewModel(settings, apiKeys, cost, LockedFeedbackLog(feedback), clock)
+            val vm = SettingsViewModel(settings, cost, LockedFeedbackLog(feedback), clock)
             vm.dismissStorageError()
 
             assertThat(vm.feedbackEntries.first()).isEmpty()
@@ -286,7 +298,7 @@ class SettingsViewModelTest {
     fun `clearing a locked feedback log shows the fixed message, and works once unlocked`() =
         runTest {
             val locked = LockedFeedbackLog(feedback)
-            val vm = SettingsViewModel(settings, apiKeys, cost, locked, clock)
+            val vm = SettingsViewModel(settings, cost, locked, clock)
             vm.dismissStorageError()
 
             vm.clearFeedbackLog()
@@ -308,7 +320,7 @@ class SettingsViewModelTest {
                     { RuntimeException(DatabaseKeyUnavailableException(IllegalStateException("wrapped"))) },
                 )
             for (failure in failures) {
-                val vm = SettingsViewModel(settings, apiKeys, cost, LockedFeedbackLog(feedback, failure), clock)
+                val vm = SettingsViewModel(settings, cost, LockedFeedbackLog(feedback, failure), clock)
                 assertThat(vm.state.value.storageError).isEqualTo(SettingsViewModel.STORAGE_LOCKED)
                 vm.dismissStorageError()
                 assertThat(vm.feedbackEntries.first()).isEmpty()

@@ -28,6 +28,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -36,7 +38,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.paragrudani.replyly.llm.ProviderUrls
 import com.paragrudani.replyly.settings.ApiFormat
-import com.paragrudani.replyly.ui.settings.MODEL_SHORTLIST
+import com.paragrudani.replyly.ui.settings.ModelPickerList
+import com.paragrudani.replyly.ui.theme.Spacing
 
 class ProfileEditorActions(
     val onChange: ((ProfileDraft) -> ProfileDraft) -> Unit,
@@ -128,23 +131,7 @@ fun ProfileEditor(
                 keyboardType = KeyboardType.Uri,
             ) { v -> change { it.copy(baseUrl = v) } }
             ApiKeyField(draft, errors[ProfileField.ApiKey], actions)
-            Field(
-                label = "Model",
-                value = draft.model,
-                error = errors[ProfileField.Model],
-                supporting = "The model id as your provider names it.",
-            ) { v -> change { it.copy(model = v) } }
-            if (draft.format == ApiFormat.OpenAi && "openrouter.ai" in draft.baseUrl) {
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MODEL_SHORTLIST.forEach { id ->
-                        FilterChip(
-                            selected = draft.model.trim() == id,
-                            onClick = { change { it.copy(model = id) } },
-                            label = { Text(id) },
-                        )
-                    }
-                }
-            }
+            ModelField(draft, errors[ProfileField.Model], change)
             Field(
                 label = "Max tokens (optional)",
                 value = draft.maxTokens,
@@ -204,6 +191,49 @@ private fun Field(
         modifier = Modifier.fillMaxWidth(),
     )
 }
+
+/**
+ * The model as a radio list (spec item 7): the provider's known ids from [modelChoices] plus
+ * "Other model id", which shows a text field for any id. With no known ids, only the field shows.
+ */
+@Composable
+private fun ModelField(
+    draft: ProfileDraft,
+    error: String?,
+    change: ((ProfileDraft) -> ProfileDraft) -> Unit,
+) {
+    val choices = modelChoices(draft.format, draft.baseUrl)
+    // Custom stays chosen while the user types, even if the text happens to match a listed id.
+    var custom by rememberSaveable(choices) { mutableStateOf(draft.model.trim() !in choices) }
+    val field = @Composable {
+        Field(
+            label = if (choices.isEmpty()) "Model" else "Model id",
+            value = draft.model,
+            error = error,
+            supporting = "The model id as your provider names it.",
+        ) { v -> change { it.copy(model = v) } }
+    }
+    if (choices.isEmpty()) {
+        field()
+        return
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(Spacing.XS)) {
+        Text("Model", style = MaterialTheme.typography.titleSmall, modifier = Modifier.semantics { heading() })
+        ModelPickerList(
+            models = choices + OTHER_MODEL,
+            selected = if (custom) OTHER_MODEL else draft.model.trim(),
+            onSelect = { id ->
+                custom = id == OTHER_MODEL
+                if (!custom) change { it.copy(model = id) }
+            },
+            label = { if (it == OTHER_MODEL) "Other model id" else it },
+        )
+        if (custom) field() else error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    }
+}
+
+/** The picker's free-text choice; not a valid model id, so it can never collide with one. */
+private const val OTHER_MODEL = " other"
 
 @Composable
 private fun ApiKeyField(

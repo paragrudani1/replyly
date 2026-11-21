@@ -6,7 +6,6 @@ import com.paragrudani.replyly.cost.CostGuard
 import com.paragrudani.replyly.cost.CostStatus
 import com.paragrudani.replyly.feedback.FeedbackEntry
 import com.paragrudani.replyly.feedback.FeedbackLog
-import com.paragrudani.replyly.settings.ApiKeyStore
 import com.paragrudani.replyly.settings.ReplylySettings
 import com.paragrudani.replyly.settings.SettingsRepository
 import com.paragrudani.replyly.settings.current
@@ -27,34 +26,25 @@ data class SettingsUiState(
     val draft: SettingsDraft? = null,
     val saved: ReplylySettings? = null,
     val errors: Map<SettingsField, String> = emptyMap(),
-    val apiKeySaved: Boolean = false,
-    /** What is typed in the key field right now. Cleared once saved; never filled from storage. */
-    val apiKeyInput: String = "",
-    val apiKeyError: String? = null,
-    /** The user tapped "Replace" on a saved key. */
-    val replacingApiKey: Boolean = false,
     val usage: CostStatus = CostStatus(0, ReplylySettings().dailyRequestLimit, 0, 0),
     /** A settings or blocklist write failed (disk full, I/O error). Shown once, then dismissed. */
     val saveError: String? = null,
     /** Reading, purging or clearing the encrypted feedback log failed. Shown once, then dismissed. */
     val storageError: String? = null,
+    /**
+     * Goes up by one each time Save writes the settings. A one-shot signal for the screen: the
+     * confirm haptic plays when it changes, so a failed validation or write never buzzes.
+     */
+    val savedCount: Int = 0,
 ) {
-    val showApiKeyField: Boolean get() = !apiKeySaved || replacingApiKey
-
     /** Material You colours. Saved at once (not part of the Save bar), like the blocklists. */
     val useDynamicColor: Boolean get() = saved?.useDynamicColor ?: false
 
     val dirty: Boolean get() = draft != null && saved != null && draft != SettingsDraft.from(saved)
-
-    // Keeps a half-typed key out of any log or crash report that prints the state.
-    override fun toString(): String =
-        "SettingsUiState(draft=$draft, errors=$errors, apiKeySaved=$apiKeySaved, replacingApiKey=$replacingApiKey, " +
-            "apiKeyInput=<${apiKeyInput.length} chars>, apiKeyError=$apiKeyError, usage=$usage, saveError=$saveError, storageError=$storageError)"
 }
 
 class SettingsViewModel(
     private val settingsRepository: SettingsRepository,
-    private val apiKeyStore: ApiKeyStore,
     private val costGuard: CostGuard,
     private val feedbackLog: FeedbackLog,
     private val clock: Clock,
@@ -95,11 +85,6 @@ class SettingsViewModel(
                 }
             }
         }
-        viewModelScope.launch {
-            apiKeyStore.hasKey.collect { has ->
-                mutableState.update { it.copy(apiKeySaved = has) }
-            }
-        }
         viewModelScope.launch { costGuard.status.collect { usage -> mutableState.update { it.copy(usage = usage) } } }
         viewModelScope.launch {
             val retention = settingsRepository.current().retentionDays.toLong()
@@ -127,6 +112,7 @@ class SettingsViewModel(
                             draft = SettingsDraft.from(stored),
                             saved = stored,
                             errors = emptyMap(),
+                            savedCount = it.savedCount + 1,
                         )
                     }
                 }
@@ -140,15 +126,6 @@ class SettingsViewModel(
                 ?: state
         }
     }
-
-    fun setApiKeyInput(value: String) = mutableState.update { it.copy(apiKeyInput = value, apiKeyError = null) }
-
-    fun startReplacingApiKey() = mutableState.update { it.copy(replacingApiKey = true) }
-
-    fun cancelReplacingApiKey() =
-        mutableState.update {
-            it.copy(replacingApiKey = false, apiKeyInput = "", apiKeyError = null)
-        }
 
     /** @return an error message, or null once the package is blocked. */
     fun addBlockedPackage(input: String): String? {
