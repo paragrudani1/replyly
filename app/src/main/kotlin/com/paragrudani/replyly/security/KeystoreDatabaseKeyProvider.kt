@@ -2,6 +2,7 @@ package com.paragrudani.replyly.security
 
 import android.content.Context
 import android.util.Log
+import com.paragrudani.replyly.feedback.db.FeedbackDatabase
 import com.paragrudani.replyly.history.db.HistoryDatabases
 import java.io.File
 import java.io.IOException
@@ -141,8 +142,8 @@ class KeystoreDatabaseKeyProvider(
  * DBs of libraries (WorkManager, for example) are not Replyly's and are left alone.
  */
 object EncryptedDatabases {
-    /** History (ticket #3) and feedback (ticket #6, `FeedbackDatabase.NAME`). */
-    val NAMES: List<String> = listOf(HistoryDatabases.NAME, "feedback.db")
+    /** History (ticket #3) and feedback (ticket #6). */
+    val NAMES: List<String> = listOf(HistoryDatabases.NAME, FeedbackDatabase.NAME)
 
     /** Deletes each DB in [NAMES] with its journal files. @return how many DBs were deleted. */
     fun wipeAll(context: Context): Int = NAMES.count { context.deleteDatabase(it) }
