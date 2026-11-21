@@ -37,6 +37,14 @@ class ProfileValidatorTest {
     }
 
     @Test
+    fun `base urls the http client would reject, or with user info, are refused`() {
+        assertThat(errors(valid.copy(baseUrl = "https://h.example:99999/v1"))).containsKey(ProfileField.BaseUrl)
+        assertThat(errors(valid.copy(baseUrl = "https://user:pw@h.example/v1"))).containsKey(ProfileField.BaseUrl)
+        assertThat(errors(valid.copy(baseUrl = "https://user@h.example/v1"))).containsKey(ProfileField.BaseUrl)
+        assertThat(validate(valid.copy(baseUrl = "https://h.example:8443/v1"))).isInstanceOf(ProfileValidation.Valid::class.java)
+    }
+
+    @Test
     fun `optional numbers are bounded`() {
         assertThat(
             (validate(valid.copy(maxTokens = "2048")) as ProfileValidation.Valid).profile.maxTokens,
@@ -60,6 +68,12 @@ class ProfileValidatorTest {
         assertThat(errors(valid.copy(apiKeyInput = "short"))).containsKey(ProfileField.ApiKey)
         assertThat((validate(valid.copy(apiKeyInput = " sk-ant-1234567890 ")) as ProfileValidation.Valid).apiKey)
             .isEqualTo("sk-ant-1234567890")
+    }
+
+    @Test
+    fun `accept-encoding is reserved - it would turn off automatic gzip`() {
+        assertThat(errors(valid.copy(newHeaders = listOf(HeaderInput("Accept-Encoding", "br")))))
+            .containsKey(ProfileField.Headers)
     }
 
     @Test

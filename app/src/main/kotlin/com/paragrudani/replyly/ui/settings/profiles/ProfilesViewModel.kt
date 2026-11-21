@@ -123,15 +123,24 @@ class ProfilesViewModel(
 
     fun save() {
         val draft = mutable.value.editor ?: return
-        when (val result = ProfileValidator.validate(draft, newId)) {
+        val stored = draft.id?.let { id -> mutable.value.rows.firstOrNull { it.profile.id == id }?.profile }
+        when (val result = ProfileValidator.validate(draft, stored, newId)) {
             is ProfileValidation.Invalid -> {
-                mutable.update { it.copy(errors = result.errors) }
+                mutable.update { state ->
+                    // Open the key field so its error is visible.
+                    val editor =
+                        if (ProfileField.ApiKey in result.errors) state.editor?.copy(replacingKey = true) else state.editor
+                    state.copy(errors = result.errors, editor = editor)
+                }
             }
 
             is ProfileValidation.Valid -> {
                 launchGuarded {
                     val id = result.profile.id
-                    result.apiKey?.let { secrets.setApiKey(id, it) }
+                    when {
+                        result.apiKey != null -> secrets.setApiKey(id, result.apiKey)
+                        result.removeKey -> secrets.setApiKey(id, "")
+                    }
                     // Rewrite the header set every time: kept saved values plus the new ones. The
                     // names stored on the profile are the ones that really have a value.
                     val saved = if (draft.id == null) emptyMap() else secrets.extraHeaders(id)
@@ -139,16 +148,15 @@ class ProfilesViewModel(
                     secrets.setExtraHeaders(id, merged)
                     val profile = result.profile.copy(extraHeaderNames = merged.keys.toList())
                     repository.upsert(profile)
-                    mutable.update { it.copy(editor = null, errors = emptyMap()) }
+                    // An old "OK" may be for another URL, model or key.
+                    mutable.update { it.copy(editor = null, errors = emptyMap(), tests = it.tests - id) }
                 }
             }
         }
     }
 
-    fun removeKey() {
-        val id = mutable.value.editor?.id ?: return
-        launchGuarded { secrets.setApiKey(id, "") }
-    }
+    /** Staged: the key is deleted on [save]; [cancelEdit] keeps it. */
+    fun stageRemoveKey() = editDraft { it.copy(removeKey = true, replacingKey = false, apiKeyInput = "") }
 
     fun delete(id: String) =
         launchGuarded {

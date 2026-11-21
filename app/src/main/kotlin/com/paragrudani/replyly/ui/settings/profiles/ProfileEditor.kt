@@ -226,14 +226,23 @@ private fun ApiKeyField(
         label = { Text(if (draft.keySaved) "New API key" else "API key") },
         placeholder = { Text(draft.keyPlaceholder) },
         isError = error != null,
-        supportingText = { Text(error ?: "Stored encrypted on this phone only. Saved with the profile.") },
+        supportingText = {
+            Text(
+                error
+                    ?: if (draft.removeKey) {
+                        "The saved key is removed when you tap Save."
+                    } else {
+                        "Stored encrypted on this phone only. Saved with the profile."
+                    },
+            )
+        },
         singleLine = true,
         visualTransformation = PasswordVisualTransformation(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, autoCorrectEnabled = false),
         modifier = Modifier.fillMaxWidth(),
     )
-    if (draft.replacingKey) {
-        TextButton(onClick = { actions.onChange { it.copy(replacingKey = false, apiKeyInput = "") } }) {
+    if (draft.keySaved && (draft.replacingKey || draft.removeKey)) {
+        TextButton(onClick = { actions.onChange { it.copy(replacingKey = false, removeKey = false, apiKeyInput = "") } }) {
             Text("Keep the saved key")
         }
     }

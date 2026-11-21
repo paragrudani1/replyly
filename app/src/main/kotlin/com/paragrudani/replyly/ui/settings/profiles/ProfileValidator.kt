@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.ui.settings.profiles
 
 import com.paragrudani.replyly.llm.LlmHttp
+import com.paragrudani.replyly.llm.ProviderUrls
 import com.paragrudani.replyly.settings.ApiFormat
 import com.paragrudani.replyly.settings.ProviderProfile
 import com.paragrudani.replyly.ui.settings.SettingsValidator
@@ -32,14 +33,16 @@ data class ProfileDraft(
     val apiKeyInput: String = "",
     val keySaved: Boolean = false,
     val replacingKey: Boolean = false,
+    /** "Remove" was tapped: the saved key is deleted on Save; Cancel keeps it. */
+    val removeKey: Boolean = false,
     val keyPlaceholder: String = "API key",
 ) {
-    val showKeyField: Boolean get() = !keySaved || replacingKey
+    val showKeyField: Boolean get() = !keySaved || replacingKey || removeKey
 
     override fun toString(): String =
         "ProfileDraft(id=$id, name=$name, format=$format, baseUrl=$baseUrl, model=$model, maxTokens=$maxTokens, " +
             "temperature=$temperature, savedHeaderNames=$savedHeaderNames, newHeaders=$newHeaders, " +
-            "apiKeyInput=<${apiKeyInput.length} chars>, keySaved=$keySaved)"
+            "apiKeyInput=<${apiKeyInput.length} chars>, keySaved=$keySaved, removeKey=$removeKey)"
 
     fun withPreset(preset: ProfilePreset): ProfileDraft {
         val presetNames = ProfilePreset.entries.map { it.label }
@@ -79,11 +82,13 @@ sealed interface ProfileValidation {
         val profile: ProviderProfile,
         val keptHeaderNames: List<String>,
         val newHeaders: Map<String, String>,
-        /** Null: leave the saved key as it is. */
+        /** Null: leave the saved key as it is (or remove it, see [removeKey]). */
         val apiKey: String?,
+        /** Delete the saved key (only when no new [apiKey] was typed). */
+        val removeKey: Boolean = false,
     ) : ProfileValidation {
         override fun toString(): String =
-            "Valid(profile=$profile, newHeaders=${newHeaders.keys}, hasKey=${apiKey != null})"
+            "Valid(profile=$profile, newHeaders=${newHeaders.keys}, hasKey=${apiKey != null}, removeKey=$removeKey)"
     }
 
     data class Invalid(
@@ -109,8 +114,15 @@ object ProfileValidator {
     /** Headers that carry the key or frame the request; the LLM client sets them itself. */
     val RESERVED_HEADERS: Set<String> get() = LlmHttp.RESERVED_HEADERS
 
+    const val KEY_FOR_NEW_HOST = "Enter the key for this provider"
+
+    /**
+     * [stored] is the saved version of the profile being edited. If the host or format changes,
+     * the saved key must not follow it there: a new key must be typed, or the key removed.
+     */
     fun validate(
         draft: ProfileDraft,
+        stored: ProviderProfile? = null,
         newId: () -> String,
     ): ProfileValidation {
         val errors = mutableMapOf<ProfileField, String>()
@@ -123,8 +135,10 @@ object ProfileValidator {
         }
 
         val baseUrl = draft.baseUrl.trim().trimEnd('/')
-        if (!baseUrlPattern.matches(baseUrl)) {
+        if (!baseUrlPattern.matches(baseUrl) || ProviderUrls.endpoint(draft.format, baseUrl) == null) {
             errors[ProfileField.BaseUrl] = "Enter an https:// URL with the version path, e.g. https://api.openai.com/v1"
+        } else if (hasUserInfo(baseUrl)) {
+            errors[ProfileField.BaseUrl] = "Leave out user:password@; put credentials in the key or a header"
         }
 
         val model = draft.model.trim()
@@ -156,6 +170,10 @@ object ProfileValidator {
 
         val apiKey = draft.apiKeyInput.trim().takeIf { it.isNotEmpty() }
         apiKey?.let { SettingsValidator.apiKeyError(it) }?.let { errors[ProfileField.ApiKey] = it }
+        val removeKey = draft.removeKey && apiKey == null
+        if (stored != null && draft.keySaved && apiKey == null && !removeKey && movesKey(stored, draft.format, baseUrl)) {
+            errors[ProfileField.ApiKey] = KEY_FOR_NEW_HOST
+        }
 
         val newHeaders = draft.newHeaders.filterNot { it.name.isBlank() && it.value.isBlank() }
         headerError(draft.savedHeaderNames, newHeaders)?.let { errors[ProfileField.Headers] = it }
@@ -178,8 +196,24 @@ object ProfileValidator {
             keptHeaderNames = kept,
             newHeaders = added,
             apiKey = apiKey,
+            removeKey = removeKey,
         )
     }
+
+    /** True when the key would go to a different host or speak a different format than before. */
+    private fun movesKey(
+        stored: ProviderProfile,
+        format: ApiFormat,
+        baseUrl: String,
+    ): Boolean {
+        if (format != stored.format) return true
+        val before = ProviderUrls.endpoint(stored.format, stored.baseUrl)?.host ?: return true
+        val after = ProviderUrls.endpoint(format, baseUrl)?.host ?: return true
+        return !before.equals(after, ignoreCase = true)
+    }
+
+    /** `https://user:pw@host/...`: credentials would be stored in plain text and shown in the preview. */
+    private fun hasUserInfo(baseUrl: String): Boolean = baseUrl.substringAfter("://").substringBefore('/').contains('@')
 
     private fun headerError(
         saved: List<String>,
@@ -196,7 +230,7 @@ object ProfileValidator {
             }
 
             names.any { it.lowercase() in RESERVED_HEADERS } -> {
-                "Authorization, x-api-key, Content-Type, Content-Length and Host are set by Replyly"
+                "Authorization, x-api-key, Content-Type, Content-Length, Host and Accept-Encoding are set by Replyly"
             }
 
             names.map { it.lowercase() }.toSet().size != names.size -> {

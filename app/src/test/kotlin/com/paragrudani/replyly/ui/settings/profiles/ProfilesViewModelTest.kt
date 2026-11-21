@@ -130,6 +130,100 @@ class ProfilesViewModelTest {
         }
 
     @Test
+    fun `changing the host without typing a key asks for the key and saves nothing`() =
+        runTest {
+            secrets.setApiKey("or", "sk-or-key-0001")
+            val vm = viewModel()
+            vm.edit("or")
+            vm.applyPreset(ProfilePreset.OpenAi)
+            vm.editDraft { it.copy(model = "gpt-5.5-mini") }
+            vm.save()
+
+            assertThat(vm.state.value.errors[ProfileField.ApiKey]).isEqualTo("Enter the key for this provider")
+            // The key field opens so the error is visible.
+            assertThat(vm.state.value.editor!!.showKeyField).isTrue()
+            assertThat(repo.state.value.profiles.single()).isEqualTo(openRouter)
+            assertThat(secrets.apiKey("or")).isEqualTo("sk-or-key-0001")
+        }
+
+    @Test
+    fun `changing only the format without typing a key also asks for the key`() =
+        runTest {
+            secrets.setApiKey("or", "sk-or-key-0001")
+            val vm = viewModel()
+            vm.edit("or")
+            vm.editDraft { it.copy(format = ApiFormat.Anthropic) }
+            vm.save()
+
+            assertThat(vm.state.value.errors).containsKey(ProfileField.ApiKey)
+            assertThat(repo.state.value.profiles.single().format).isEqualTo(ApiFormat.OpenAi)
+        }
+
+    @Test
+    fun `a host change with a new key saves the new key and clears the old test result`() =
+        runTest {
+            secrets.setApiKey("or", "sk-or-key-0001")
+            val vm = viewModel()
+            vm.test("or")
+            assertThat(vm.state.value.tests).containsKey("or")
+            vm.edit("or")
+            vm.applyPreset(ProfilePreset.OpenAi)
+            vm.editDraft { it.copy(model = "gpt-5.5-mini", replacingKey = true, apiKeyInput = "sk-openai-key-0002") }
+            vm.save()
+
+            assertThat(vm.state.value.editor).isNull()
+            assertThat(secrets.apiKey("or")).isEqualTo("sk-openai-key-0002")
+            assertThat(repo.state.value.profiles.single().baseUrl).isEqualTo("https://api.openai.com/v1")
+            assertThat(vm.state.value.tests).doesNotContainKey("or")
+        }
+
+    @Test
+    fun `a host change on a profile without a saved key saves without asking`() =
+        runTest {
+            val vm = viewModel()
+            vm.edit("or")
+            vm.applyPreset(ProfilePreset.OpenAi)
+            vm.editDraft { it.copy(model = "gpt-5.5-mini") }
+            vm.save()
+
+            assertThat(vm.state.value.errors).isEmpty()
+            assertThat(repo.state.value.profiles.single().baseUrl).isEqualTo("https://api.openai.com/v1")
+        }
+
+    @Test
+    fun `remove key is staged - cancel keeps the key, save removes it`() =
+        runTest {
+            secrets.setApiKey("or", "sk-or-key-0001")
+            val vm = viewModel()
+            vm.edit("or")
+            vm.stageRemoveKey()
+            assertThat(vm.state.value.editor!!.showKeyField).isTrue()
+            vm.cancelEdit()
+            assertThat(secrets.apiKey("or")).isEqualTo("sk-or-key-0001")
+
+            vm.edit("or")
+            vm.stageRemoveKey()
+            vm.save()
+            assertThat(secrets.apiKey("or")).isNull()
+            assertThat(vm.state.value.rows.single().hasKey).isFalse()
+        }
+
+    @Test
+    fun `removing the key allows a host change without a new key`() =
+        runTest {
+            secrets.setApiKey("or", "sk-or-key-0001")
+            val vm = viewModel()
+            vm.edit("or")
+            vm.stageRemoveKey()
+            vm.applyPreset(ProfilePreset.OpenAi)
+            vm.editDraft { it.copy(model = "gpt-5.5-mini") }
+            vm.save()
+
+            assertThat(vm.state.value.errors).isEmpty()
+            assertThat(secrets.apiKey("or")).isNull()
+        }
+
+    @Test
     fun `invalid drafts show errors and save nothing`() =
         runTest {
             val vm = viewModel()

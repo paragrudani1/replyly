@@ -58,7 +58,7 @@ fun ProviderProfilesSection(modifier: Modifier = Modifier) {
                     onPreset = vm::applyPreset,
                     onSave = vm::save,
                     onCancel = vm::cancelEdit,
-                    onRemoveKey = vm::removeKey,
+                    onRemoveKey = vm::stageRemoveKey,
                     onDelete = { draft.id?.let(vm::delete) },
                     onDismissMessage = vm::dismissMessage,
                 ),
