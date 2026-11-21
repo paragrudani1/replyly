@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.panel
 
 import com.google.common.truth.Truth.assertThat
+import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.llm.SuggestionResult
 import com.paragrudani.replyly.parser.ParsedChat
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -56,6 +57,86 @@ class ReplyPanelStateTest {
 
             assertThat(feedback.recorded)
                 .containsExactly(FakeFeedbackLog.Recorded(whatsAppChat.chatKey, "m1", "PROMPT", threeSuggestions))
+        }
+
+    @Test
+    fun `regenerate passes the trimmed instruction and shows the new suggestions`() =
+        runTest {
+            val second = listOf(Suggestion("agree", "6 baje call karta hoon"), threeSuggestions[1], threeSuggestions[2])
+            val generator = FakeGenerator(success(), success(second))
+            val panel = panel(generator)
+            panel.start()
+            advanceUntilIdle()
+
+            panel.onInstructionChange("  say I'll call at 6 ")
+            panel.regenerate()
+            runCurrent()
+            assertThat(panel.state.value.suggestions).isEqualTo(SuggestionsUi.Loading)
+            advanceUntilIdle()
+
+            assertThat(assembler.calls.map { it.second }).containsExactly(null, "say I'll call at 6").inOrder()
+            assertThat(generator.requests.last().instruction).isEqualTo("say I'll call at 6")
+            assertThat((panel.state.value.suggestions as SuggestionsUi.Ready).suggestions).isEqualTo(second)
+            assertThat(feedback.recorded).hasSize(2)
+        }
+
+    @Test
+    fun `a blank instruction is sent as none`() =
+        runTest {
+            val panel = panel()
+            panel.start()
+            advanceUntilIdle()
+
+            panel.onInstructionChange("   ")
+            panel.regenerate()
+            advanceUntilIdle()
+
+            assertThat(assembler.calls.map { it.second }).containsExactly(null, null)
+        }
+
+    @Test
+    fun `the instruction is capped at 300 characters`() =
+        runTest {
+            val panel = panel()
+            panel.onInstructionChange("a".repeat(350))
+            assertThat(panel.state.value.instruction).hasLength(300)
+        }
+
+    @Test
+    fun `the LLM is called only on open and on regenerate, never twice at once`() =
+        runTest {
+            val generator = FakeGenerator()
+            val panel = panel(generator)
+
+            panel.start()
+            panel.start()
+            runCurrent()
+            panel.regenerate() // ignored: a generation is already running
+            advanceUntilIdle()
+            assertThat(generator.requests).hasSize(1)
+
+            panel.onInstructionChange("shorter")
+            advanceUntilIdle()
+            assertThat(generator.requests).hasSize(1)
+
+            panel.regenerate()
+            advanceUntilIdle()
+            assertThat(generator.requests).hasSize(2)
+        }
+
+    @Test
+    fun `retry after a failure generates again`() =
+        runTest {
+            val generator = FakeGenerator(SuggestionResult.Failure.Timeout, success())
+            val panel = panel(generator)
+            panel.start()
+            advanceUntilIdle()
+            assertThat(panel.state.value.suggestions).isInstanceOf(SuggestionsUi.Error::class.java)
+
+            panel.regenerate()
+            advanceUntilIdle()
+
+            assertThat(panel.state.value.suggestions).isInstanceOf(SuggestionsUi.Ready::class.java)
         }
 
     @Test

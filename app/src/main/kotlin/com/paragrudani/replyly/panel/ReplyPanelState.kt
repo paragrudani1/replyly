@@ -11,6 +11,7 @@ import com.paragrudani.replyly.llm.SuggestionRequestAssembler
 import com.paragrudani.replyly.llm.SuggestionResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -44,7 +45,12 @@ sealed interface SuggestionsUi {
 
 data class PanelUiState(
     val suggestions: SuggestionsUi = SuggestionsUi.Loading,
+    /** The instruction field, at most [MAX_INSTRUCTION_CHARS]. */
+    val instruction: String = "",
 )
+
+/** The prompt keeps 300 characters of instruction (decision #4), so the field stops there too. */
+const val MAX_INSTRUCTION_CHARS = 300
 
 /**
  * Plain state holder for one open panel. Created with `remember` in [ComposeReplyPanel], so it
@@ -59,29 +65,49 @@ class ReplyPanelState(
     private val mutableState = MutableStateFlow(PanelUiState())
     val state: StateFlow<PanelUiState> = mutableState.asStateFlow()
 
+    private var started = false
+    private var generation: Job? = null
+
+    /** Call once when the panel opens (the user's button tap). Later calls do nothing. */
     fun start() {
-        scope.launch {
-            mutableState.update { it.copy(suggestions = SuggestionsUi.Loading) }
-            val suggestionRequest =
-                assembleOrNull() ?: run {
-                    mutableState.update { it.copy(suggestions = SuggestionsUi.Error(HISTORY_READ_ERROR)) }
-                    return@launch
-                }
-            val next =
-                when (val result = deps.generator.generate(suggestionRequest)) {
-                    is SuggestionResult.Success -> {
-                        deps.feedbackLog.record(request.chat.chatKey, result.model, result.promptSent, result.suggestions)
-                        SuggestionsUi.Ready(result.suggestions, result.model, result.latency)
-                    }
-                    is SuggestionResult.Failure -> SuggestionsUi.Error(result.toPanelError())
-                }
-            mutableState.update { it.copy(suggestions = next) }
-        }
+        if (started) return
+        started = true
+        generate()
     }
 
-    private suspend fun assembleOrNull(): SuggestionRequest? =
+    fun onInstructionChange(text: String) {
+        mutableState.update { it.copy(instruction = text.take(MAX_INSTRUCTION_CHARS)) }
+    }
+
+    /** Regenerate and Retry: one new call with the current instruction. Ignored while one runs. */
+    fun regenerate() = generate()
+
+    private fun generate() {
+        if (generation?.isActive == true) return
+        val instruction = mutableState.value.instruction.trim().ifEmpty { null }
+        mutableState.update { it.copy(suggestions = SuggestionsUi.Loading) }
+        generation =
+            scope.launch {
+                val suggestionRequest =
+                    assembleOrNull(instruction) ?: run {
+                        mutableState.update { it.copy(suggestions = SuggestionsUi.Error(HISTORY_READ_ERROR)) }
+                        return@launch
+                    }
+                val next =
+                    when (val result = deps.generator.generate(suggestionRequest)) {
+                        is SuggestionResult.Success -> {
+                            deps.feedbackLog.record(request.chat.chatKey, result.model, result.promptSent, result.suggestions)
+                            SuggestionsUi.Ready(result.suggestions, result.model, result.latency)
+                        }
+                        is SuggestionResult.Failure -> SuggestionsUi.Error(result.toPanelError())
+                    }
+                mutableState.update { it.copy(suggestions = next) }
+            }
+    }
+
+    private suspend fun assembleOrNull(instruction: String?): SuggestionRequest? =
         try {
-            deps.assembler.assemble(request.chat, null)
+            deps.assembler.assemble(request.chat, instruction)
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
