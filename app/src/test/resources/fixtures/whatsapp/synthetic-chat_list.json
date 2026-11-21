@@ -1,0 +1,123 @@
+{
+  "formatVersion": 1,
+  "packageName": "com.whatsapp",
+  "capturedAt": "2026-11-21T10:15:30Z",
+  "screenWidth": 1080,
+  "screenHeight": 2340,
+  "root": {
+    "className": "android.widget.FrameLayout",
+    "bounds": "[0,0][1080,2340]",
+    "children": [
+      {
+        "className": "android.view.ViewGroup",
+        "viewId": "com.whatsapp:id/toolbar",
+        "bounds": "[0,110][1080,257]",
+        "children": [
+          {
+            "className": "android.widget.TextView",
+            "text": "WhatsApp",
+            "bounds": "[40,140][500,230]"
+          }
+        ]
+      },
+      {
+        "className": "android.widget.EditText",
+        "viewId": "com.whatsapp:id/search_input",
+        "hint": "Ask Meta AI or Search",
+        "bounds": "[40,270][1040,390]",
+        "editable": true,
+        "clickable": true
+      },
+      {
+        "className": "androidx.recyclerview.widget.RecyclerView",
+        "viewId": "android:id/list",
+        "bounds": "[0,400][1080,2100]",
+        "scrollable": true,
+        "children": [
+          {
+            "className": "android.widget.RelativeLayout",
+            "bounds": "[0,407][1080,607]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.TextView",
+                "viewId": "com.whatsapp:id/conversations_row_contact_name",
+                "text": "Asha Patel",
+                "bounds": "[220,437][800,497]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "viewId": "com.whatsapp:id/conversations_row_date",
+                "text": "10:08 am",
+                "bounds": "[850,437][1040,497]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "viewId": "com.whatsapp:id/single_msg_tv",
+                "text": "Can you also pick up candles?",
+                "bounds": "[220,507][1040,567]"
+              }
+            ]
+          },
+          {
+            "className": "android.widget.RelativeLayout",
+            "bounds": "[0,607][1080,807]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.TextView",
+                "viewId": "com.whatsapp:id/conversations_row_contact_name",
+                "text": "Weekend Trek",
+                "bounds": "[220,637][800,697]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "viewId": "com.whatsapp:id/conversations_row_date",
+                "text": "8:25 am",
+                "bounds": "[850,637][1040,697]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "viewId": "com.whatsapp:id/single_msg_tv",
+                "text": "Asha: Done 👍",
+                "bounds": "[220,707][1040,767]"
+              }
+            ]
+          },
+          {
+            "className": "android.widget.RelativeLayout",
+            "bounds": "[0,807][1080,1007]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.TextView",
+                "viewId": "com.whatsapp:id/conversations_row_contact_name",
+                "text": "Dad",
+                "bounds": "[220,837][800,897]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "viewId": "com.whatsapp:id/conversations_row_date",
+                "text": "Yesterday",
+                "bounds": "[850,837][1040,897]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "viewId": "com.whatsapp:id/single_msg_tv",
+                "text": "ok",
+                "bounds": "[220,907][1040,967]"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "className": "android.widget.ImageButton",
+        "viewId": "com.whatsapp:id/fab",
+        "contentDescription": "New chat",
+        "bounds": "[880,1950][1040,2100]",
+        "clickable": true
+      }
+    ]
+  }
+}

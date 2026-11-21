@@ -1,0 +1,450 @@
+{
+  "formatVersion": 1,
+  "packageName": "com.whatsapp",
+  "capturedAt": "2026-11-21T10:15:30Z",
+  "screenWidth": 1080,
+  "screenHeight": 2340,
+  "root": {
+    "className": "android.widget.FrameLayout",
+    "bounds": "[0,0][1080,2340]",
+    "children": [
+      {
+        "className": "android.view.ViewGroup",
+        "bounds": "[0,110][1080,257]",
+        "children": [
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Navigate up",
+            "bounds": "[0,120][100,247]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageView",
+            "bounds": "[100,128][210,240]"
+          },
+          {
+            "className": "android.widget.LinearLayout",
+            "bounds": "[220,120][700,247]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.TextView",
+                "text": "Asha Patel",
+                "bounds": "[220,128][700,190]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "online",
+                "bounds": "[220,190][700,240]"
+              }
+            ]
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Video call",
+            "bounds": "[730,130][840,240]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Voice call",
+            "bounds": "[850,130][960,240]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "More options",
+            "bounds": "[970,130][1080,240]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "android.widget.ListView",
+        "bounds": "[0,257][1080,2052]",
+        "scrollable": true,
+        "children": [
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,262][1080,568]",
+            "children": [
+              {
+                "className": "android.widget.TextView",
+                "text": "Messages and calls are end-to-end encrypted. No one outside of this chat, not even WhatsApp, can read or listen to them. Tap to learn more.",
+                "bounds": "[90,270][990,560]"
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,568][1080,654]",
+            "children": [
+              {
+                "className": "android.widget.TextView",
+                "text": "YESTERDAY",
+                "bounds": "[412,576][668,646]"
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,654][1080,848]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.LinearLayout",
+                "bounds": "[40,660][860,840]",
+                "clickable": true,
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "text": "Are you coming to Riya's birthday on Saturday?",
+                    "bounds": "[70,678][830,790]"
+                  },
+                  {
+                    "className": "android.widget.LinearLayout",
+                    "bounds": "[530,790][840,830]",
+                    "children": [
+                      {
+                        "className": "android.widget.TextView",
+                        "text": "9:15 pm",
+                        "bounds": "[680,790][830,830]"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,848][1080,946]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.LinearLayout",
+                "bounds": "[220,854][1040,938]",
+                "clickable": true,
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "text": "Yes! What time does it start?",
+                    "bounds": "[250,872][956,928]"
+                  },
+                  {
+                    "className": "android.widget.LinearLayout",
+                    "bounds": "[650,884][1020,924]",
+                    "children": [
+                      {
+                        "className": "android.widget.TextView",
+                        "text": "9:20 pm",
+                        "bounds": "[800,884][950,924]"
+                      },
+                      {
+                        "className": "android.widget.ImageView",
+                        "contentDescription": "Read",
+                        "bounds": "[955,884][1005,924]"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,946][1080,1032]",
+            "children": [
+              {
+                "className": "android.widget.TextView",
+                "text": "TODAY",
+                "bounds": "[460,954][620,1024]"
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,1032][1080,1130]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.LinearLayout",
+                "bounds": "[40,1038][400,1122]",
+                "clickable": true,
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "text": "Today",
+                    "bounds": "[70,1056][200,1112]"
+                  },
+                  {
+                    "className": "android.widget.LinearLayout",
+                    "bounds": "[70,1068][380,1108]",
+                    "children": [
+                      {
+                        "className": "android.widget.TextView",
+                        "text": "10:02 am",
+                        "bounds": "[220,1068][370,1108]"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,1130][1080,1228]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.LinearLayout",
+                "bounds": "[40,1136][688,1220]",
+                "clickable": true,
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "text": "7 pm at her place",
+                    "bounds": "[70,1154][488,1210]"
+                  },
+                  {
+                    "className": "android.widget.LinearLayout",
+                    "bounds": "[358,1166][668,1206]",
+                    "children": [
+                      {
+                        "className": "android.widget.TextView",
+                        "text": "10:02 am",
+                        "bounds": "[508,1166][658,1206]"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,1228][1080,1516]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.LinearLayout",
+                "bounds": "[220,1234][1040,1508]",
+                "clickable": true,
+                "children": [
+                  {
+                    "className": "android.widget.LinearLayout",
+                    "bounds": "[236,1252][1024,1392]",
+                    "clickable": true,
+                    "children": [
+                      {
+                        "className": "android.widget.TextView",
+                        "text": "Asha Patel",
+                        "bounds": "[260,1264][1000,1314]"
+                      },
+                      {
+                        "className": "android.widget.TextView",
+                        "text": "7 pm at her place",
+                        "bounds": "[260,1322][1000,1378]"
+                      }
+                    ]
+                  },
+                  {
+                    "className": "android.widget.TextView",
+                    "text": "Perfect, I'll bring the cake 🎂",
+                    "bounds": "[250,1402][980,1458]"
+                  },
+                  {
+                    "className": "android.widget.LinearLayout",
+                    "bounds": "[650,1458][1020,1498]",
+                    "children": [
+                      {
+                        "className": "android.widget.TextView",
+                        "text": "10:05 am",
+                        "bounds": "[800,1458][950,1498]"
+                      },
+                      {
+                        "className": "android.widget.ImageView",
+                        "contentDescription": "Read",
+                        "bounds": "[955,1458][1005,1498]"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,1516][1080,1614]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.LinearLayout",
+                "bounds": "[620,1522][1040,1606]",
+                "clickable": true,
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "text": "10:30",
+                    "bounds": "[650,1540][780,1596]"
+                  },
+                  {
+                    "className": "android.widget.LinearLayout",
+                    "bounds": "[650,1552][1020,1592]",
+                    "children": [
+                      {
+                        "className": "android.widget.TextView",
+                        "text": "10:06 am",
+                        "bounds": "[800,1552][950,1592]"
+                      },
+                      {
+                        "className": "android.widget.ImageView",
+                        "contentDescription": "Delivered",
+                        "bounds": "[955,1552][1005,1592]"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,1614][1080,1712]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.LinearLayout",
+                "bounds": "[40,1620][856,1704]",
+                "clickable": true,
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "text": "This message was deleted",
+                    "bounds": "[70,1638][656,1694]"
+                  },
+                  {
+                    "className": "android.widget.LinearLayout",
+                    "bounds": "[526,1650][836,1690]",
+                    "children": [
+                      {
+                        "className": "android.widget.TextView",
+                        "text": "10:07 am",
+                        "bounds": "[676,1650][826,1690]"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,1712][1080,1810]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.LinearLayout",
+                "bounds": "[40,1718][860,1802]",
+                "clickable": true,
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "text": "Can you also pick up candles?            ",
+                    "bounds": "[70,1736][776,1792]"
+                  },
+                  {
+                    "className": "android.widget.LinearLayout",
+                    "bounds": "[530,1748][840,1788]",
+                    "children": [
+                      {
+                        "className": "android.widget.TextView",
+                        "text": "10:08 am",
+                        "bounds": "[680,1748][830,1788]"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "className": "android.widget.LinearLayout",
+        "bounds": "[0,1900][1080,2214]",
+        "children": [
+          {
+            "className": "android.widget.LinearLayout",
+            "bounds": "[30,1900][1050,2052]",
+            "children": [
+              {
+                "className": "android.widget.TextView",
+                "text": "Asha Patel",
+                "bounds": "[60,1915][900,1970]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "Can you also pick up candles?",
+                "bounds": "[60,1975][900,2035]"
+              },
+              {
+                "className": "android.widget.ImageButton",
+                "contentDescription": "Cancel quote",
+                "bounds": "[940,1930][1030,2020]",
+                "clickable": true
+              }
+            ]
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Emoji",
+            "bounds": "[30,2085][130,2185]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.EditText",
+            "text": "Sure, I",
+            "hint": "Message",
+            "bounds": "[140,2075][760,2190]",
+            "editable": true,
+            "focused": true,
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Attach",
+            "bounds": "[770,2085][860,2185]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Camera",
+            "bounds": "[870,2085][960,2185]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Send",
+            "bounds": "[970,2075][1070,2190]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "android.widget.ImageButton",
+        "contentDescription": "Scroll to bottom",
+        "bounds": "[940,1780][1040,1880]",
+        "clickable": true,
+        "children": [
+          {
+            "className": "android.widget.TextView",
+            "text": "1",
+            "bounds": "[1000,1770][1050,1820]"
+          }
+        ]
+      }
+    ]
+  }
+}
