@@ -17,7 +17,7 @@
 - From #6 review: the LLM client (#4) should itself refuse a non-https endpoint.
 - From #3 (`ticket-3-history@ef09e1c`): the #4 assembler should catch `DatabaseKeyUnavailableException` (fixed-wording failure). FLAG_SECURE detection belongs in the host (#1); capture should then pass it to the policy. Capture stores nothing until #2's parsers merge.
 - From #7: reviewed 2026-11-21; start-destination and back-stack fixes running (see DECISIONS #7 review).
-- From #2 (`ticket-2-parser@fb53de6`): the fixture generator lives at `/tmp/replyly-fixturegen/gen.py`, uncommitted; commit it under `scripts/`. A bubble whose sender label scrolled away is saved with sender null; #3's fix fills it in from later aligned reads.
+- From #2: reviewed 2026-11-21 (7 parser breaks on adversarial trees, scramble leaks); fixes running.
 
 ## GitHub (2026-11-21)
 - Repo https://github.com/paragrudani1/replyly created; issues #1–#7 = tickets 1–7; PR #8 = skeleton.
