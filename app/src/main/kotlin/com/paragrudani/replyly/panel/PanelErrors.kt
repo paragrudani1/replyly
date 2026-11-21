@@ -22,7 +22,7 @@ enum class ErrorKind {
     /** A limit: the daily limit, credits, rate limiting. */
     Limit,
 
-    /** No connection or too slow. */
+    /** No connection, too slow, or the provider's server failed (5xx). */
     Connection,
 
     /** Replyly's own encrypted storage could not be read. */
@@ -140,6 +140,11 @@ private fun httpError(
                 ErrorAction.Retry,
                 ErrorKind.Limit,
             )
+        }
+
+        // The provider's side failed: like a connection problem, a retry may work.
+        in 500..599 -> {
+            PanelError("The API returned an error ($code)", detail, ErrorAction.Retry, ErrorKind.Connection)
         }
 
         else -> {

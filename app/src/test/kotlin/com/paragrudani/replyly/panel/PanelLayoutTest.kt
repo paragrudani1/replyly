@@ -11,11 +11,14 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.longClick
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
 import com.google.common.truth.Truth.assertThat
+import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.ui.theme.ReplylyTheme
 import org.junit.Rule
 import org.junit.Test
@@ -124,6 +127,39 @@ class PanelLayoutTest {
         compose.onNodeWithText("Kitne baje?", useUnmergedTree = true).performScrollTo().performClick()
 
         assertThat(inserted).isEmpty()
+    }
+
+    @Test
+    fun `outgoing cards take no taps while a regenerate fades them out`() {
+        var ui by mutableStateOf(ready)
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            ReplylyTheme(darkTheme = false, dynamicColor = false, reducedMotion = false) {
+                PanelLayout(ui, "Riya", ComposeReplyPanel.DEFAULT_MAX_HEIGHT, actions)
+            }
+        }
+        compose.mainClock.advanceTimeBy(2_000)
+
+        // A fast result: the new cards arrive while the old ones are still fading out.
+        val fresh = listOf(Suggestion("agree", "Naya jawab"), Suggestion("ask", "Kab?"), Suggestion("ask", "Kahan?"))
+        compose.runOnIdle {
+            ui = ready.copy(suggestions = SuggestionsUi.Ready(fresh, "m", 900.milliseconds, 2), generation = 2)
+        }
+        // Step until the new cards are composed; the old ones are then still fading out (150 ms).
+        var frames = 0
+        while (compose.onAllNodesWithText("Naya jawab").fetchSemanticsNodes().isEmpty() && frames++ < 30) {
+            compose.mainClock.advanceTimeByFrame()
+        }
+        compose.onNodeWithText("Naya jawab").assertExists()
+
+        val outgoing = compose.onNodeWithText("Haan pakka, 6 baje milte hain")
+        outgoing.assertIsNotEnabled()
+        outgoing.performSemanticsAction(SemanticsActions.OnClick)
+        assertThat(inserted).isEmpty()
+
+        compose.mainClock.advanceTimeBy(2_000)
+        compose.onNodeWithText("Haan pakka, 6 baje milte hain").assertDoesNotExist()
+        compose.onNodeWithText("Naya jawab").assertIsEnabled()
     }
 
     @Test

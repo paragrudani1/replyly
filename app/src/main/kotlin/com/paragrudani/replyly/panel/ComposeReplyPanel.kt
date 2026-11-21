@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -39,6 +40,14 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.heading
@@ -233,8 +242,12 @@ internal fun PanelLayout(
         ) {
             Grabber()
             TopBar(ui, chatTitle, actions)
+            val bodyScroll = rememberScrollState()
             Column(
-                Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+                Modifier
+                    .weight(1f, fill = false)
+                    .fadeBottomEdge(bodyScroll)
+                    .verticalScroll(bodyScroll),
                 verticalArrangement = Arrangement.spacedBy(Spacing.S),
             ) {
                 val note = ui.note
@@ -266,6 +279,31 @@ internal fun PanelLayout(
         }
     }
 }
+
+/**
+ * Fades the last [BODY_FADE] of the scrolling body out while there is more below, so a row cut by
+ * the viewport (a sliver of an icon) does not show as a hard edge above the instruction field.
+ */
+private fun Modifier.fadeBottomEdge(scroll: ScrollState): Modifier =
+    graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+        .drawWithContent {
+            drawContent()
+            if (scroll.canScrollForward) {
+                val fade = BODY_FADE.toPx().coerceAtMost(size.height)
+                drawRect(
+                    Brush.verticalGradient(
+                        listOf(Color.Black, Color.Transparent),
+                        startY = size.height - fade,
+                        endY = size.height,
+                    ),
+                    topLeft = Offset(0f, size.height - fade),
+                    size = Size(size.width, fade),
+                    blendMode = BlendMode.DstIn,
+                )
+            }
+        }
+
+private val BODY_FADE = 16.dp
 
 /** The drag handle. Decorative: the whole sheet takes the swipe, Close is the TalkBack way out. */
 @Composable
@@ -333,6 +371,9 @@ private fun SuggestionsBody(
     actions: PanelActions,
 ) {
     val motion = ReplylyTheme.motion
+    // AnimatedContent keeps each slot's content lambda (and the ui it captured) while it fades
+    // out; read the live state through this so an outgoing slot knows it is outgoing.
+    val liveUi by rememberUpdatedState(ui)
     AnimatedContent(
         targetState = ui,
         contentKey = { it.bodyKey() },
@@ -352,15 +393,17 @@ private fun SuggestionsBody(
         label = "suggestions body",
     ) { target ->
         // The content still on screen uses the live state (highlight, enabled); an outgoing one
-        // keeps the state it was created with.
-        val shown = if (target.bodyKey() == ui.bodyKey()) ui else target
+        // keeps the state it was created with, and its cards take no taps: a result arriving
+        // during the fade would otherwise insert the new card at that index.
+        val live = target.bodyKey() == liveUi.bodyKey()
+        val shown = if (live) liveUi else target
         when (val suggestions = shown.suggestions) {
             SuggestionsUi.Loading -> {
                 SkeletonCards(regenerating = shown.generation > 1)
             }
 
             is SuggestionsUi.Ready -> {
-                ReadyCards(suggestions, shown, actions)
+                ReadyCards(suggestions, shown, actions, interactive = live)
             }
 
             is SuggestionsUi.Error -> {
@@ -382,6 +425,7 @@ private fun ReadyCards(
     ready: SuggestionsUi.Ready,
     ui: PanelUiState,
     actions: PanelActions,
+    interactive: Boolean,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(Spacing.S)) {
         ready.suggestions.forEachIndexed { index, suggestion ->
@@ -389,9 +433,10 @@ private fun ReadyCards(
                 SuggestionCard(
                     suggestion = suggestion,
                     highlighted = ui.insertingIndex == index,
-                    enabled = !ui.inserting && !ui.finished,
-                    onInsert = { actions.onInsert(index) },
-                    onCopy = { actions.onCopy(index) },
+                    enabled = interactive && !ui.inserting && !ui.finished,
+                    // Guarded too: a disabled clickable still carries its semantics action.
+                    onInsert = { if (interactive) actions.onInsert(index) },
+                    onCopy = { if (interactive) actions.onCopy(index) },
                 )
             }
         }

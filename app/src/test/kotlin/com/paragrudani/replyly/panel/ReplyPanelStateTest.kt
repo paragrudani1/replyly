@@ -489,7 +489,12 @@ class ReplyPanelStateTest {
                             "The API returned an error (503)",
                             "The provider had an error. Try again.",
                             ErrorAction.Retry,
+                            ErrorKind.Connection,
                         ),
+                    SuggestionResult.Failure.Http(500, null) to
+                        PanelError("The API returned an error (500)", null, ErrorAction.Retry, ErrorKind.Connection),
+                    SuggestionResult.Failure.Http(599, null) to
+                        PanelError("The API returned an error (599)", null, ErrorAction.Retry, ErrorKind.Connection),
                     SuggestionResult.Failure.Http(400, "Request rejected. Check the model id in Settings.") to
                         PanelError(
                             "The API returned an error (400)",
