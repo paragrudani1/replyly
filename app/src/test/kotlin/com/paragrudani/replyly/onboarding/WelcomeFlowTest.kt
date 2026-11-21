@@ -59,8 +59,8 @@ class WelcomeFlowTest {
     }
 
     @Test
-    fun `onboarding as the app's first screen is a first run, opened on top of settings it is not`() {
-        assertThat(OnboardingEntry.of(openedAsStartScreen = true)).isEqualTo(OnboardingEntry.FirstRun)
-        assertThat(OnboardingEntry.of(openedAsStartScreen = false)).isEqualTo(OnboardingEntry.FromSettings)
+    fun `onboarding opened from settings is not a first run`() {
+        assertThat(OnboardingEntry.of(fromSettings = false)).isEqualTo(OnboardingEntry.FirstRun)
+        assertThat(OnboardingEntry.of(fromSettings = true)).isEqualTo(OnboardingEntry.FromSettings)
     }
 }

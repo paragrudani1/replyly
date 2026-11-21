@@ -24,7 +24,7 @@ class ReplylyNavHostTest {
 
     private fun stack(): List<String?> =
         nav.currentBackStack.value
-            .map { it.destination.route }
+            .map { it.destination.route?.substringBefore('?') }
             .filter { it != null && it != nav.graph.route }
 
     private val settings = SettingsRoute::class.qualifiedName
@@ -33,7 +33,7 @@ class ReplylyNavHostTest {
     @Test
     fun `settings, setup steps, skip leaves exactly one settings`() {
         start(SettingsRoute)
-        nav.navigate(OnboardingRoute)
+        nav.navigate(OnboardingRoute(fromSettings = true))
 
         nav.finishOnboarding()
 
@@ -42,7 +42,7 @@ class ReplylyNavHostTest {
 
     @Test
     fun `finishing onboarding at first launch replaces it with settings`() {
-        start(OnboardingRoute)
+        start(OnboardingRoute())
 
         nav.finishOnboarding()
 
@@ -51,19 +51,19 @@ class ReplylyNavHostTest {
 
     @Test
     fun `step 5 opens settings on top, so back returns to onboarding`() {
-        start(OnboardingRoute)
+        start(OnboardingRoute())
 
         nav.navigate(SettingsRoute)
 
         assertThat(stack()).containsExactly(onboarding, settings).inOrder()
         nav.popBackStack()
-        assertThat(nav.currentDestination?.route).isEqualTo(onboarding)
+        assertThat(nav.currentDestination?.route?.substringBefore('?')).isEqualTo(onboarding)
     }
 
     @Test
     fun `open settings from the panel closes screens above settings`() {
         start(SettingsRoute)
-        nav.navigate(OnboardingRoute)
+        nav.navigate(OnboardingRoute(fromSettings = true))
 
         nav.showSettings()
 
@@ -72,7 +72,7 @@ class ReplylyNavHostTest {
 
     @Test
     fun `open settings before onboarding is finished puts settings on top`() {
-        start(OnboardingRoute)
+        start(OnboardingRoute())
 
         nav.showSettings()
 

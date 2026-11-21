@@ -15,6 +15,7 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.navigation.NavBackStackEntry
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
+import androidx.navigation.toRoute
 import com.paragrudani.replyly.appGraph
 import com.paragrudani.replyly.onboarding.OnboardingEntry
 import com.paragrudani.replyly.onboarding.OnboardingState
@@ -36,32 +37,39 @@ import kotlin.coroutines.CoroutineContext
 
 // Owned by ticket #7.
 
+/**
+ * [fromSettings]: true when Settings opened it ("Setup steps"), so it starts on the checklist and
+ * Back returns to Settings. The flag lives in the route because the graph's start destination
+ * stays onboarding even after onboarding is popped; route arguments survive rotation and
+ * process death.
+ */
 @Serializable
-object OnboardingRoute
+data class OnboardingRoute(
+    val fromSettings: Boolean = false,
+)
 
 /**
  * [onFinished]: Done and "Skip for now" leave onboarding for Settings. [onOpenApiKeySettings]:
  * step 5 opens Settings on top, so Back returns to this list.
  *
- * As the app's start screen (first run) the welcome flow opens on its first page; opened on top
- * of Settings ("Setup steps") it opens straight on the checklist.
+ * On first run the welcome flow opens on its first page; opened from Settings ("Setup steps",
+ * [OnboardingRoute.fromSettings]) it opens straight on the checklist.
  */
 fun NavGraphBuilder.onboardingDestination(
     onFinished: () -> Unit,
     onOpenApiKeySettings: () -> Unit,
 ) {
     composable<OnboardingRoute> { entry ->
-        val openedAsStart = entry.isStartDestination()
         OnboardingScreen(
             onFinished = onFinished,
             onOpenApiKeySettings = onOpenApiKeySettings,
-            startPage = WelcomeFlow.startPage(OnboardingEntry.of(openedAsStartScreen = openedAsStart)),
+            startPage = WelcomeFlow.startPage(entry.onboardingEntry()),
         )
     }
 }
 
-/** True when this entry is its graph's start screen (the app opened on it), not one opened on top. */
-internal fun NavBackStackEntry.isStartDestination(): Boolean = destination.parent?.startDestinationId == destination.id
+/** How this onboarding entry was reached, read from its route arguments. */
+internal fun NavBackStackEntry.onboardingEntry(): OnboardingEntry = OnboardingEntry.of(fromSettings = toRoute<OnboardingRoute>().fromSettings)
 
 /**
  * Where the app opens: onboarding until every step is done, settings after that. Returns null
@@ -78,7 +86,7 @@ fun rememberOnboardingStartDestination(): Any? {
             allDone = isOnboardingDone { onboardingChecker(app).check().allDone }
         }
     }
-    return allDone?.let { if (it) SettingsRoute else OnboardingRoute }
+    return allDone?.let { if (it) SettingsRoute else OnboardingRoute() }
 }
 
 /**

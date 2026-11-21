@@ -22,8 +22,8 @@ enum class OnboardingEntry {
     ;
 
     companion object {
-        /** Onboarding as the graph's start screen is a first run; opened on top of Settings it is not. */
-        fun of(openedAsStartScreen: Boolean): OnboardingEntry = if (openedAsStartScreen) FirstRun else FromSettings
+        /** Opened from Settings ("Setup steps") is never a first run, even if the app started on onboarding. */
+        fun of(fromSettings: Boolean): OnboardingEntry = if (fromSettings) FromSettings else FirstRun
     }
 }
 
