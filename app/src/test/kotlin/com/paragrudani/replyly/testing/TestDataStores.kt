@@ -7,6 +7,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.job
+import kotlinx.coroutines.runBlocking
 import java.io.File
 
 /**
@@ -19,7 +22,9 @@ class TestDataStores(
     private val scopes = mutableMapOf<String, CoroutineScope>()
 
     fun open(name: String): DataStore<Preferences> {
-        scopes.remove(name)?.cancel()
+        // Wait until the old store is gone: DataStore frees the file only once its scope completes,
+        // and a second store on a still-registered file throws "multiple DataStores active".
+        scopes.remove(name)?.let { runBlocking { it.coroutineContext.job.cancelAndJoin() } }
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         scopes[name] = scope
         return PreferenceDataStoreFactory.create(scope = scope) { File(dir, "$name.preferences_pb") }
