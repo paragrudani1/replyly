@@ -1,10 +1,16 @@
 package com.paragrudani.replyly.panel
 
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import com.google.common.truth.Truth.assertThat
+import com.paragrudani.replyly.llm.SuggestionResult
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -63,5 +69,50 @@ class ComposeReplyPanelTest {
 
         assertThat(generator.calls).isEqualTo(1)
         assertThat(feedback.recorded).isEmpty()
+    }
+
+    /** The host passes `PanelSheetState::requestClose` (and with it the close fallback) as onClose. */
+    @Test
+    fun `insert, Close and Open settings each close through onClose once`() {
+        var closes = 0
+        var settingsOpened = 0
+        val noKey =
+            ComposeReplyPanel(
+                ReplyPanelDependencies(
+                    FakeAssembler(),
+                    FakeGenerator(SuggestionResult.Failure.NoApiKey),
+                    FakeInserter(),
+                    feedback,
+                    FakeNoteStore(),
+                    FakeHistory(),
+                ),
+                openSettings = { settingsOpened++ },
+            )
+        var which by mutableStateOf(0)
+        compose.setContent {
+            key(which) {
+                (if (which == 2) noKey else panel).Content(PanelRequest(whatsAppChat), onClose = { closes++ })
+            }
+        }
+        compose.mainClock.advanceTimeBy(FakeGenerator.GENERATE_MILLIS * 2)
+        compose.waitForIdle()
+
+        compose.onNodeWithText("Haan pakka, 6 baje milte hain", useUnmergedTree = true).performClick()
+        compose.waitForIdle()
+        assertThat(closes).isEqualTo(1)
+
+        which = 1
+        compose.waitForIdle()
+        compose.onNodeWithContentDescription("Close").performClick()
+        compose.waitForIdle()
+        assertThat(closes).isEqualTo(2)
+
+        which = 2
+        compose.mainClock.advanceTimeBy(FakeGenerator.GENERATE_MILLIS * 2)
+        compose.waitForIdle()
+        compose.onNodeWithText("Open settings").performScrollTo().performClick()
+        compose.waitForIdle()
+        assertThat(settingsOpened).isEqualTo(1)
+        assertThat(closes).isEqualTo(3)
     }
 }

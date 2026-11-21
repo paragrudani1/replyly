@@ -5,7 +5,8 @@ import com.paragrudani.replyly.parser.ParsedChat
 /**
  * Gets 3 suggestions from the LLM (ticket #4). The implementation checks the API key store and
  * [com.paragrudani.replyly.cost.CostGuard] before the call and records token usage after it.
- * Only a user tap on the button or Regenerate may lead to a call; never screen events.
+ * Only a user tap on the button, Regenerate, Retry or a quick chip may lead to a call; never screen
+ * events.
  */
 interface ReplyGenerator {
     suspend fun generate(request: SuggestionRequest): SuggestionResult

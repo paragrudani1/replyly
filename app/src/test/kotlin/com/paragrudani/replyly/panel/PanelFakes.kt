@@ -96,13 +96,16 @@ class FakeGenerator(
     }
 }
 
+/** Returns [result], after [delayMillis] of virtual time (a slow cross-process insert when above 0). */
 class FakeInserter(
     var result: InsertResult = InsertResult.Inserted,
+    var delayMillis: Long = 0,
 ) : ReplyInserter {
     val inserted = mutableListOf<String>()
 
     override suspend fun insert(text: String): InsertResult {
         inserted += text
+        if (delayMillis > 0) delay(delayMillis)
         return result
     }
 }

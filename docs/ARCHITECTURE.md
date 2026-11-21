@@ -27,7 +27,7 @@ All code lives in the single `:app` module, package `com.paragrudani.replyly`.
                           │                    FeedbackLog.attachFinalMessage
              ▼
      ReplyPanel.Content(PanelRequest(chat))   (panel/, in the overlay's modal window)
-             │ on open, and on Regenerate only
+             │ on open, and on Regenerate, Retry or a quick-chip tap only
              ├─► SuggestionRequestAssembler.assemble   merges the chat into history first, then
              │     reads history, contact note, settings, app label
              ├─► ReplyGenerator.generate ──► SuggestionResult
@@ -93,7 +93,8 @@ One lazy binding per interface, all real implementations:
   (`Failure.InsecureEndpoint`) before the cost check, for both API formats.
 - API keys and extra header values are secrets: encrypted at rest, never shown after saving, never
   logged. Header names may be logged. `toString` of profile configs, drafts and requests hides them.
-- Only a tap (button, Regenerate, Retry) leads to an LLM call; passive capture never calls it.
+- Only a tap leads to an LLM call: the button, Regenerate, Retry or a quick-chip tap, each one call
+  (none while a call or an insert runs, or after an insert). Passive capture never calls it.
 - Logs carry event names, counts and class names only: no chat text, prompts or key.
 
 ## Provider profiles (`settings/ProviderProfiles.kt`, `llm/`, `ui/settings/profiles/`)
