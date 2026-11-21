@@ -33,8 +33,19 @@ interface AccessibilityHost {
     /** For WindowManager (overlay windows), `windows` and `rootInActiveWindow`. */
     val service: AccessibilityService
 
-    /** Maps the active window's tree to a snapshot, or `null` if there is no active window. */
+    /**
+     * Maps the active window's tree to a snapshot, or `null` if there is no active window.
+     * Does not check FLAG_SECURE: prefer [captureActiveWindowChecked] before parsing or storing.
+     */
     fun captureActiveWindow(): ScreenSnapshot?
+
+    /**
+     * Like [captureActiveWindow], but first checks the window for FLAG_SECURE (API 34 window
+     * screenshot probe, cached per window for about a second). A secure window is not read: the
+     * result has [ScreenSnapshot.secureWindow] set and an empty root, and `SensitiveScreenPolicy`
+     * blocks it. If the check cannot tell, the window is read as usual.
+     */
+    suspend fun captureActiveWindowChecked(): ScreenSnapshot? = captureActiveWindow()
 }
 
 /** Holds the running service, if any. Read by the debug dump (#2), the inserter (#1), onboarding (#7). */

@@ -4,8 +4,14 @@ import android.accessibilityservice.AccessibilityService
 import android.util.Log
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityNodeInfo
 import com.paragrudani.replyly.appGraph
+import com.paragrudani.replyly.policy.AccessibilityScreenshotProbe
+import com.paragrudani.replyly.policy.SecureWindowDetector
+import com.paragrudani.replyly.policy.SecureWindowState
 import com.paragrudani.replyly.screen.AccessibilityNodeMapper
+import com.paragrudani.replyly.screen.Bounds
+import com.paragrudani.replyly.screen.ScreenNode
 import com.paragrudani.replyly.screen.ScreenSnapshot
 
 /**
@@ -42,10 +48,33 @@ class ReplylyAccessibilityService :
         super.onDestroy()
     }
 
-    override fun captureActiveWindow(): ScreenSnapshot? {
+    override fun captureActiveWindow(): ScreenSnapshot? = rootInActiveWindow?.let { snapshotOf(it) }
+
+    // Ticket #1: FLAG_SECURE probe (see SecureWindowDetector).
+    private val secureWindows by lazy { SecureWindowDetector(AccessibilityScreenshotProbe(this)) }
+
+    override suspend fun captureActiveWindowChecked(): ScreenSnapshot? {
         val root = rootInActiveWindow ?: return null
+        val secure = secureWindows.check(root.windowId) == SecureWindowState.SECURE
+        return snapshotOf(root, secure)
+    }
+
+    /** A secure window is not read: its snapshot has an empty root. */
+    private fun snapshotOf(
+        root: AccessibilityNodeInfo,
+        secure: Boolean = false,
+    ): ScreenSnapshot {
         val size = getSystemService(WindowManager::class.java).currentWindowMetrics.bounds
-        return AccessibilityNodeMapper.snapshot(root, size.width(), size.height(), appGraph.clock.instant())
+        val now = appGraph.clock.instant()
+        if (!secure) return AccessibilityNodeMapper.snapshot(root, size.width(), size.height(), now)
+        return ScreenSnapshot(
+            packageName = root.packageName?.toString().orEmpty(),
+            capturedAt = now,
+            screenWidth = size.width(),
+            screenHeight = size.height(),
+            root = ScreenNode(bounds = Bounds.EMPTY),
+            secureWindow = true,
+        )
     }
 
     private inline fun dispatch(call: (AccessibilityComponent) -> Unit) {
