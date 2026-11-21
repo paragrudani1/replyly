@@ -52,7 +52,7 @@ interface ApiKeyStore {
 
     suspend fun get(): String?
 
-    /** A blank [key] clears it. */
+    /** Stores [key] trimmed; a blank result clears it. */
     suspend fun set(key: String)
 }
 
@@ -75,7 +75,7 @@ class InMemoryApiKeyStore : ApiKeyStore {
     override suspend fun get(): String? = key.value
 
     override suspend fun set(key: String) {
-        this.key.value = key.takeIf { it.isNotBlank() }
+        this.key.value = key.trim().takeIf { it.isNotEmpty() }
         present.value = this.key.value != null
     }
 }
