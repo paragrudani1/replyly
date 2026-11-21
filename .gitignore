@@ -1,0 +1,21 @@
+# Gradle / build
+.gradle/
+.kotlin/
+build/
+/captures
+.externalNativeBuild/
+.cxx/
+
+# Local machine config
+local.properties
+.idea/
+*.iml
+.DS_Store
+
+# Signing: only the committed debug keystore is allowed
+*.jks
+*.keystore
+!app/debug.keystore
+
+# Secrets
+.env*
