@@ -1,0 +1,143 @@
+{
+  "formatVersion": 1,
+  "packageName": "com.instagram.android",
+  "capturedAt": "2026-11-21T10:15:30Z",
+  "screenWidth": 1080,
+  "screenHeight": 2340,
+  "root": {
+    "className": "android.widget.FrameLayout",
+    "bounds": "[0,0][1080,2340]",
+    "children": [
+      {
+        "className": "android.view.ViewGroup",
+        "bounds": "[0,110][1080,257]",
+        "children": [
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Back",
+            "bounds": "[0,120][110,247]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "asha.patel",
+            "bounds": "[240,125][700,185]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "Active now",
+            "bounds": "[240,190][700,240]"
+          },
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Audio call",
+            "bounds": "[850,130][950,240]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "androidx.recyclerview.widget.RecyclerView",
+        "bounds": "[0,257][1080,2050]",
+        "scrollable": true,
+        "children": [
+          {
+            "className": "android.widget.TextView",
+            "text": "Today 6:40 PM",
+            "bounds": "[300,400][780,460]"
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,490][1080,620]",
+            "children": [
+              {
+                "className": "android.widget.FrameLayout",
+                "bounds": "[150,500][724,610]",
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "viewId": "com.instagram.android:id/direct_text_message_text_view",
+                    "text": "hey are you around?",
+                    "bounds": "[190,525][684,585]"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,630][1080,760]",
+            "children": [
+              {
+                "className": "android.widget.FrameLayout",
+                "bounds": "[596,640][1040,750]",
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "viewId": "com.instagram.android:id/direct_text_message_text_view",
+                    "text": "yes, what's up",
+                    "bounds": "[636,665][1000,725]"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,770][1080,900]",
+            "children": [
+              {
+                "className": "android.widget.FrameLayout",
+                "bounds": "[150,780][802,890]",
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "viewId": "com.instagram.android:id/direct_text_message_text_view",
+                    "text": "can you send the notes",
+                    "bounds": "[190,805][762,865]"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,910][1080,1040]",
+            "children": [
+              {
+                "className": "android.widget.FrameLayout",
+                "bounds": "[674,920][1040,1030]",
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "viewId": "com.instagram.android:id/direct_text_message_text_view",
+                    "text": "sending now",
+                    "bounds": "[714,945][1000,1005]"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "Seen",
+            "bounds": "[920,1050][1040,1100]"
+          }
+        ]
+      },
+      {
+        "className": "android.widget.LinearLayout",
+        "bounds": "[0,2060][1080,2214]",
+        "children": [
+          {
+            "className": "android.widget.EditText",
+            "hint": "Message...",
+            "bounds": "[140,2080][900,2190]",
+            "editable": true,
+            "focused": true
+          }
+        ]
+      }
+    ]
+  }
+}
