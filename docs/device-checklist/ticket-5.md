@@ -7,13 +7,18 @@ screenshot with the chat blurred is fine.
 
 ## A. Height with Gboard open
 
+How #1 shows the panel: a full-screen modal window over the chat. The chat behind is dimmed and
+does not take touches; the panel is a sheet at the bottom that moves up with the keyboard
+(ADJUST_RESIZE plus keyboard padding).
+
 1. Open the WhatsApp chat, tap the message box so Gboard opens, tap the Replyly button.
-2. You should see: the panel sits above the keyboard, the chat's message box is still visible
-   between the panel and Gboard (or the panel covers only chat bubbles, not the message box),
-   and the panel top does not go under the status bar.
+2. You should see: the chat dims, the panel sits directly above the keyboard (it may cover the
+   chat's message box; that is expected), and the panel top does not go under the status bar.
 3. Scroll inside the panel: all 3 cards, the "Delete this chat's history" link and the
    instruction row are reachable.
 4. Repeat with Gboard's clipboard/emoji strip showing (taller keyboard) and in landscape.
+5. Tap the dimmed chat area above the panel: the panel closes. Open it again and press Back: it
+   closes too. Neither sends anything.
 
 Send back: a screenshot of each case, and whether any part was cut off. If it is too tall or too
 short, say roughly how many cards should fit without scrolling (the cap is
@@ -23,7 +28,8 @@ short, say roughly how many cards should fit without scrolling (the cap is
 
 1. With the panel open, tap the "Instruction" field.
 2. You should see: Gboard switches to the field and your typing appears in it (not in WhatsApp's
-   message box). The panel stays open and is not covered by the keyboard.
+   message box). The panel stays open and stays above the keyboard (it slides up if the keyboard
+   gets taller), never under it.
 3. Type "say I'll call at 6", tap Regenerate. The keyboard closes, a progress bar shows, then 3 new
    cards follow the instruction.
 4. Tap a card. You should see: the text lands in WhatsApp's message box (not in the instruction
