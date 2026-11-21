@@ -77,4 +77,29 @@ class SetupIntentsTest {
 
         assertThat(launched).isFalse()
     }
+
+    @Test
+    fun `launchFirst skips an intent that is not allowed`() {
+        val intents = SetupIntents.forStep(OnboardingStepId.SleepingApps, pkg)
+        val started = mutableListOf<Intent>()
+
+        val launched =
+            SetupIntents.launchFirst(intents) { intent ->
+                if (intent.component != null) throw SecurityException("not exported")
+                started += intent
+            }
+
+        assertThat(launched).isTrue()
+        assertThat(started.single().action).isEqualTo(Intent.ACTION_POWER_USAGE_SUMMARY)
+    }
+
+    @Test
+    fun `launchFirst reports failure when every intent is refused`() {
+        val launched =
+            SetupIntents.launchFirst(SetupIntents.forStep(OnboardingStepId.SleepingApps, pkg)) {
+                throw SecurityException("not exported")
+            }
+
+        assertThat(launched).isFalse()
+    }
 }

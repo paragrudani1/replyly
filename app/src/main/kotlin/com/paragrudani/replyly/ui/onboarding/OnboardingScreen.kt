@@ -1,7 +1,6 @@
 package com.paragrudani.replyly.ui.onboarding
 
 import android.content.Context
-import android.content.Intent
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -20,10 +19,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
+import com.paragrudani.replyly.appGraph
 import com.paragrudani.replyly.onboarding.OnboardingState
 import com.paragrudani.replyly.onboarding.OnboardingStep
 import com.paragrudani.replyly.onboarding.OnboardingStepId
@@ -39,46 +41,91 @@ import com.paragrudani.replyly.onboarding.SetupIntents
 import com.paragrudani.replyly.onboarding.StepStatus
 import com.paragrudani.replyly.onboarding.onboardingChecker
 import com.paragrudani.replyly.ui.settings.SettingsRoute
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.serialization.Serializable
+import kotlin.coroutines.CoroutineContext
 
 // Owned by ticket #7.
 
 @Serializable
 object OnboardingRoute
 
-fun NavGraphBuilder.onboardingDestination(onFinished: () -> Unit) {
-    composable<OnboardingRoute> { OnboardingScreen(onFinished = onFinished) }
-}
-
 /**
- * Where the app opens: onboarding until every step is done, settings after that. Computed once
- * per NavHost (the start destination must not change under a live NavHost). The check is a few
- * system lookups plus two small store reads, so it runs before the first frame; if the stores
- * are slow it gives up after [START_CHECK_TIMEOUT_MS] and opens onboarding, which is harmless.
+ * [onFinished]: Done and "Skip for now" leave onboarding for Settings. [onOpenApiKeySettings]:
+ * step 5 opens Settings on top, so Back returns to this list.
  */
-@Composable
-fun onboardingStartDestination(): Any {
-    val context = LocalContext.current
-    return remember {
-        val allDone =
-            runBlocking { withTimeoutOrNull(START_CHECK_TIMEOUT_MS) { onboardingChecker(context).check().allDone } }
-        if (allDone == true) SettingsRoute else OnboardingRoute
+fun NavGraphBuilder.onboardingDestination(
+    onFinished: () -> Unit,
+    onOpenApiKeySettings: () -> Unit,
+) {
+    composable<OnboardingRoute> {
+        OnboardingScreen(onFinished = onFinished, onOpenApiKeySettings = onOpenApiKeySettings)
     }
 }
 
-private const val START_CHECK_TIMEOUT_MS = 500L
-
-/** [onFinished] goes to the Settings route; step 5 uses it too, to enter the API key. */
+/**
+ * Where the app opens: onboarding until every step is done, settings after that. Returns null
+ * until the check has finished; the caller builds its NavHost only after that, so the start
+ * destination never changes under a live NavHost. The check runs on IO, never on the main thread,
+ * and the result is saved, so rotation neither re-checks nor flips the start screen.
+ */
 @Composable
-fun OnboardingScreen(onFinished: () -> Unit) {
+fun rememberOnboardingStartDestination(): Any? {
+    val app = LocalContext.current.applicationContext
+    var allDone by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(Unit) {
+        if (allDone == null) {
+            allDone = isOnboardingDone { onboardingChecker(app).check().allDone }
+        }
+    }
+    return allDone?.let { if (it) SettingsRoute else OnboardingRoute }
+}
+
+/**
+ * True only when [allDone] reports true within [timeoutMillis]. Not done, a failed check or a
+ * timeout all mean onboarding, which is harmless: the user just taps "Skip for now".
+ * The timeout stops waiting at suspension points only; a store that blocks still holds the IO
+ * thread, never the main thread.
+ */
+internal suspend fun isOnboardingDone(
+    timeoutMillis: Long = START_CHECK_TIMEOUT_MS,
+    ioContext: CoroutineContext = Dispatchers.IO,
+    allDone: suspend () -> Boolean,
+): Boolean =
+    withTimeoutOrNull(timeoutMillis) {
+        try {
+            withContext(ioContext) { allDone() }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            false
+        }
+    } ?: false
+
+internal const val START_CHECK_TIMEOUT_MS = 2_000L
+
+/** [onFinished] leaves onboarding for Settings; [onOpenApiKeySettings] opens Settings for step 5. */
+@Composable
+fun OnboardingScreen(
+    onFinished: () -> Unit,
+    onOpenApiKeySettings: () -> Unit,
+) {
     val context = LocalContext.current
     val checker = remember { onboardingChecker(context) }
     val scope = rememberCoroutineScope()
     var state by remember { mutableStateOf<OnboardingState?>(null) }
-    val refresh: () -> Unit = { scope.launch { state = checker.check() } }
+    val refreshJob = remember { JobSlot() }
+    // A newer check always wins: an older one still running must not overwrite its result.
+    val refresh: () -> Unit = {
+        refreshJob.job?.cancel()
+        refreshJob.job = scope.launch { state = checker.check() }
+    }
 
     // Re-check whenever the user comes back from a system screen or from Settings.
     LifecycleResumeEffect(checker) {
@@ -86,9 +133,16 @@ fun OnboardingScreen(onFinished: () -> Unit) {
         onPauseOrDispose {}
     }
 
+    // The service often connects after the user is already back here: re-check when it does.
+    LaunchedEffect(Unit) {
+        context.appGraph.accessibilityHostHolder.host
+            .drop(1)
+            .collect { refresh() }
+    }
+
     OnboardingContent(
         state = state,
-        onOpen = { step -> openStep(context, step, onFinished) },
+        onOpen = { step -> openStep(context, step, onOpenApiKeySettings) },
         onConfirmSleepingApps = { confirmed ->
             checker.setSleepingAppsConfirmed(confirmed)
             refresh()
@@ -108,12 +162,17 @@ private fun openStep(
     }
     val launched =
         SetupIntents.launchFirst(SetupIntents.forStep(step, context.packageName)) { intent ->
-            context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            // The context is MainActivity: no NEW_TASK, so Back from the system screen returns here.
+            context.startActivity(intent)
         }
     if (!launched) {
         val message = "Could not open that screen. Use the path in the instructions."
         Toast.makeText(context, message, Toast.LENGTH_LONG).show()
     }
+}
+
+private class JobSlot {
+    var job: Job? = null
 }
 
 @Composable
