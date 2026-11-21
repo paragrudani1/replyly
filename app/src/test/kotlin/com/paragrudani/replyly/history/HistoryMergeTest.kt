@@ -129,8 +129,8 @@ class HistoryMergeTest {
     fun `scrolling up many times keeps the order`() {
         val history = historyOf(them("m5"), them("m6"))
 
-        history.merge(listOf(them("m3"), them("m4"), them("m5")))
-        history.merge(listOf(them("m1"), them("m2"), them("m3")))
+        history.merge(listOf(them("m3"), them("m4"), them("m5"), them("m6")))
+        history.merge(listOf(them("m1"), them("m2"), them("m3"), them("m4")))
         history.merge(listOf(them("m4"), them("m5"), them("m6"), them("m7")))
 
         assertThat(history.texts()).containsExactly("m1", "m2", "m3", "m4", "m5", "m6", "m7").inOrder()
@@ -213,50 +213,62 @@ class HistoryMergeTest {
     }
 
     @Test
-    fun `an edit of the last message is updated in place`() {
+    fun `a changed last message is stored as a new message, not an edit`() {
+        // Edits are looked for only between two aligned messages: the edges are where gaps sit.
         val history = historyOf(them("a"), me("b"), me("typo", "6:45 pm"))
 
         val plan = history.merge(listOf(them("a"), me("b"), me("fixed", "6:45 pm")))
 
-        assertThat(history.texts()).containsExactly("a", "b", "fixed").inOrder()
-        assertThat(plan.newAtEnd).isEmpty()
+        assertThat(history.texts()).containsExactly("a", "b", "typo", "fixed").inOrder()
+        assertThat(plan.edits).isEmpty()
     }
 
     @Test
     fun `editing the second of two identical messages edits that one`() {
-        val history = historyOf(them("c"), me("ok", "6:45 pm"), me("ok", "6:45 pm"))
+        val history = historyOf(them("c"), me("ok", "6:45 pm"), me("ok", "6:45 pm"), them("d", "6:46 pm"))
 
-        val plan = history.merge(listOf(them("c"), me("ok", "6:45 pm"), me("ok!", "6:45 pm")))
+        val plan =
+            history.merge(listOf(them("c"), me("ok", "6:45 pm"), me("ok!", "6:45 pm"), them("d", "6:46 pm")))
 
-        assertThat(history.texts()).containsExactly("c", "ok", "ok!").inOrder()
+        assertThat(history.texts()).containsExactly("c", "ok", "ok!", "d").inOrder()
         assertThat(plan.inserts).isEmpty()
     }
 
     @Test
-    fun `an edit of the first visible message is updated in place`() {
+    fun `a changed first visible message is stored as a new message, not an edit`() {
         val history = historyOf(them("old text", "6:30 pm"), me("b"), them("c"))
 
-        history.merge(listOf(them("new text", "6:30 pm"), me("b"), them("c")))
+        val plan = history.merge(listOf(them("new text", "6:30 pm"), me("b"), them("c")))
 
-        assertThat(history.texts()).containsExactly("new text", "b", "c").inOrder()
+        assertThat(history.texts()).containsExactly("old text", "new text", "b", "c").inOrder()
+        assertThat(plan.edits).isEmpty()
     }
 
     @Test
-    fun `an edit read without its time or sender keeps the saved ones`() {
+    fun `a changed message whose time is not shown is not taken for an edit`() {
         val history = historyOf(them("a", sender = "Ravi"), them("old", "6:30 pm", sender = "Ravi"), them("c"))
 
-        history.merge(listOf(them("a", sender = "Ravi"), them("new", time = null, sender = null), them("c")))
+        history.merge(listOf(them("a", sender = "Ravi"), them("new", time = null, sender = "Ravi"), them("c")))
 
-        assertThat(history.messages()[1]).isEqualTo(them("new", "6:30 pm", sender = "Ravi"))
+        assertThat(history.texts()).containsExactly("a", "old", "new", "c").inOrder()
+    }
+
+    @Test
+    fun `a changed group message whose sender is not shown is not taken for an edit`() {
+        val history = historyOf(them("a", sender = "Ravi"), them("old", "6:30 pm", sender = "Ravi"), them("c"))
+
+        history.merge(listOf(them("a", sender = "Ravi"), them("new", "6:30 pm", sender = null), them("c")))
+
+        assertThat(history.texts()).containsExactly("a", "old", "new", "c").inOrder()
     }
 
     @Test
     fun `a different message with another time is not taken for an edit`() {
-        val history = historyOf(them("a"), me("b", "6:41 pm"))
+        val history = historyOf(them("x"), them("a"), me("b", "6:41 pm"), them("z", "6:55 pm"))
 
-        history.merge(listOf(them("a"), me("c", "6:50 pm")))
+        history.merge(listOf(them("x"), them("a"), me("c", "6:50 pm"), them("z", "6:55 pm")))
 
-        assertThat(history.texts()).containsExactly("a", "b", "c").inOrder()
+        assertThat(history.texts()).containsExactly("x", "a", "b", "c", "z").inOrder()
     }
 
     @Test
@@ -298,12 +310,32 @@ class HistoryMergeTest {
 
     @Test
     fun `a group bubble without its sender label matches the saved message`() {
-        val history = historyOf(them("a", sender = "Ravi"), them("b", sender = "Ravi"))
+        val history = historyOf(them("a", sender = "Ravi"), them("b", sender = "Ravi"), me("c"))
 
-        val plan = history.merge(listOf(them("b", sender = null), me("c")))
+        val plan = history.merge(listOf(them("a", sender = null), them("b", sender = null), me("c"), me("d")))
 
-        assertThat(history.texts()).containsExactly("a", "b", "c").inOrder()
+        assertThat(history.texts()).containsExactly("a", "b", "c", "d").inOrder()
         assertThat(plan.edits).isEmpty()
+        assertThat(history.messages()[1].sender).isEqualTo("Ravi")
+    }
+
+    @Test
+    fun `a later read fills in the sender of a saved message that had none`() {
+        val history = historyOf(them("a", sender = null), them("b", sender = null), me("c"))
+
+        val plan = history.merge(listOf(them("a", sender = "Ravi"), them("b", sender = "Ravi"), me("c")))
+
+        assertThat(history.messages().map { it.sender }).containsExactly("Ravi", "Ravi", null).inOrder()
+        assertThat(plan.inserts).isEmpty()
+    }
+
+    @Test
+    fun `a sender is not filled in from a read that did not overlap`() {
+        val history = historyOf(them("ok", "6:40 pm", sender = null), me("x"))
+
+        history.merge(listOf(them("ok", "6:40 pm", sender = "Ravi"), me("y", "7:00 pm")))
+
+        assertThat(history.messages().first().sender).isNull()
     }
 
     @Test
@@ -314,6 +346,191 @@ class HistoryMergeTest {
 
         assertThat(history.messages().map { it.sender }).containsExactly("Ravi", "Meera").inOrder()
     }
+
+    // Adversarial scenarios from the #3 review (A, A2, B, C, D).
+
+    @Test
+    fun `scenario A - a 2-message read with one coincidental match is appended`() {
+        // Yesterday's "gm 9:00 am" equals today's: one match is not an overlap.
+        val history =
+            historyOf(
+                them("gm", "9:00 am"),
+                me("gm!", "9:01 am"),
+                them("lunch?", "1:00 pm"),
+                me("sure", "1:02 pm"),
+                them("bye", "8:00 pm"),
+            )
+
+        val plan = history.merge(listOf(them("gm", "9:00 am"), me("morning", "9:05 am")))
+
+        assertThat(history.texts()).containsExactly("gm", "gm!", "lunch?", "sure", "bye", "gm", "morning").inOrder()
+        assertThat(plan.anchored).isFalse()
+    }
+
+    @Test
+    fun `scenario A2 - a coincidental match does not overwrite the message after it`() {
+        val history =
+            historyOf(
+                them("gm", "9:00 am"),
+                them("morning", "9:02 am"),
+                me("hi", "9:03 am"),
+                them("lunch?", "1:00 pm"),
+            )
+
+        val plan = history.merge(listOf(them("gm", "9:00 am"), them("hey", "9:02 am")))
+
+        assertThat(history.texts()).containsExactly("gm", "morning", "hi", "lunch?", "gm", "hey").inOrder()
+        assertThat(plan.edits).isEmpty()
+    }
+
+    @Test
+    fun `scenario A2 anchored - a same-time message after the last aligned one is not an edit`() {
+        val history = historyOf(them("a"), them("b"), them("morning", "9:02 am"))
+
+        val plan = history.merge(listOf(them("a"), them("b"), them("hey", "9:02 am")))
+
+        assertThat(history.texts()).containsExactly("a", "b", "morning", "hey").inOrder()
+        assertThat(plan.edits).isEmpty()
+    }
+
+    @Test
+    fun `scenario B - a read after a gap that ends like the clipped first row is appended at the end`() {
+        // The first read's top bubble had its time clipped; that row is the oldest saved one.
+        val history =
+            historyOf(
+                me("ok", time = null),
+                them("see you at 7", "6:50 pm"),
+                me("done", "6:51 pm"),
+                them("great", "6:52 pm"),
+            )
+
+        val plan =
+            history.merge(
+                listOf(
+                    them("are you there", "8:00 pm"),
+                    me("yes", "8:01 pm"),
+                    them("call me", "8:02 pm"),
+                    me("in 5", "8:03 pm"),
+                    me("ok", "8:03 pm"),
+                ),
+            )
+
+        assertThat(history.texts())
+            .containsExactly("ok", "see you at 7", "done", "great", "are you there", "yes", "call me", "in 5", "ok")
+            .inOrder()
+        assertThat(plan.anchored).isFalse()
+    }
+
+    @Test
+    fun `scenario B - one exact match at the top of the history is not an overlap either`() {
+        val history = historyOf(me("ok", "8:03 pm"), them("see you at 7", "6:50 pm"), me("done", "6:51 pm"))
+
+        history.merge(listOf(them("are you there", "8:00 pm"), me("in 5", "8:02 pm"), me("ok", "8:03 pm")))
+
+        assertThat(history.texts())
+            .containsExactly("ok", "see you at 7", "done", "are you there", "in 5", "ok")
+            .inOrder()
+    }
+
+    @Test
+    fun `scenario C - scrolling up over repeated oks adds the older ok at the top, not the end`() {
+        val history = historyOf(me("ok"), me("ok"), them("b", "6:45 pm"))
+
+        val plan = history.merge(listOf(me("ok"), me("ok"), me("ok")))
+
+        assertThat(history.texts()).containsExactly("ok", "ok", "ok", "b").inOrder()
+        assertThat(plan.newAtEnd).isEmpty()
+    }
+
+    @Test
+    fun `scenario D - scrolling up after a gap does not overwrite the last message before the gap`() {
+        val history = historyOf(them("plan?", "5:50 pm", sender = "Ravi"), them("see you", "6:00 pm", sender = "Meera"))
+        // Opened again after a while: no overlap, so the read is appended after a gap.
+        history.merge(
+            listOf(
+                them("m20", "7:20 pm", sender = "Ravi"),
+                them("m21", "7:21 pm", sender = "Ravi"),
+                them("m22", "7:22 pm", sender = "Ravi"),
+            ),
+        )
+
+        // Scrolled up a little: the top bubble shows no time and no name label.
+        val plan =
+            history.merge(
+                listOf(
+                    them("m19", time = null, sender = null),
+                    them("m20", "7:20 pm", sender = "Ravi"),
+                    them("m21", "7:21 pm", sender = "Ravi"),
+                ),
+            )
+
+        assertThat(history.texts()).containsExactly("plan?", "see you", "m19", "m20", "m21", "m22").inOrder()
+        assertThat(history.messages()[1]).isEqualTo(them("see you", "6:00 pm", sender = "Meera"))
+        assertThat(plan.edits).isEmpty()
+    }
+
+    @Test
+    fun `a read whose top message is the saved last one anchors on that one match`() {
+        val history = historyOf(them("a"), me("b"), them("c", "6:45 pm"))
+
+        val plan = history.merge(listOf(them("c", "6:45 pm"), me("d", "6:46 pm")))
+
+        assertThat(history.texts()).containsExactly("a", "b", "c", "d").inOrder()
+        assertThat(plan.newAtEnd.map { it.text }).containsExactly("d")
+    }
+
+    @Test
+    fun `a single match scrolled up is not an overlap`() {
+        // Known limit of the 2-match rule: a scroll-up showing one saved message is appended.
+        val history = historyOf(them("m5"), them("m6"))
+
+        val plan = history.merge(listOf(them("m3"), them("m4"), them("m5")))
+
+        assertThat(plan.anchored).isFalse()
+        assertThat(history.texts()).containsExactly("m5", "m6", "m3", "m4", "m5").inOrder()
+    }
+
+    @Test
+    fun `a match made only by a missing time or sender does not anchor a read`() {
+        val history = historyOf(them("x"), them("ok", "6:40 pm", sender = "Ravi"), them("y"))
+
+        val plan = history.merge(listOf(them("ok", time = null, sender = null), me("z", "7:00 pm")))
+
+        assertThat(plan.anchored).isFalse()
+    }
+
+    @Test
+    fun `planning against the tail matches planning against the whole chat for reads at the tail`() {
+        val stored = storedRows((1..20).map { them("m$it") })
+        val read = listOf(them("m18"), them("m19"), them("m20"), me("new"))
+
+        val tailPlan = HistoryMerge.planAgainstTail(stored.takeLast(5), read)
+
+        assertThat(tailPlan).isEqualTo(HistoryMerge.plan(stored, read))
+    }
+
+    @Test
+    fun `planning against the tail gives up when the read may concern older rows`() {
+        val stored = storedRows((1..20).map { them("m$it") })
+        val tail = stored.takeLast(5)
+
+        // No overlap with the tail.
+        assertThat(HistoryMerge.planAgainstTail(tail, listOf(them("m3"), them("m4"), them("m5")))).isNull()
+        // Reaches above the tail: m14 and m15 may already be saved.
+        assertThat(HistoryMerge.planAgainstTail(tail, listOf(them("m14"), them("m15"), them("m16"), them("m17"))))
+            .isNull()
+        // No room left between neighbours: a renumber needs every row of the chat.
+        val tight = tail.mapIndexed { i, row -> row.copy(position = i.toLong()) }
+        assertThat(HistoryMerge.planAgainstTail(tight, listOf(them("m17"), them("x"), them("m18")))).isNull()
+    }
+
+    private fun storedRows(messages: List<ChatMessage>) =
+        messages.mapIndexed {
+            i,
+            m,
+            ->
+            StoredRow(id = i + 1L, position = (i + 1) * HistoryMerge.POSITION_STEP, message = m)
+        }
 
     @Test
     fun `many inserts into a tight gap renumber positions without losing order`() {
