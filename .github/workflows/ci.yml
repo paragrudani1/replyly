@@ -39,6 +39,18 @@ jobs:
       - name: Run all gates
         run: scripts/check.sh
 
+      - name: Upload screenshot diffs
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: replyly-screenshot-diffs
+          # *_compare.png (reference | diff | new) and *_actual.png for every changed shot.
+          path: |
+            app/build/outputs/roborazzi/
+            app/build/reports/roborazzi/
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Upload reports
         if: failure()
         uses: actions/upload-artifact@v7

@@ -2,6 +2,10 @@
 # Runs exactly what CI runs. Fix formatting first with: ./gradlew spotlessApply
 # (never in the same Gradle call as compile: run it on its own, then this script).
 #
+# Screenshot tests run in verify mode: any shot that differs from app/src/test/screenshots fails
+# the gate, with the diff in app/build/outputs/roborazzi/. Re-record on purpose with
+# scripts/record-screenshots.sh (docs/SCREENSHOTS.md).
+#
 # KSP sometimes fails to initialise (kspDebugKotlin / PluginEnabler with
 # ExceptionInInitializerError or "Could not initialize class ksp."). When the log shows that,
 # the gate retries once in a fresh JVM (--no-daemon --stacktrace) with the same tasks. Any other
@@ -13,7 +17,7 @@ if [[ ! -f local.properties && -z "${ANDROID_HOME:-}" && -d /root/local-dev/andr
   export ANDROID_HOME=/root/local-dev/android-sdk
 fi
 
-tasks=(spotlessCheck lintDebug testDebugUnitTest assembleDebug "$@")
+tasks=(spotlessCheck lintDebug testDebugUnitTest assembleDebug -Proborazzi.test.verify=true "$@")
 log="$(mktemp -t replyly-check.XXXXXX.log)"
 trap 'rm -f "$log"' EXIT
 
