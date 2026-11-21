@@ -5,6 +5,15 @@ Until real dumps arrive, the fixtures are **synthetic** (`synthetic-*.json`), wr
 Every guess behind them is listed in [device-checklist/ticket-2.md](device-checklist/ticket-2.md).
 This page explains how to replace them with real dumps, and what to do when an app update breaks a parser.
 
+The synthetic fixtures come from [scripts/fixturegen/gen.py](../scripts/fixturegen/gen.py). To change one, edit its screen in the script (not the JSON), then run from the repo root:
+
+```sh
+python3 -I scripts/fixturegen/gen.py app/src/test/resources/fixtures
+git diff app/src/test/resources/fixtures   # only the screens you changed should move
+```
+
+The script rewrites every `synthetic-*.json` and leaves real dumps alone.
+
 ## 1. Capture a dump on the phone (Parag)
 
 1. Open Replyly. On the settings screen, **long-press the title** "Replyly settings". The debug screen opens.
