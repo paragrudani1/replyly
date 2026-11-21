@@ -1,8 +1,10 @@
 package com.paragrudani.replyly.onboarding
 
 import com.google.common.truth.Truth.assertThat
+import com.paragrudani.replyly.settings.ApiFormat
 import com.paragrudani.replyly.settings.InMemoryApiKeyStore
-import com.paragrudani.replyly.settings.InMemorySettingsRepository
+import com.paragrudani.replyly.settings.InMemoryProfileRepository
+import com.paragrudani.replyly.settings.ProviderProfile
 import com.paragrudani.replyly.settings.ReplylySettings
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -11,8 +13,10 @@ class OnboardingCheckerTest {
     private val probe = FakeProbe()
     private val manual = FakeManualSteps()
     private val keys = InMemoryApiKeyStore()
-    private val settings = InMemorySettingsRepository()
-    private val checker = OnboardingChecker(probe, manual, keys, settings)
+    private val profile =
+        ProviderProfile("p", "OpenRouter", ApiFormat.OpenAi, ReplylySettings.DEFAULT_ENDPOINT, ReplylySettings.DEFAULT_MODEL)
+    private val profiles = InMemoryProfileRepository(listOf(profile))
+    private val checker = OnboardingChecker(probe, manual, keys, profiles)
 
     private suspend fun status(id: OnboardingStepId) = checker.check().step(id).status
 
@@ -80,9 +84,32 @@ class OnboardingCheckerTest {
     fun `api key alone is not enough without a model`() =
         runTest {
             keys.set("sk-test")
-            settings.update { it.copy(model = "  ") }
+            profiles.upsert(profile.copy(model = "  "))
 
             assertThat(status(OnboardingStepId.ApiKeyAndModel)).isEqualTo(StepStatus.NotDone)
+        }
+
+    @Test
+    fun `the model comes from the active profile`() =
+        runTest {
+            keys.set("sk-test")
+            profiles.upsert(ProviderProfile("q", "Empty", ApiFormat.OpenAi, ReplylySettings.DEFAULT_ENDPOINT, ""))
+            profiles.setActive("q")
+
+            assertThat(status(OnboardingStepId.ApiKeyAndModel)).isEqualTo(StepStatus.NotDone)
+
+            profiles.setActive("p")
+
+            assertThat(status(OnboardingStepId.ApiKeyAndModel)).isEqualTo(StepStatus.Done)
+        }
+
+    @Test
+    fun `no profile at all is not done`() =
+        runTest {
+            keys.set("sk-test")
+            val checker = OnboardingChecker(probe, manual, keys, InMemoryProfileRepository(emptyList()))
+
+            assertThat(checker.check().step(OnboardingStepId.ApiKeyAndModel).status).isEqualTo(StepStatus.NotDone)
         }
 
     @Test
@@ -101,7 +128,6 @@ class OnboardingCheckerTest {
             probe.unrestricted = true
             manual.confirmed = true
             keys.set("sk-test")
-            settings.update { it.copy(model = ReplylySettings.DEFAULT_MODEL) }
 
             assertThat(checker.check().allDone).isTrue()
         }

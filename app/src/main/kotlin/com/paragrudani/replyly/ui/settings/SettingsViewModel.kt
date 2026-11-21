@@ -143,46 +143,12 @@ class SettingsViewModel(
 
     fun setApiKeyInput(value: String) = mutableState.update { it.copy(apiKeyInput = value, apiKeyError = null) }
 
-    fun saveApiKey() {
-        val input = mutableState.value.apiKeyInput
-        SettingsValidator.apiKeyError(input)?.let { error ->
-            mutableState.update { it.copy(apiKeyError = error) }
-            return
-        }
-        viewModelScope.launch {
-            val stored =
-                try {
-                    apiKeyStore.set(input)
-                    true
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (_: Exception) {
-                    false // Keystore failure; its message is not shown or logged.
-                }
-            mutableState.update {
-                if (stored) {
-                    it.copy(
-                        apiKeyInput = "",
-                        apiKeyError = null,
-                        replacingApiKey = false,
-                    )
-                } else {
-                    it.copy(apiKeyError = "Could not store the key securely. Try again.")
-                }
-            }
-        }
-    }
-
     fun startReplacingApiKey() = mutableState.update { it.copy(replacingApiKey = true) }
 
     fun cancelReplacingApiKey() =
         mutableState.update {
             it.copy(replacingApiKey = false, apiKeyInput = "", apiKeyError = null)
         }
-
-    fun clearApiKey() {
-        viewModelScope.launch { apiKeyStore.set("") }
-    }
 
     /** @return an error message, or null once the package is blocked. */
     fun addBlockedPackage(input: String): String? {

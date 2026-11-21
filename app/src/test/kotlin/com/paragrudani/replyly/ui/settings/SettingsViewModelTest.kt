@@ -50,9 +50,9 @@ class SettingsViewModelTest {
     @Test
     fun `the form starts from the stored settings`() =
         runTest {
-            settings.update { it.copy(model = "google/gemini-3.8-flash") }
+            settings.update { it.copy(aboutMe = "Short replies.") }
             val state = viewModel().state.value
-            assertThat(state.draft?.model).isEqualTo("google/gemini-3.8-flash")
+            assertThat(state.draft?.aboutMe).isEqualTo("Short replies.")
             assertThat(state.dirty).isFalse()
         }
 
@@ -60,12 +60,12 @@ class SettingsViewModelTest {
     fun `saving a valid form writes it and clears dirty`() =
         runTest {
             val vm = viewModel()
-            vm.editDraft { it.copy(model = "~openai/gpt-mini-latest", dailyRequestLimit = "50") }
+            vm.editDraft { it.copy(aboutMe = "Short replies.", dailyRequestLimit = "50") }
             assertThat(vm.state.value.dirty).isTrue()
 
             vm.save()
 
-            assertThat(settings.current().model).isEqualTo("~openai/gpt-mini-latest")
+            assertThat(settings.current().aboutMe).isEqualTo("Short replies.")
             assertThat(settings.current().dailyRequestLimit).isEqualTo(50)
             assertThat(vm.state.value.dirty).isFalse()
             assertThat(vm.state.value.errors).isEmpty()
@@ -92,76 +92,12 @@ class SettingsViewModelTest {
     fun `an invalid form is not saved and shows the errors`() =
         runTest {
             val vm = viewModel()
-            vm.editDraft { it.copy(endpoint = "http://insecure.test", retentionDays = "0") }
+            vm.editDraft { it.copy(historyMessageCount = "0", retentionDays = "0") }
             vm.save()
 
             assertThat(settings.current()).isEqualTo(ReplylySettings(retentionDays = 60))
-            assertThat(vm.state.value.errors.keys).containsExactly(SettingsField.Endpoint, SettingsField.RetentionDays)
-        }
-
-    @Test
-    fun `the api key is saved, never shown back, and can be cleared`() =
-        runTest {
-            val vm = viewModel()
-            assertThat(vm.state.value.apiKeySaved).isFalse()
-
-            vm.setApiKeyInput("sk-or-v1-0123456789abcdef")
-            vm.saveApiKey()
-
-            assertThat(apiKeys.get()).isEqualTo("sk-or-v1-0123456789abcdef")
-            assertThat(vm.state.value.apiKeySaved).isTrue()
-            assertThat(vm.state.value.apiKeyInput).isEmpty()
-            assertThat(vm.state.value.toString()).doesNotContain("0123456789abcdef")
-
-            vm.clearApiKey()
-            assertThat(apiKeys.get()).isNull()
-            assertThat(vm.state.value.apiKeySaved).isFalse()
-        }
-
-    @Test
-    fun `replacing a saved key keeps the field open until the new key is stored`() =
-        runTest {
-            val vm = viewModel()
-            vm.setApiKeyInput("sk-or-v1-0123456789abcdef")
-            vm.saveApiKey()
-            assertThat(vm.state.value.showApiKeyField).isFalse()
-
-            vm.startReplacingApiKey()
-            assertThat(vm.state.value.showApiKeyField).isTrue()
-            vm.setApiKeyInput("bad key")
-            vm.saveApiKey()
-            assertThat(vm.state.value.showApiKeyField).isTrue()
-            assertThat(vm.state.value.apiKeyError).isNotNull()
-
-            vm.setApiKeyInput("sk-or-v1-fedcba9876543210")
-            vm.saveApiKey()
-            assertThat(vm.state.value.showApiKeyField).isFalse()
-            assertThat(apiKeys.get()).isEqualTo("sk-or-v1-fedcba9876543210")
-        }
-
-    @Test
-    fun `cancelling a replacement keeps the old key`() =
-        runTest {
-            val vm = viewModel()
-            vm.setApiKeyInput("sk-or-v1-0123456789abcdef")
-            vm.saveApiKey()
-            vm.startReplacingApiKey()
-            vm.setApiKeyInput("sk-or-v1-half")
-            vm.cancelReplacingApiKey()
-            assertThat(vm.state.value.showApiKeyField).isFalse()
-            assertThat(vm.state.value.apiKeyInput).isEmpty()
-            assertThat(apiKeys.get()).isEqualTo("sk-or-v1-0123456789abcdef")
-        }
-
-    @Test
-    fun `a bad api key is refused with a message that does not echo it`() =
-        runTest {
-            val vm = viewModel()
-            vm.setApiKeyInput("sk 123")
-            vm.saveApiKey()
-            assertThat(apiKeys.get()).isNull()
-            assertThat(vm.state.value.apiKeyError).isNotNull()
-            assertThat(vm.state.value.apiKeyError).doesNotContain("sk 123")
+            assertThat(vm.state.value.errors.keys)
+                .containsExactly(SettingsField.HistoryMessageCount, SettingsField.RetentionDays)
         }
 
     @Test

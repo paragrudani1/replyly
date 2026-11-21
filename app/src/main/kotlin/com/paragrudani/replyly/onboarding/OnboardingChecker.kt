@@ -1,8 +1,7 @@
 package com.paragrudani.replyly.onboarding
 
 import com.paragrudani.replyly.settings.ApiKeyStore
-import com.paragrudani.replyly.settings.SettingsRepository
-import com.paragrudani.replyly.settings.current
+import com.paragrudani.replyly.settings.ProfileRepository
 import kotlinx.coroutines.flow.first
 
 /** The five S23 setup steps of spec section 7, in the order the user does them. */
@@ -68,7 +67,8 @@ class OnboardingChecker(
     private val probe: SetupProbe,
     private val manualSteps: ManualStepStore,
     private val apiKeyStore: ApiKeyStore,
-    private val settingsRepository: SettingsRepository,
+    /** The model is the active profile's; the legacy settings field is no longer used. */
+    private val profiles: ProfileRepository,
 ) {
     suspend fun check(): OnboardingState {
         val enabled = probe.isAccessibilityServiceEnabled()
@@ -79,7 +79,12 @@ class OnboardingChecker(
                 else -> StepStatus.NotDone
             }
         val hasKey = apiKeyStore.hasKey.first()
-        val hasModel = settingsRepository.current().model.isNotBlank()
+        val hasModel =
+            profiles.state
+                .first()
+                .active
+                ?.model
+                ?.isNotBlank() == true
         return OnboardingState(
             listOf(
                 // Android only lets a sideloaded app's service be enabled after restricted
