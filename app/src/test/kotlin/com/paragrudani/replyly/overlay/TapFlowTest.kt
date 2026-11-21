@@ -18,7 +18,7 @@ class TapFlowTest {
     private var settings = ReplylySettings()
     private val policy = DefaultSensitiveScreenPolicy(settings = { settings })
     private var snapshot: ScreenSnapshot? = snapshot()
-    private var captures = 0
+    private val capturedWindows = mutableListOf<Int>()
     private var parsed: ParsedChat? = chat("Asha")
 
     private val parser =
@@ -29,8 +29,8 @@ class TapFlowTest {
         }
     private val flow =
         TapFlow(
-            capture = {
-                captures++
+            capture = { windowId ->
+                capturedWindows += windowId
                 snapshot
             },
             policy = policy,
@@ -40,7 +40,8 @@ class TapFlowTest {
     @Test
     fun `an allowed chat opens the panel with the parsed chat`() =
         runTest {
-            assertThat(flow.run(WHATSAPP)).isEqualTo(TapOutcome.Open(chat("Asha")))
+            assertThat(flow.run(WHATSAPP, 7)).isEqualTo(TapOutcome.Open(chat("Asha")))
+            assertThat(capturedWindows).containsExactly(7)
         }
 
     @Test
@@ -48,8 +49,8 @@ class TapFlowTest {
         runTest {
             settings = ReplylySettings(blockedPackages = setOf(WHATSAPP))
 
-            assertThat(flow.run(WHATSAPP)).isEqualTo(TapOutcome.Blocked(BlockReason.BLOCKLISTED_APP))
-            assertThat(captures).isEqualTo(0)
+            assertThat(flow.run(WHATSAPP, 7)).isEqualTo(TapOutcome.Blocked(BlockReason.BLOCKLISTED_APP))
+            assertThat(capturedWindows).isEmpty()
         }
 
     @Test
@@ -57,7 +58,7 @@ class TapFlowTest {
         runTest {
             snapshot = snapshot(secureWindow = true)
 
-            assertThat(flow.run(WHATSAPP)).isEqualTo(TapOutcome.Blocked(BlockReason.SECURE_WINDOW))
+            assertThat(flow.run(WHATSAPP, 7)).isEqualTo(TapOutcome.Blocked(BlockReason.SECURE_WINDOW))
         }
 
     @Test
@@ -66,7 +67,7 @@ class TapFlowTest {
             snapshot = snapshot(ScreenNode(bounds = Bounds.EMPTY, password = true))
             parsed = null
 
-            assertThat(flow.run(WHATSAPP)).isEqualTo(TapOutcome.Blocked(BlockReason.PASSWORD_FIELD))
+            assertThat(flow.run(WHATSAPP, 7)).isEqualTo(TapOutcome.Blocked(BlockReason.PASSWORD_FIELD))
         }
 
     @Test
@@ -75,7 +76,7 @@ class TapFlowTest {
             settings = ReplylySettings(blockedChatKeys = setOf("$WHATSAPP:Doctor"))
             parsed = chat("Doctor")
 
-            assertThat(flow.run(WHATSAPP)).isEqualTo(TapOutcome.Blocked(BlockReason.BLOCKLISTED_CHAT))
+            assertThat(flow.run(WHATSAPP, 7)).isEqualTo(TapOutcome.Blocked(BlockReason.BLOCKLISTED_CHAT))
         }
 
     @Test
@@ -83,17 +84,17 @@ class TapFlowTest {
         runTest {
             parsed = null
 
-            assertThat(flow.run(WHATSAPP)).isEqualTo(TapOutcome.NotAChat)
+            assertThat(flow.run(WHATSAPP, 7)).isEqualTo(TapOutcome.NotAChat)
         }
 
     @Test
     fun `no active window, or the active window now belongs to another app`() =
         runTest {
             snapshot = null
-            assertThat(flow.run(WHATSAPP)).isEqualTo(TapOutcome.NotAChat)
+            assertThat(flow.run(WHATSAPP, 7)).isEqualTo(TapOutcome.NotAChat)
 
             snapshot = snapshot().copy(packageName = "com.android.launcher")
-            assertThat(flow.run(WHATSAPP)).isEqualTo(TapOutcome.NotAChat)
+            assertThat(flow.run(WHATSAPP, 7)).isEqualTo(TapOutcome.NotAChat)
         }
 
     private fun snapshot(

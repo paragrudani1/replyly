@@ -23,17 +23,20 @@ sealed interface TapOutcome {
 
 /**
  * What a tap on the button does before the panel opens: ask the policy about the app (before
- * reading anything), capture the active window (checked for FLAG_SECURE), ask the policy about
+ * reading anything), capture the chat's window (checked for FLAG_SECURE), ask the policy about
  * the screen, parse, and ask the policy about the chat (a blocklisted chat is known only now).
  */
 class TapFlow(
-    private val capture: suspend () -> ScreenSnapshot?,
+    private val capture: suspend (windowId: Int) -> ScreenSnapshot?,
     private val policy: SensitiveScreenPolicy,
     private val parsers: ChatParserRegistry,
 ) {
-    suspend fun run(packageName: String): TapOutcome {
+    suspend fun run(
+        packageName: String,
+        windowId: Int,
+    ): TapOutcome {
         blocked(ScreenContext(packageName))?.let { return it }
-        val snapshot = capture()?.takeIf { it.packageName == packageName } ?: return TapOutcome.NotAChat
+        val snapshot = capture(windowId)?.takeIf { it.packageName == packageName } ?: return TapOutcome.NotAChat
         blocked(ScreenContext(packageName, snapshot, secureWindow = snapshot.secureWindow))?.let { return it }
         val chat = parsers.parse(snapshot) ?: return TapOutcome.NotAChat
         blocked(ScreenContext(packageName, snapshot, chat.chatKey, snapshot.secureWindow))?.let { return it }

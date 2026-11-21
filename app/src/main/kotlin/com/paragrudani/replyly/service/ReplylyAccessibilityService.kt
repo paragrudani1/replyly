@@ -53,11 +53,14 @@ class ReplylyAccessibilityService :
     // Ticket #1: FLAG_SECURE probe (see SecureWindowDetector).
     private val secureWindows by lazy { SecureWindowDetector(AccessibilityScreenshotProbe(this)) }
 
-    override suspend fun captureActiveWindowChecked(): ScreenSnapshot? {
-        val root = rootInActiveWindow ?: return null
-        val secure = secureWindows.check(root.windowId) == SecureWindowState.SECURE
-        return snapshotOf(root, secure)
-    }
+    override suspend fun captureActiveWindowChecked(): ScreenSnapshot? =
+        rootInActiveWindow?.let { checkedSnapshotOf(it) }
+
+    override suspend fun captureWindowChecked(windowId: Int): ScreenSnapshot? =
+        windows.firstOrNull { it.id == windowId }?.root?.let { checkedSnapshotOf(it) }
+
+    private suspend fun checkedSnapshotOf(root: AccessibilityNodeInfo): ScreenSnapshot =
+        snapshotOf(root, secure = secureWindows.check(root.windowId) == SecureWindowState.SECURE)
 
     /** A secure window is not read: its snapshot has an empty root. */
     private fun snapshotOf(

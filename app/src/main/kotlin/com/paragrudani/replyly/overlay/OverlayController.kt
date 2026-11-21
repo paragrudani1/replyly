@@ -47,7 +47,7 @@ class OverlayController(
     private val visibility: ButtonVisibility,
     private val place: (ButtonDecision.Show) -> ButtonPosition,
     private val ui: OverlayUi,
-    private val tap: suspend (packageName: String) -> TapOutcome,
+    private val tap: suspend (FocusedInput) -> TapOutcome,
     private val rememberTarget: (InputFieldRef) -> Unit,
     private val scope: CoroutineScope,
     private val settleMillis: Long = 60,
@@ -74,7 +74,7 @@ class OverlayController(
         tapInFlight = true
         scope.launch {
             try {
-                when (val outcome = tap(current.input.packageName)) {
+                when (val outcome = tap(current.input)) {
                     is TapOutcome.Open -> openPanel(current.input, outcome)
                     is TapOutcome.Blocked -> ui.showNotice(Notice.OFF_HERE)
                     TapOutcome.NotAChat -> ui.showNotice(Notice.NO_CHAT)
