@@ -19,7 +19,7 @@ import com.paragrudani.replyly.panel.PlaceholderReplyPanel
 import com.paragrudani.replyly.panel.ReplyPanel
 import com.paragrudani.replyly.parser.ChatParserRegistry
 import com.paragrudani.replyly.parser.Parsers
-import com.paragrudani.replyly.policy.MinimalSensitiveScreenPolicy
+import com.paragrudani.replyly.policy.DefaultSensitiveScreenPolicy
 import com.paragrudani.replyly.policy.SensitiveScreenPolicy
 import com.paragrudani.replyly.security.DatabaseKeyProvider
 import com.paragrudani.replyly.security.UnimplementedDatabaseKeyProvider
@@ -59,7 +59,9 @@ class AppGraph(
     val replyInserter: ReplyInserter by lazy { UnavailableReplyInserter }
 
     // Ticket #1
-    val sensitiveScreenPolicy: SensitiveScreenPolicy by lazy { MinimalSensitiveScreenPolicy }
+    val sensitiveScreenPolicy: SensitiveScreenPolicy by lazy {
+        DefaultSensitiveScreenPolicy.create(settingsRepository, appScope)
+    }
 
     // Ticket #2: register parsers in parser/Parsers.kt, not here.
     val chatParserRegistry: ChatParserRegistry by lazy { Parsers.registry() }
