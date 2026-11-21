@@ -562,6 +562,11 @@ def main(out_dir):
     write(out_dir, "whatsapp/synthetic-chat_list.json", wa_chat_list("com.whatsapp"))
     write(out_dir, "whatsapp_business/synthetic-hinglish.json",
           w4b.chat("Rohan Bhai", None, WA_HINGLISH, 600))
+    # Business shares WhatsApp's ids under its own package: same screens, other package.
+    write(out_dir, "whatsapp_business/synthetic-group.json",
+          w4b.chat("Weekend Trek", group_sub, WA_GROUP, 200, group=True))
+    write(out_dir, "whatsapp_business/synthetic-same_text_twice.json",
+          w4b.chat("Dad", "last seen today at 9:01 pm", WA_SAME_TWICE, 900))
     write(out_dir, "telegram/synthetic-one_to_one.json", tg_chat("Asha Patel", "online", TG_ONE_TO_ONE))
     write(out_dir, "telegram/synthetic-group.json", tg_chat("Weekend Trek", "5 members, 2 online", TG_GROUP))
     write(out_dir, "telegram/synthetic-same_text_twice.json",

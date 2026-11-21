@@ -152,6 +152,32 @@ class WhatsAppParserTest {
     }
 
     @Test
+    fun `whatsapp business group by view ids`() {
+        val report = parser.explain(Fixtures.snapshot("whatsapp_business/synthetic-group.json"))
+        val chat = checkNotNull(report.chat) { report.toString() }
+
+        assertThat(report.method).isEqualTo(WhatsAppParser.METHOD_VIEW_IDS)
+        assertThat(chat.chatKey.encoded).isEqualTo("com.whatsapp.w4b:Weekend Trek")
+        assertThat(chat.isGroup).isTrue()
+        assertThat(chat.messages).containsExactlyElementsIn(group).inOrder()
+    }
+
+    @Test
+    fun `whatsapp business keeps the same text sent twice`() {
+        val chat = Parsers.registry().parse(Fixtures.snapshot("whatsapp_business/synthetic-same_text_twice.json"))!!
+
+        assertThat(chat.chatKey.encoded).isEqualTo("com.whatsapp.w4b:Dad")
+        assertThat(chat.messages)
+            .containsExactly(
+                them("Dad", "Reached?", "9:00 pm"),
+                me("ok", "9:02 pm"),
+                me("ok", "9:02 pm"),
+                them("Dad", "ok", "9:03 pm"),
+                them("Dad", "ok", "9:03 pm"),
+            ).inOrder()
+    }
+
+    @Test
     fun `the chat list is not a chat`() {
         // Search field at the top, chat rows with names and times: no message ids, no bottom input.
         assertThat(parser.parse(Fixtures.snapshot("whatsapp/synthetic-chat_list.json"))).isNull()
