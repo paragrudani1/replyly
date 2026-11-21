@@ -53,6 +53,9 @@ interface FeedbackLog {
     fun observeRecent(limit: Int): Flow<List<FeedbackEntry>>
 
     suspend fun purgeOlderThan(cutoff: Instant): Int
+
+    /** Deletes every entry ("Clear log" in settings). @return how many were deleted. */
+    suspend fun clear(): Int = purgeOlderThan(Instant.MAX)
 }
 
 /** Stub until ticket #6. Not persisted. */
