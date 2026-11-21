@@ -1,0 +1,141 @@
+package com.paragrudani.replyly.history.capture
+
+import android.util.Log
+import android.view.accessibility.AccessibilityEvent
+import com.paragrudani.replyly.di.AppGraph
+import com.paragrudani.replyly.feedback.FeedbackLog
+import com.paragrudani.replyly.history.HistoryReadMerger
+import com.paragrudani.replyly.history.HistoryRetention
+import com.paragrudani.replyly.history.MergeOutcome
+import com.paragrudani.replyly.parser.ChatParserRegistry
+import com.paragrudani.replyly.parser.TargetApps
+import com.paragrudani.replyly.policy.ScreenContext
+import com.paragrudani.replyly.policy.SensitiveScreenPolicy
+import com.paragrudani.replyly.policy.SensitivityVerdict
+import com.paragrudani.replyly.service.AccessibilityComponent
+import com.paragrudani.replyly.service.AccessibilityHost
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.launch
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+
+/**
+ * Passive capture (spec 4, ticket #3). In an app with a full parser, every screen change restarts
+ * a [quietPeriod] wait; when the screen has been still that long it:
+ *
+ * 1. asks [policy] about the app, then reads the active window;
+ * 2. skips it unless it still belongs to a full-parser app, and asks [policy] about the screen;
+ * 3. parses it, and asks [policy] about the chat (blocklisted chats are known only after parsing);
+ * 4. merges it into history;
+ * 5. if the merge found a message I sent below the saved tail, gives the newest one to
+ *    [FeedbackLog.attachFinalMessage] (the final sent text of the last inserted suggestion);
+ * 6. purges old history if a day has passed ([HistoryRetention]); it also purges on connect.
+ *
+ * It never calls the LLM. Generic apps get no history. The wait runs on [scope]'s dispatcher,
+ * so tests drive it with virtual time. Failures are logged by class name only.
+ */
+@OptIn(FlowPreview::class)
+class PassiveCaptureComponent(
+    private val scope: CoroutineScope,
+    private val policy: SensitiveScreenPolicy,
+    private val parsers: ChatParserRegistry,
+    private val history: HistoryReadMerger,
+    private val feedbackLog: FeedbackLog,
+    private val retention: HistoryRetention,
+    private val quietPeriod: Duration = 1.seconds,
+    private val log: (String) -> Unit = { Log.d(TAG, it) },
+) : AccessibilityComponent {
+    /** The package of the last screen change, conflated: only the latest matters. */
+    private val changes =
+        MutableSharedFlow<String>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    private var session: Job? = null
+
+    override fun onConnected(host: AccessibilityHost) {
+        session?.cancel()
+        session =
+            scope.launch {
+                launch { guarded("purge") { retention.purgeNow() } }
+                changes.debounce(quietPeriod).collect { packageName ->
+                    guarded("capture") { capture(host, packageName) }
+                }
+            }
+    }
+
+    override fun onEvent(
+        event: AccessibilityEvent,
+        host: AccessibilityHost,
+    ) {
+        if (event.eventType and WATCHED_EVENTS == 0) return
+        val packageName = event.packageName?.toString() ?: return
+        if (packageName in TargetApps.FULL_PARSER_PACKAGES) changes.tryEmit(packageName)
+    }
+
+    override fun onDisconnected() {
+        session?.cancel()
+        session = null
+    }
+
+    private suspend fun capture(
+        host: AccessibilityHost,
+        packageName: String,
+    ) {
+        if (policy.evaluate(ScreenContext(packageName)).blocked) return
+        val snapshot = host.captureActiveWindow() ?: return
+        if (snapshot.packageName != packageName) return
+        if (policy.evaluate(ScreenContext(packageName, snapshot)).blocked) return
+        val chat = parsers.parse(snapshot)?.takeIf { it.historyApplies } ?: return
+        if (policy.evaluate(ScreenContext(packageName, snapshot, chat.chatKey)).blocked) return
+
+        val outcome = history.mergeRead(chat)
+        if (outcome != MergeOutcome.NONE) log("capture merged inserted=${outcome.inserted} edited=${outcome.edited}")
+        outcome.newAtEnd.lastOrNull { it.isMe }?.let { sent ->
+            if (feedbackLog.attachFinalMessage(chat.chatKey, sent.text)) log("feedback final message attached")
+        }
+        val purged = retention.purgeIfDue()
+        if (purged > 0) log("history purged count=$purged")
+    }
+
+    private suspend fun guarded(
+        what: String,
+        block: suspend () -> Unit,
+    ) {
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // Class name only: exception messages can contain chat text.
+            log("$what failed: ${e::class.simpleName}")
+        }
+    }
+
+    private val SensitivityVerdict.blocked: Boolean get() = this is SensitivityVerdict.Blocked
+
+    companion object {
+        private const val TAG = "ReplylyCapture"
+        private const val WATCHED_EVENTS =
+            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED or AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+
+        /** The app's component, wired from [AppGraph]. */
+        fun create(graph: AppGraph): PassiveCaptureComponent {
+            val repository = graph.historyRepository
+            val merger =
+                repository as? HistoryReadMerger
+                    ?: HistoryReadMerger { chat -> MergeOutcome(repository.merge(chat), 0, emptyList()) }
+            return PassiveCaptureComponent(
+                scope = graph.appScope,
+                policy = graph.sensitiveScreenPolicy,
+                parsers = graph.chatParserRegistry,
+                history = merger,
+                feedbackLog = graph.feedbackLog,
+                retention = HistoryRetention(repository, graph.settingsRepository, graph.clock),
+            )
+        }
+    }
+}
