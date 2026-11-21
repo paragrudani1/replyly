@@ -24,6 +24,9 @@ object ReplylyDataStores {
     const val PROFILES = "profiles"
     const val PROFILE_SECRETS = "profile_secrets"
 
+    /** Polish #3: where the user dragged the floating button, per app (not secret). */
+    const val BUTTON_POSITIONS = "button_positions"
+
     fun create(
         context: Context,
         name: String,
