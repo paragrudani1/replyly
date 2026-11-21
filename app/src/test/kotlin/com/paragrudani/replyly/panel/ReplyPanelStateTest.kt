@@ -421,12 +421,18 @@ class ReplyPanelStateTest {
             val cases: Map<SuggestionResult.Failure, PanelError> =
                 mapOf(
                     SuggestionResult.Failure.NoApiKey to
-                        PanelError("No API key yet", "Add your API key in Settings.", ErrorAction.OpenSettings),
+                        PanelError(
+                            "No API key yet",
+                            "Add your API key in Settings.",
+                            ErrorAction.OpenSettings,
+                            ErrorKind.Key,
+                        ),
                     SuggestionResult.Failure.InvalidApiKey to
                         PanelError(
                             "API key not usable",
                             "The API key has invalid characters. Paste it again in Settings.",
                             ErrorAction.OpenSettings,
+                            ErrorKind.Key,
                         ),
                     SuggestionResult.Failure.LimitReached(dailyLimit = 50) to
                         PanelError(
@@ -434,34 +440,49 @@ class ReplyPanelStateTest {
                             "You have used all 50 requests for today. " +
                                 "It resets tomorrow, or raise the limit in Settings.",
                             ErrorAction.OpenSettings,
+                            ErrorKind.Limit,
                         ),
                     SuggestionResult.Failure.InsecureEndpoint to
                         PanelError(
                             "Endpoint is not https",
                             "The API endpoint must start with https://. Fix it in Settings.",
                             ErrorAction.OpenSettings,
+                            ErrorKind.Settings,
                         ),
                     SuggestionResult.Failure.Timeout to
                         PanelError(
                             "The model took too long",
                             "Check your connection and try again.",
                             ErrorAction.Retry,
+                            ErrorKind.Connection,
                         ),
                     SuggestionResult.Failure.Network("No internet connection.") to
-                        PanelError("Could not reach the API", "No internet connection.", ErrorAction.Retry),
+                        PanelError(
+                            "Could not reach the API",
+                            "No internet connection.",
+                            ErrorAction.Retry,
+                            ErrorKind.Connection,
+                        ),
                     SuggestionResult.Failure.Http(401, "API key rejected. Check the key in Settings.") to
-                        PanelError("API key rejected (401)", "Check the key in Settings.", ErrorAction.OpenSettings),
+                        PanelError(
+                            "API key rejected (401)",
+                            "Check the key in Settings.",
+                            ErrorAction.OpenSettings,
+                            ErrorKind.Key,
+                        ),
                     SuggestionResult.Failure.Http(402, "Out of credits on the API account.") to
                         PanelError(
                             "Out of credits (402)",
                             "Add credits to your API account, then retry.",
                             ErrorAction.Retry,
+                            ErrorKind.Limit,
                         ),
                     SuggestionResult.Failure.Http(429, "Rate limited. Wait a moment and try again.") to
                         PanelError(
                             "Too many requests (429)",
                             "The provider is rate limiting. Wait a moment, then retry.",
                             ErrorAction.Retry,
+                            ErrorKind.Limit,
                         ),
                     SuggestionResult.Failure.Http(503, "The provider had an error. Try again.") to
                         PanelError(
@@ -474,24 +495,28 @@ class ReplyPanelStateTest {
                             "The API returned an error (400)",
                             "Request rejected. Check the model id in Settings.",
                             ErrorAction.OpenSettings,
+                            ErrorKind.Settings,
                         ),
                     SuggestionResult.Failure.Http(403, "Access denied for this key or model.") to
                         PanelError(
                             "The API returned an error (403)",
                             "Access denied for this key or model.",
                             ErrorAction.OpenSettings,
+                            ErrorKind.Settings,
                         ),
                     SuggestionResult.Failure.Http(404, "Model or endpoint not found. Check Settings.") to
                         PanelError(
                             "The API returned an error (404)",
                             "Model or endpoint not found. Check Settings.",
                             ErrorAction.OpenSettings,
+                            ErrorKind.Settings,
                         ),
                     SuggestionResult.Failure.Http(413, "Prompt too large for this model.") to
                         PanelError(
                             "The API returned an error (413)",
                             "Prompt too large for this model.",
                             ErrorAction.OpenSettings,
+                            ErrorKind.Settings,
                         ),
                     SuggestionResult.Failure.Http(418, null) to
                         PanelError("The API returned an error (418)", null, ErrorAction.Retry),
@@ -541,6 +566,7 @@ class ReplyPanelStateTest {
                             "Could not read this chat's history",
                             "Try again. If it keeps failing, close and reopen the panel.",
                             ErrorAction.Retry,
+                            ErrorKind.Storage,
                         ),
                     ),
                 )
@@ -562,6 +588,7 @@ class ReplyPanelStateTest {
                             "Secure storage is locked",
                             "Replyly's encrypted storage is locked right now. Try again in a moment.",
                             ErrorAction.Retry,
+                            ErrorKind.Storage,
                         ),
                     ),
                 )
