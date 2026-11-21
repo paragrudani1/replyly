@@ -627,8 +627,10 @@ version still shows the whole mark. **Send:** Screenshot if anything is cut off.
 11.5 **Do:** Settings > Appearance > turn on "Material You colours", go back to the home screen
 and return; then open a WhatsApp chat and tap the button. **See:** settings, the floating button
 and the panel switch to your wallpaper colours (buttons, switches, the button fill). Turn it off
-again: everything goes back to ink blue. **Send:** two Screenshots (on and off) of settings and
-of the button over a chat.
+again: everything goes back to ink blue. Also force-stop Replyly with Material You on and open
+it again: a brief flash of ink blue before the wallpaper colours appear is possible (the setting
+loads after the first frame). **Send:** two Screenshots (on and off) of settings and of the
+button over a chat, and say whether the cold-start flash is noticeable.
 
 11.6 **Do:** with "Material You colours" on, change the wallpaper (Settings > Wallpaper and
 style) to one with a clearly different colour, then reopen Replyly. **See:** Replyly picks up the
