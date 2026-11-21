@@ -5,6 +5,7 @@
 - Wave 1 (parallel, started 2026-11-21 on local branches off `7b291a1`): #2 parser and fixtures, #3 encrypted history, #4 LLM client and prompt, #6 settings, logs and cost guard. Common rules for ticket agents: `/root/.t3/cos/replyly/ticket-common.md`.
   - #4: review done, fixes at `ticket-4-llm@21fdca5` (72 tests). Ready to PR. #6: review done, fixes at `ticket-6-settings@c91b0c0` (79 tests). Ready to PR. #3: review blocked (false edits in merge); fixes running. Re-review merge after.
   - #5 fixes `ticket-5-panel@1c3b883` (101 tests), #7 fixes `ticket-7-onboarding@9f458f9` (46 tests): ready. Both add test deps to the catalog (expect a trivial conflict).
+  - #1 fixes `ticket-1-overlay@f9a53d5` (114 tests): ready. S23 must confirm the chat window stays in getWindows() under the full-screen panel (checklist 10.6), else the panel closes at once.
 - Wave 2 (parallel): #1 overlay and button, #5 panel UI, #7 onboarding.
 - Wave 3: wire-up check (e.g. #6 swaps `feedbackLog` to the encrypted DB once #3 lands), `docs/DEVICE_CHECKLIST.md`, code review.
 
