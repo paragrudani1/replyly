@@ -5,7 +5,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -18,7 +17,6 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -46,10 +44,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -61,6 +57,7 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import com.paragrudani.replyly.appGraph
 import com.paragrudani.replyly.cost.CostStatus
+import com.paragrudani.replyly.ui.settings.profiles.ProviderProfilesSection
 import com.paragrudani.replyly.ui.theme.ReplylyWordmark
 import com.paragrudani.replyly.ui.theme.Spacing
 import kotlinx.serialization.Serializable
@@ -129,6 +126,8 @@ fun SettingsScreen(
     onOpenOnboarding: () -> Unit,
     onOpenDebug: () -> Unit,
     onOpenFeedbackLog: () -> Unit,
+    /** Screenshot tests pass a fixed-state list; the real one reads storage. */
+    profilesSection: @Composable () -> Unit = { ProviderProfilesSection() },
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refreshUsage() }
@@ -166,23 +165,8 @@ fun SettingsScreen(
                 return@LazyColumn
             }
             item { SectionHeader("LLM") }
-            item {
-                ValidatedField(
-                    label = "API endpoint",
-                    value = draft.endpoint,
-                    error = state.errors[SettingsField.Endpoint],
-                    onValueChange = { v -> vm.editDraft { it.copy(endpoint = v) } },
-                    keyboardType = KeyboardType.Uri,
-                )
-            }
-            item { ApiKeySection(state, vm) }
-            item {
-                ModelSection(
-                    model = draft.model,
-                    error = state.errors[SettingsField.Model],
-                    onModel = { v -> vm.editDraft { it.copy(model = v) } },
-                )
-            }
+            // Issue #18: endpoint, key and model now live in provider profiles (ui/settings/profiles/).
+            item { profilesSection() }
             item {
                 SwitchRow(
                     label = "3 parallel calls (faster on slow models)",
@@ -372,67 +356,6 @@ private fun ValidatedField(
             ),
         modifier = Modifier.fillMaxWidth(),
     )
-}
-
-@Composable
-private fun ApiKeySection(
-    state: SettingsUiState,
-    vm: SettingsViewModel,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (!state.showApiKeyField) {
-            // The stored key is never read back into the UI, not even partly.
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("API key: saved ••••••••", modifier = Modifier.weight(1f))
-                TextButton(onClick = vm::startReplacingApiKey) { Text("Replace") }
-                TextButton(onClick = vm::clearApiKey) { Text("Remove") }
-            }
-        } else {
-            OutlinedTextField(
-                value = state.apiKeyInput,
-                onValueChange = vm::setApiKeyInput,
-                label = { Text(if (state.apiKeySaved) "New API key" else "API key") },
-                placeholder = { Text("sk-or-…") },
-                isError = state.apiKeyError != null,
-                supportingText = { Text(state.apiKeyError ?: "Stored encrypted on this phone only.") },
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions =
-                    KeyboardOptions(
-                        keyboardType = KeyboardType.Password,
-                        autoCorrectEnabled = false,
-                        imeAction = ImeAction.Done,
-                    ),
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = vm::saveApiKey, enabled = state.apiKeyInput.isNotBlank()) { Text("Save key") }
-                if (state.replacingApiKey) TextButton(onClick = vm::cancelReplacingApiKey) { Text("Cancel") }
-            }
-        }
-    }
-}
-
-@Composable
-private fun ModelSection(
-    model: String,
-    error: String?,
-    onModel: (String) -> Unit,
-) {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        ValidatedField(
-            label = "Model",
-            value = model,
-            error = error,
-            onValueChange = onModel,
-            supporting = "Any model id from your endpoint, or pick one:",
-        )
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            MODEL_SHORTLIST.forEach { id ->
-                FilterChip(selected = model.trim() == id, onClick = { onModel(id) }, label = { Text(id) })
-            }
-        }
-    }
 }
 
 @Composable

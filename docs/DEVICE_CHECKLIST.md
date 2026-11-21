@@ -649,10 +649,11 @@ dark mark; all text readable. **Send:** Screenshots of settings, button and pane
 settings, onboarding and the panel. **See:** no text cut off or overlapping. **Send:** Screenshots
 of anything clipped.
 
-### Suggestion panel (items 11.20–11.33)
+### Suggestion panel (items 11.20–11.29, 11.40–11.43)
 
-Panel motion, gestures and the instruction chips. Do 11.20–11.29 with "Remove animations" OFF,
-then 11.30 with it on. Haptics need "Touch interactions" vibration on (Settings > Sounds and
+Panel motion, gestures and the instruction chips. The last four are numbered 11.40–11.43 so they
+do not collide with the onboarding items. Do 11.20–11.29 with "Remove animations" OFF, then 11.40
+with it on. Haptics need "Touch interactions" vibration on (Settings > Sounds and
 vibration > System sound/vibration control).
 
 11.20 **Do:** in a WhatsApp chat, tap the button. **See:** the chat dims while the sheet slides up
@@ -707,32 +708,92 @@ way or closes when you only meant to scroll the cards.
 slide the panel down (not a cut) and the WhatsApp field keeps its cursor. **Send:** a screen
 recording if either closes abruptly or leaves a dim layer behind.
 
-11.30 **Do:** turn on "Remove animations" (11.8) and repeat 11.20, 11.21, 11.23 and 11.28.
+11.40 **Do:** turn on "Remove animations" (11.8) and repeat 11.20, 11.21, 11.23 and 11.28.
 **See:** the panel appears and closes at once, the placeholders are static (no sweeping band), the
 cards appear together; tapping, long-press copy and swipe-down still work. **Send:** anything that
 still animates or gets stuck. Turn it off afterwards.
 
-11.31 **Do:** with TalkBack on (Settings > Accessibility > TalkBack), open the panel and swipe
+11.41 **Do:** with TalkBack on (Settings > Accessibility > TalkBack), open the panel and swipe
 through it. **See:** each card is read once as its tag and text ("Agree. Haan pakka…"), with
 "double-tap to insert"; the TalkBack menu (swipe up then right, or three-finger tap) offers
 "Insert" and "Copy"; the chips read as "Shorter, checkbox/selected" style toggles; the arrow reads
 "Regenerate replies"; "Copied" and errors are announced. **Send:** a TalkBack audio/screen
 recording of anything read twice, unlabelled or missing.
 
-11.32 **Do:** in a WhatsApp chat, open the panel and tap the instruction field so Gboard opens (also
+11.42 **Do:** in a WhatsApp chat, open the panel and tap the instruction field so Gboard opens (also
 try with Gboard's emoji or clipboard strip open, and with display size set to the largest under
 Settings > Display > Font size and style / Screen zoom). **See:** the whole top bar (grabber, chat
 name, note and Close icons) stays fully below the status bar (clock, battery); the cards scroll in
 the space between. **Send:** a screenshot with the keyboard open if any part of the top bar is
 under the status bar or cut.
 
-11.33 **Do:** turn on all four chips, then paste or type a long instruction (more than 200
+11.43 **Do:** turn on all four chips, then paste or type a long instruction (more than 200
 characters) into the field. **See:** a small "n/m" counter appears under the right end of the field
 when about 30 characters are left; typing stops at the limit and the counter turns red; an emoji at
 the limit is either whole or not added (never a broken box). Now turn one chip off and on again
 with a full field. **See:** turning it on shortens the text in the field (visible), and the new
 replies follow the whole field. **Send:** a screenshot of the counter, and one if a broken
 character appears.
+
+### Onboarding welcome flow
+
+Numbered from 11.30 so the parallel polish PRs do not collide in this section.
+
+11.30 **Do:** uninstall Replyly (or Settings > Apps > Replyly > Storage > Clear data), install and
+open it. **See:** the welcome flow opens on "Replies in your style" with three page dots; "Skip"
+top right, "Next" bottom right. Swipe left and right between the three pages with your thumb.
+**See:** the page follows your finger, settles softly (no hard jump, no bounce past the edge),
+the neighbouring page fades in; the dots stretch to the current page. **Send:** a screen
+recording if a swipe stutters or settles on the wrong page.
+
+11.31 **Do:** on the first page tap "Next", "Next", then "Back"; then go to page 1 and tap "Skip";
+then use the system Back gesture on the checklist. **See:** each button slides to the right page
+(about half a second); "Skip" lands on "Set up your phone"; Back on the checklist goes to the
+privacy page, Back on the first page leaves the app. **Send:** what happened instead.
+
+11.32 **Do:** on "Set up your phone", tap "Open Accessibility", turn Replyly on, come back with
+Back. **See:** within a second step 2 (and step 1) tick: the ring fills blue, then a white check
+draws itself; "N of 5 done" goes up. Repeat for "Allow" (battery: accept the dialog), "Open
+battery settings" + "I've done this" (sleeping apps), and "Open settings" (enter key and model,
+then Back). **See:** each step ticks on return without touching anything. **Send:** the step
+that did not tick, and whether it ticked after leaving and reopening Replyly.
+
+11.33 **Do:** Settings > Accessibility > Replyly: turn it off while on the checklist (via the
+notification shade quick settings or recents), come back. **See:** step 2 goes back to an empty
+ring with "Not done", no crash. Turn it back on: it ticks again. **Send:** a screenshot if the
+ring and the text disagree.
+
+11.34 **Do:** with every step done, reopen Replyly. **See:** it opens on Settings. Tap "Setup
+steps". **See:** it opens straight on the checklist (page 3, five ticks shown at once, no
+animation), Back returns to Settings. **Send:** a screenshot if it opens on the first page.
+
+11.35 **Do:** turn on TalkBack and open "Setup steps". Swipe through the checklist. **See:**
+TalkBack reads "Set up", the title as a heading, then each step as one item, e.g. "Battery:
+done", "Sleeping apps: not confirmed", then its instruction and buttons. While TalkBack is on,
+complete one step and come back: TalkBack announces the new state once ("Battery: done"), not
+the "N of 5 done" counter as well. Swipe to the
+page dots: "Page 3 of 3". **Send:** anything read twice, skipped, or read as "unlabelled".
+
+11.36 **Do:** with "Remove animations" on (11.8), page through the welcome flow and complete a
+step. **See:** pages change at once and the tick appears at once, nothing half-drawn.
+**Send:** a screenshot of anything stuck half-way.
+
+11.37 **Do:** clear Replyly's data (Settings > Apps > Replyly > Storage > Clear data) with at
+least one step not done, open Replyly, and on the first page tap "Skip", then "Skip for now" at
+the bottom of the checklist. On Settings, tap "Setup steps". **See:** it opens straight on "Set
+up your phone" (page 3), not on "Replies in your style". Press Back once. **See:** you are back
+on Settings, without passing through the privacy or first page. Repeat from the checklist's step
+5 button ("Open settings") > "Setup steps": same result. **Send:** a screen recording of the
+pages Back passes through if it is not straight to Settings.
+
+11.38 **Do:** turn on auto-rotate. In the welcome flow go to "Your privacy" and rotate the phone
+to landscape and back; then do the same on "Set up your phone", once from first run and once
+from Settings > "Setup steps". Then turn on Developer options > "Don't keep activities", and for
+each of those screens press Home, reopen Replyly from recents, and rotate again. **See:** every
+time it stays on the same page, ticks already shown do not replay, and Back from the checklist
+still goes where it did before (Settings when opened from "Setup steps", the privacy page on
+first run). Turn "Don't keep activities" off afterwards. **Send:** which screen jumped page or
+where Back went instead.
 
 ### Floating button (polish #3)
 
@@ -829,3 +890,85 @@ goes back to your spot. **Send:** a screenshot if the button covers the bar or t
 turn it on again (lock screen visible, do not unlock yet). **See:** no Replyly button, not even
 a faded one, on the lock screen. Unlock: the button comes back over the chat as usual. **Send:**
 a photo of the lock screen if the button shows there.
+
+## 12. Provider profiles (issue #18)
+
+Endpoint, key and model now live in a provider profile: where sections 8 and 9 say "settings →
+endpoint / API key / model", use Settings → "Provider profiles" → Edit on the selected profile.
+You need an OpenRouter key; for 12.4–12.6 also an OpenAI and an Anthropic key with a little
+credit. Note the Usage card's "Requests today" and tokens before each test.
+
+12.1 **Do:** with a build from before profiles installed and a key saved, install the new APK over
+it and open Settings. **See:** under "Provider profiles" one selected row "OpenRouter",
+"OpenAI-compatible · <your model>", no red "No API key". Tap the button in a WhatsApp chat: 3
+cards, without entering the key again. **Send:** screenshot of the profiles section; error card
+text if any.
+
+12.2 **Do:** tap "Test connection" on the OpenRouter row. **See:** "OK · N ms" within about 3 s;
+Requests today goes up by exactly 1 and tokens by a few. **Send:** the text and the usage numbers
+before and after.
+
+12.3 **Do:** "Add profile" → preset "OpenAI" → paste an OpenAI key → model: a current reasoning
+model from your OpenAI account (one that needs `max_completion_tokens`) → Save. Tap "Test connection" on the new row. **See:** the editor's hint says
+"Requests go to https://api.openai.com/v1/chat/completions"; the test shows "OK · N ms". **Send:**
+the test text, or the error text.
+
+12.4 **Do:** "Add profile" → preset "Anthropic" (base URL `https://api.anthropic.com/v1`, model
+`claude-haiku-5-5`) → paste an Anthropic key → Save → "Test connection". **See:** the hint says
+"Requests go to https://api.anthropic.com/v1/messages"; the test shows "OK · N ms". **Send:** the
+test text, or the error text.
+
+12.5 **Do:** tap the Anthropic row to select it. In a WhatsApp chat tap the button, then
+Regenerate twice. **See:** 3 cards each time within about 2 s, in your language and style, never
+"The reply was cut off" or "Could not read the model's reply". Open Settings → Feedback log.
+**See:** the newest entries show model `claude-haiku-5-5`. **Send:** latency of each try, any
+error card text, pass/fail on style.
+
+12.6 **Do:** select the OpenAI profile and repeat 12.5. Then turn on "3 parallel calls" and repeat
+once with the Anthropic profile. **See:** as 12.5; parallel mode still adds 1 request per tap.
+**Send:** latency per profile, parallel off vs on.
+
+12.7 **Do:** switch back to the OpenRouter row, tap the button. **See:** cards come back; the
+feedback log shows the OpenRouter model again. **Send:** pass/fail.
+
+12.8 **Do:** edit the Anthropic profile, base URL `https://api.anthropic.com` (no `/v1`), Save,
+Test. **See:** the hint still ends in `/v1/messages`; "OK · N ms". **Send:** pass/fail.
+
+12.9 **Do:** on the Anthropic profile: Replace the key with a wrong one (change one character),
+Save, Test. Then restore the key and set model `claude-does-not-exist`, Save, Test. **See:** "API
+key rejected (401). Check the key in Settings." then "The API returned an error (404). Model or
+endpoint not found. Check Settings." Each test adds 1 request. Restore the model. **Send:** the
+exact texts.
+
+12.10 **Do:** edit any profile → "Add header" → name `X-Replyly-Test`, value `abc123` → Save. Edit
+again. **See:** "X-Replyly-Test: value saved", the value is never shown; "API key: saved ••••••••".
+Force-stop Replyly and reopen: still the same. Test connection still OK (most providers ignore
+unknown headers). Remove the header. **Send:** screenshot of the editor.
+
+12.11 **Do:** while running 12.2–12.9, keep
+`adb logcat -v time | grep -i -E "sk-|x-api-key|abc123|authorization"` open. **See:** no lines.
+**Send:** any line it prints (blur the key).
+
+12.12 **Do:** delete a profile that is not selected; then delete the selected one. **See:** a
+confirmation each time; after deleting the selected one another row becomes selected. With one
+profile left, "Delete profile" is disabled. **Send:** pass/fail.
+
+12.13 **Do:** select a profile without a key (add one and skip the key), then open Setup steps.
+**See:** step 5 (API key and model) is not done. Select a profile with a key and open Setup
+steps again: step 5 is done.
+**Send:** pass/fail.
+
+12.14 **Do:** edit any profile → "Add header" twice, so the last header value field is at the
+bottom of the editor. Tap that bottom value field so the keyboard opens. Then rotate the phone to
+landscape and back. Then press Back (gesture or button). **See:** the editor's top bar sits below
+the status bar, never under it; with the keyboard up the focused field stays visible above the
+keyboard, with no large empty gap between them; after rotating, the typed text is still there.
+Back first closes the keyboard; a second Back closes the editor without saving (edits are
+dropped). **Send:** a screenshot with the keyboard up, one after rotating, and say what each Back
+did.
+
+12.15 **Do:** edit the OpenRouter profile (which has a saved key), tap the "OpenAI" preset, set a
+model, and tap Save without typing a key. **See:** the key field opens with "Enter the key for
+this provider" and nothing is saved. Tap Cancel. Then edit it again, tap "Remove" next to the
+saved key, then Cancel, and edit again. **See:** "API key: saved ••••••••" is still there.
+**Send:** pass/fail.

@@ -3,8 +3,11 @@ package com.paragrudani.replyly.llm
 import com.google.common.truth.Truth.assertThat
 import com.paragrudani.replyly.cost.InMemoryCostGuard
 import com.paragrudani.replyly.parser.ChatMessage
-import com.paragrudani.replyly.settings.InMemoryApiKeyStore
+import com.paragrudani.replyly.settings.ApiFormat
+import com.paragrudani.replyly.settings.InMemoryProfileRepository
+import com.paragrudani.replyly.settings.InMemoryProfileSecretStore
 import com.paragrudani.replyly.settings.InMemorySettingsRepository
+import com.paragrudani.replyly.settings.ProviderProfile
 import com.paragrudani.replyly.settings.ReplylySettings
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -29,11 +32,13 @@ import org.junit.Test
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
 
-class OpenAiReplyGeneratorTest {
+/** [LlmReplyGenerator] with an OpenAI-format profile (OpenRouter, OpenAI, compatible servers). */
+class OpenAiFormatGeneratorTest {
     private val server = MockWebServer()
-    private val keys = InMemoryApiKeyStore()
+    private val secrets = InMemoryProfileSecretStore()
     private val costGuard = InMemoryCostGuard(dailyRequestLimit = 50)
-    private lateinit var settings: InMemorySettingsRepository
+    private val settings = InMemorySettingsRepository()
+    private lateinit var profiles: InMemoryProfileRepository
 
     private val request =
         SuggestionRequest(
@@ -51,22 +56,33 @@ class OpenAiReplyGeneratorTest {
     @Before
     fun setUp() {
         server.start()
-        settings =
-            InMemorySettingsRepository(
-                ReplylySettings(endpoint = server.url("/api/v1/").toString(), model = "test/model"),
+        profiles =
+            InMemoryProfileRepository(
+                listOf(ProviderProfile(PID, "Test", ApiFormat.OpenAi, server.url("/api/v1/").toString(), "test/model")),
+                secrets = secrets,
             )
-        runBlocking { keys.set("sk-or-test-key") }
+        runBlocking { secrets.setApiKey(PID, "sk-or-test-key") }
     }
 
     @After
     fun tearDown() = server.close()
 
+    private fun updateProfile(transform: (ProviderProfile) -> ProviderProfile) =
+        runBlocking {
+            profiles.upsert(
+                transform(
+                    profiles.state.value.profiles
+                        .single(),
+                ),
+            )
+        }
+
     private fun generator(timeouts: LlmTimeouts = LlmTimeouts()) =
-        OpenAiReplyGenerator(
+        LlmReplyGenerator(
             settings,
-            keys,
+            profiles,
             costGuard,
-            OpenAiReplyGenerator.defaultHttpClient(timeouts),
+            LlmReplyGenerator.defaultHttpClient(timeouts),
             requireHttps = false, // MockWebServer speaks cleartext.
         )
 
@@ -128,8 +144,9 @@ class OpenAiReplyGeneratorTest {
         assertThat(sent.method).isEqualTo("POST")
         assertThat(sent.url.encodedPath).isEqualTo("/api/v1/chat/completions")
         assertThat(sent.headers["Authorization"]).isEqualTo("Bearer sk-or-test-key")
-        assertThat(sent.headers["HTTP-Referer"]).isEqualTo(OpenAiReplyGenerator.APP_REFERER)
-        assertThat(sent.headers["X-Title"]).isEqualTo("Replyly")
+        // OpenRouter attribution headers go to openrouter.ai only.
+        assertThat(sent.headers["HTTP-Referer"]).isNull()
+        assertThat(sent.headers["X-Title"]).isNull()
         val body = sent.json()
         assertThat(body["model"]!!.jsonPrimitive.content).isEqualTo("test/model")
         assertThat(body["response_format"]!!.jsonObject["type"]!!.jsonPrimitive.content).isEqualTo("json_object")
@@ -154,7 +171,7 @@ class OpenAiReplyGeneratorTest {
 
     @Test
     fun `no key means no call and no request counted`() {
-        runBlocking { keys.set("") }
+        runBlocking { secrets.setApiKey(PID, "") }
         assertThat(generate()).isEqualTo(SuggestionResult.Failure.NoApiKey)
         assertThat(server.requestCount).isEqualTo(0)
         assertThat(costGuard.status.value.requestsToday).isEqualTo(0)
@@ -164,11 +181,11 @@ class OpenAiReplyGeneratorTest {
     fun `a cleartext endpoint is refused before any request or cost check`() {
         val result =
             runBlocking {
-                OpenAiReplyGenerator(
+                LlmReplyGenerator(
                     settings,
-                    keys,
+                    profiles,
                     costGuard,
-                    OpenAiReplyGenerator.defaultHttpClient(),
+                    LlmReplyGenerator.defaultHttpClient(),
                 ).generate(request)
             }
 
@@ -183,11 +200,11 @@ class OpenAiReplyGeneratorTest {
         runBlocking { guard.tryAcquire() }
         val result =
             runBlocking {
-                OpenAiReplyGenerator(
+                LlmReplyGenerator(
                     settings,
-                    keys,
+                    profiles,
                     guard,
-                    OpenAiReplyGenerator.defaultHttpClient(),
+                    LlmReplyGenerator.defaultHttpClient(),
                     requireHttps = false,
                 ).generate(request)
             }
@@ -263,7 +280,7 @@ class OpenAiReplyGeneratorTest {
 
     @Test
     fun `invalid endpoint is a network failure without a call`() {
-        runBlocking { settings.update { it.copy(endpoint = "not a url") } }
+        updateProfile { it.copy(baseUrl = "not a url") }
         assertThat(generate()).isInstanceOf(SuggestionResult.Failure.Network::class.java)
         assertThat(costGuard.status.value.requestsToday).isEqualTo(0)
     }
@@ -351,7 +368,7 @@ class OpenAiReplyGeneratorTest {
 
     @Test
     fun `key with a trailing newline is trimmed before use`() {
-        runBlocking { keys.set("sk-or-x\n") }
+        runBlocking { secrets.setApiKey(PID, "sk-or-x\n") }
         server.enqueue(ok(completion(threeJson)))
         assertThat(generate()).isInstanceOf(SuggestionResult.Success::class.java)
         assertThat(server.takeRequest().headers["Authorization"]).isEqualTo("Bearer sk-or-x")
@@ -360,7 +377,7 @@ class OpenAiReplyGeneratorTest {
     @Test
     fun `key with invalid characters fails typed, without a call or a counted request`() {
         for (bad in listOf("sk-or-\u200bx", "sk-or x", "sk-or-é")) {
-            runBlocking { keys.set(bad) }
+            runBlocking { secrets.setApiKey(PID, bad) }
             val result = generate()
             assertThat(result).isEqualTo(SuggestionResult.Failure.InvalidApiKey)
             assertThat(SuggestionResult.Failure.InvalidApiKey.MESSAGE).doesNotContain("sk-or")
@@ -429,12 +446,14 @@ class OpenAiReplyGeneratorTest {
     fun `openrouter gets low reasoning effort`() {
         val bodies = mutableListOf<String>()
         val hosts = mutableListOf<String>()
+        val referers = mutableListOf<String?>()
         val fake =
             OkHttpClient
                 .Builder()
                 .addInterceptor { chain ->
                     val sent = chain.request()
                     hosts += sent.url.host
+                    referers += sent.header("HTTP-Referer")
                     bodies += Buffer().also { sent.body!!.writeTo(it) }.readUtf8()
                     Response
                         .Builder()
@@ -445,12 +464,183 @@ class OpenAiReplyGeneratorTest {
                         .body(completion(threeJson).toResponseBody("application/json".toMediaType()))
                         .build()
                 }.build()
-        runBlocking { settings.update { it.copy(endpoint = ReplylySettings.DEFAULT_ENDPOINT) } }
-        val result = runBlocking { OpenAiReplyGenerator(settings, keys, costGuard, fake).generate(request) }
+        updateProfile { it.copy(baseUrl = ReplylySettings.DEFAULT_ENDPOINT) }
+        val result = runBlocking { LlmReplyGenerator(settings, profiles, costGuard, fake).generate(request) }
 
         assertThat(result).isInstanceOf(SuggestionResult.Success::class.java)
         assertThat(hosts).containsExactly("openrouter.ai")
         val reasoning = Json.parseToJsonElement(bodies.single()).jsonObject["reasoning"]!!.jsonObject
         assertThat(reasoning["effort"]!!.jsonPrimitive.content).isEqualTo("low")
+        assertThat(referers).containsExactly(LlmReplyGenerator.APP_REFERER)
+    }
+
+    /** Answers every call with [replies] in turn (the last one repeats) and records the bodies. */
+    private fun fakeHttp(
+        bodies: MutableList<JsonObject>,
+        vararg replies: Pair<Int, String>,
+    ): OkHttpClient {
+        var call = 0
+        return OkHttpClient
+            .Builder()
+            .addInterceptor { chain ->
+                val sent = chain.request()
+                bodies += Json.parseToJsonElement(Buffer().also { sent.body!!.writeTo(it) }.readUtf8()).jsonObject
+                val (code, text) = replies[minOf(call++, replies.lastIndex)]
+                Response
+                    .Builder()
+                    .request(sent)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(code)
+                    .message("x")
+                    .body(text.toResponseBody("application/json".toMediaType()))
+                    .build()
+            }.build()
+    }
+
+    @Test
+    fun `api openai com gets max_completion_tokens and low reasoning effort`() {
+        val bodies = mutableListOf<JsonObject>()
+        updateProfile { it.copy(baseUrl = "https://api.openai.com/v1", maxTokens = 300) }
+        val http = fakeHttp(bodies, 200 to completion(threeJson))
+
+        val result = runBlocking { LlmReplyGenerator(settings, profiles, costGuard, http).generate(request) }
+
+        assertThat(result).isInstanceOf(SuggestionResult.Success::class.java)
+        val body = bodies.single()
+        assertThat(body["max_completion_tokens"]!!.jsonPrimitive.content).isEqualTo("300")
+        assertThat(body.containsKey("max_tokens")).isFalse()
+        assertThat(body["reasoning_effort"]!!.jsonPrimitive.content).isEqualTo("low")
+        assertThat(body.containsKey("reasoning")).isFalse()
+    }
+
+    @Test
+    fun `other openai-format hosts keep max_tokens and get no reasoning_effort`() {
+        server.enqueue(ok(completion(threeJson)))
+        generate()
+        val body = server.takeRequest().json()
+        assertThat(body.containsKey("max_tokens")).isTrue()
+        assertThat(body.containsKey("max_completion_tokens")).isFalse()
+        assertThat(body.containsKey("reasoning_effort")).isFalse()
+    }
+
+    @Test
+    fun `a 400 about max_tokens retries once with max_completion_tokens, and remembers per url and model`() {
+        val unsupported =
+            """{"error":{"message":"Unsupported parameter: 'max_tokens' is not supported with this model. """ +
+                """Use 'max_completion_tokens' instead."}}"""
+        server.enqueue(error(400, unsupported))
+        server.enqueue(ok(completion(threeJson)))
+        server.enqueue(ok(completion(threeJson)))
+        val generator = generator()
+
+        assertThat(runBlocking { generator.generate(request) }).isInstanceOf(SuggestionResult.Success::class.java)
+        assertThat(runBlocking { generator.generate(request) }).isInstanceOf(SuggestionResult.Success::class.java)
+
+        val first = server.takeRequest().json()
+        assertThat(first.containsKey("max_tokens")).isTrue()
+        val retry = server.takeRequest().json()
+        assertThat(retry.containsKey("max_tokens")).isFalse()
+        assertThat(
+            retry["max_completion_tokens"]!!.jsonPrimitive.content,
+        ).isEqualTo(first["max_tokens"]!!.jsonPrimitive.content)
+        assertThat(server.takeRequest().json().containsKey("max_completion_tokens")).isTrue()
+        assertThat(costGuard.status.value.requestsToday).isEqualTo(2)
+
+        // Another model on the same URL starts from the default field again.
+        updateProfile { it.copy(model = "test/other") }
+        server.enqueue(ok(completion(threeJson)))
+        runBlocking { generator.generate(request) }
+        assertThat(server.takeRequest().json().containsKey("max_tokens")).isTrue()
+    }
+
+    @Test
+    fun `a 400 about max_completion_tokens on api openai com retries with max_tokens`() {
+        val bodies = mutableListOf<JsonObject>()
+        updateProfile { it.copy(baseUrl = "https://api.openai.com/v1") }
+        val http =
+            fakeHttp(
+                bodies,
+                400 to """{"error":{"message":"Unrecognized request argument supplied: max_completion_tokens"}}""",
+                200 to completion(threeJson),
+            )
+
+        val result = runBlocking { LlmReplyGenerator(settings, profiles, costGuard, http).generate(request) }
+
+        assertThat(result).isInstanceOf(SuggestionResult.Success::class.java)
+        assertThat(bodies.map { it.containsKey("max_completion_tokens") }).containsExactly(true, false).inOrder()
+        assertThat(bodies[1].containsKey("max_tokens")).isTrue()
+    }
+
+    @Test
+    fun `the token field retry happens only once`() {
+        val bodies = mutableListOf<JsonObject>()
+        val http = fakeHttp(bodies, 400 to """{"error":{"message":"max_tokens and max_completion_tokens: bad"}}""")
+        updateProfile { it.copy(baseUrl = "https://proxy.example.com/v1") }
+
+        val result = runBlocking { LlmReplyGenerator(settings, profiles, costGuard, http).generate(request) }
+
+        assertThat((result as SuggestionResult.Failure.Http).code).isEqualTo(400)
+        assertThat(bodies).hasSize(2)
+        assertThat(costGuard.status.value.requestsToday).isEqualTo(1)
+    }
+
+    @Test
+    fun `profile extras are sent - headers, temperature and max tokens`() {
+        updateProfile {
+            it.copy(
+                temperature = 0.3,
+                maxTokens = 300,
+                extraHeaderNames = listOf("X-Org", "Authorization"),
+            )
+        }
+        runBlocking { secrets.setExtraHeaders(PID, mapOf("X-Org" to "org-secret-1", "Authorization" to "Bearer evil")) }
+        server.enqueue(ok(completion(threeJson)))
+
+        assertThat(generate()).isInstanceOf(SuggestionResult.Success::class.java)
+
+        val sent = server.takeRequest()
+        assertThat(sent.headers["X-Org"]).isEqualTo("org-secret-1")
+        // A reserved header in the extras never replaces the key.
+        assertThat(sent.headers["Authorization"]).isEqualTo("Bearer sk-or-test-key")
+        val body = sent.json()
+        assertThat(body["temperature"]!!.jsonPrimitive.content).isEqualTo("0.3")
+        assertThat(body["max_tokens"]!!.jsonPrimitive.content).isEqualTo("300")
+    }
+
+    @Test
+    fun `no temperature is sent by default`() {
+        server.enqueue(ok(completion(threeJson)))
+        generate()
+        assertThat(server.takeRequest().json().containsKey("temperature")).isFalse()
+    }
+
+    @Test
+    fun `403, 404 and 529 map to their fixed wording`() {
+        assertThat((generateWith(error(403)) as SuggestionResult.Failure.Http).detail).contains("Access denied")
+        assertThat((generateWith(error(404)) as SuggestionResult.Failure.Http).detail).contains("not found")
+        val overloaded = generateWith(error(529)) as SuggestionResult.Failure.Http
+        assertThat(overloaded.code).isEqualTo(529)
+        assertThat(overloaded.detail).contains("overloaded")
+    }
+
+    @Test
+    fun `no active profile means no call`() {
+        val empty = InMemoryProfileRepository(emptyList())
+        val result =
+            runBlocking {
+                LlmReplyGenerator(
+                    settings,
+                    empty,
+                    costGuard,
+                    LlmReplyGenerator.defaultHttpClient(),
+                    requireHttps = false,
+                ).generate(request)
+            }
+        assertThat(result).isEqualTo(SuggestionResult.Failure.NoApiKey)
+        assertThat(costGuard.status.value.requestsToday).isEqualTo(0)
+    }
+
+    companion object {
+        private const val PID = "p1"
     }
 }

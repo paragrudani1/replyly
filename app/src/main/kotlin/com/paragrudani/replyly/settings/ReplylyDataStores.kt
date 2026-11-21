@@ -20,6 +20,10 @@ object ReplylyDataStores {
     const val API_KEY = "api_key"
     const val COST = "cost"
 
+    // Issue #18: provider profiles (no secrets) and their encrypted keys and header values.
+    const val PROFILES = "profiles"
+    const val PROFILE_SECRETS = "profile_secrets"
+
     /** Polish #3: where the user dragged the floating button, per app (not secret). */
     const val BUTTON_POSITIONS = "button_positions"
 

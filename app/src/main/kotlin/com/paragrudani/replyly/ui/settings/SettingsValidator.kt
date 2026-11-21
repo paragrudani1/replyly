@@ -2,7 +2,8 @@ package com.paragrudani.replyly.ui.settings
 
 import com.paragrudani.replyly.settings.ReplylySettings
 
-enum class SettingsField { Endpoint, Model, HistoryMessageCount, AboutMe, RetentionDays, DailyRequestLimit }
+/** Endpoint and model moved to provider profiles; the form no longer edits or checks them. */
+enum class SettingsField { HistoryMessageCount, AboutMe, RetentionDays, DailyRequestLimit }
 
 /** What the settings form edits: numbers stay text until saved, so half-typed input is fine. */
 data class SettingsDraft(
@@ -49,26 +50,12 @@ object SettingsValidator {
     const val MAX_RETENTION_DAYS = 365
     const val MAX_DAILY_LIMIT = 5000
     const val MAX_ABOUT_ME = 1000
-    private const val MAX_MODEL = 120
     private const val MIN_API_KEY = 8
 
-    private val endpointPattern = Regex("""^https://[^\s/?#]+(/\S*)?$""")
-    private val modelPattern = Regex("""^[A-Za-z0-9._:/~@+\-]+$""")
     private val packagePattern = Regex("""^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$""")
 
     fun validate(draft: SettingsDraft): DraftValidation {
         val errors = mutableMapOf<SettingsField, String>()
-
-        val endpoint = draft.endpoint.trim().trimEnd('/')
-        if (!endpointPattern.matches(endpoint)) {
-            errors[SettingsField.Endpoint] =
-                "Enter an https:// URL, e.g. https://openrouter.ai/api/v1"
-        }
-
-        val model = draft.model.trim()
-        if (model.isEmpty() || model.length > MAX_MODEL || !modelPattern.matches(model)) {
-            errors[SettingsField.Model] = "Enter a model id without spaces, e.g. anthropic/claude-haiku-5.5"
-        }
 
         val history = draft.historyMessageCount.wholeIn(1..MAX_HISTORY)
         if (history == null) errors[SettingsField.HistoryMessageCount] = "Whole number from 1 to $MAX_HISTORY"
@@ -93,8 +80,6 @@ object SettingsValidator {
         if (errors.isNotEmpty()) return DraftValidation.Invalid(errors)
         return DraftValidation.Valid { current ->
             current.copy(
-                endpoint = endpoint,
-                model = model,
                 historyMessageCount = history!!,
                 aboutMe = aboutMe,
                 retentionDays = retention!!,

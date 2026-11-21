@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Onboarding page 1: three reply suggestions stacked. One colour; tint it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+  android:width="24dp"
+  android:height="24dp"
+  android:viewportWidth="24"
+  android:viewportHeight="24">
+  <path
+    android:fillColor="#FFFFFFFF"
+    android:pathData="M4.5,3H14.5A2.5,2.5 0,0 1,14.5 8H4.5A2.5,2.5 0,0 1,4.5 3Z" />
+  <path
+    android:fillColor="#FFFFFFFF"
+    android:pathData="M4.5,9.5H19.5A2.5,2.5 0,0 1,19.5 14.5H4.5A2.5,2.5 0,0 1,4.5 9.5Z" />
+  <path
+    android:fillColor="#FFFFFFFF"
+    android:pathData="M4.5,16H11.5A2.5,2.5 0,0 1,11.5 21H4.5A2.5,2.5 0,0 1,4.5 16Z" />
+</vector>
