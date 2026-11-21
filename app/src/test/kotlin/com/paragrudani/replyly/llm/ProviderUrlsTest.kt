@@ -30,6 +30,15 @@ class ProviderUrlsTest {
     }
 
     @Test
+    fun `only the last path segment counts as a version, case-insensitively`() {
+        // Cloudflare AI Gateway: the /v1 near the start belongs to the gateway, not to Anthropic.
+        assertThat(anthropic("https://gateway.ai.cloudflare.com/v1/acct/gw/anthropic"))
+            .isEqualTo("https://gateway.ai.cloudflare.com/v1/acct/gw/anthropic/v1/messages")
+        assertThat(anthropic("https://api.anthropic.com/V1")).isEqualTo("https://api.anthropic.com/V1/messages")
+        assertThat(anthropic("https://h.example/v1beta")).isEqualTo("https://h.example/v1beta/messages")
+    }
+
+    @Test
     fun `a pasted full endpoint is not doubled`() {
         assertThat(
             openAi("https://api.openai.com/v1/chat/completions"),
@@ -54,12 +63,13 @@ class ProviderUrlsTest {
     /**
      * Seeded property test over random base URLs. Invariants: scheme, host, port and query are
      * kept; the path ends with the format's suffix exactly once; no empty path segments; for
-     * Anthropic a version segment is present.
+     * Anthropic the segment right before `messages` is a version (`^v\d+[a-z0-9]*$`, any case), and
+     * the input's path (minus a pasted suffix) is kept as a prefix.
      */
     @Test
     fun `property - joining keeps the origin and ends with the suffix once`() {
         val random = Random(18)
-        val pieces = listOf("api", "v1", "v2", "openai", "anthropic", "chat", "completions", "messages", "proxy", "")
+        val pieces = listOf("api", "v1", "V2", "v1beta", "openai", "anthropic", "chat", "completions", "messages", "proxy", "")
         repeat(2_000) {
             val host =
                 listOf(
@@ -86,8 +96,11 @@ class ProviderUrlsTest {
                 val withoutSuffix = url.pathSegments.dropLast(suffix.size)
                 assertThat(withoutSuffix.takeLast(suffix.size)).isNotEqualTo(suffix)
                 if (format == ApiFormat.Anthropic) {
-                    assertThat(withoutSuffix.any { Regex("v\\d+").matches(it) }).isTrue()
+                    assertThat(withoutSuffix.lastOrNull().orEmpty()).matches("(?i)v\\d+[a-z0-9]*")
                 }
+                var inputPath = input.pathSegments.filter { it.isNotEmpty() }
+                while (inputPath.takeLast(suffix.size) == suffix) inputPath = inputPath.dropLast(suffix.size)
+                assertThat(withoutSuffix.take(inputPath.size)).isEqualTo(inputPath)
             }
         }
     }
