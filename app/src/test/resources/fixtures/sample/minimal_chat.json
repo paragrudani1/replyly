@@ -1,0 +1,46 @@
+{
+  "formatVersion": 1,
+  "packageName": "com.example.chat",
+  "capturedAt": "2026-11-21T10:15:30Z",
+  "screenWidth": 1080,
+  "screenHeight": 2340,
+  "root": {
+    "className": "android.widget.FrameLayout",
+    "bounds": "[0,0][1080,2340]",
+    "children": [
+      {
+        "className": "android.widget.TextView",
+        "viewId": "com.example.chat:id/title",
+        "text": "Asha",
+        "bounds": "[160,90][700,170]"
+      },
+      {
+        "className": "androidx.recyclerview.widget.RecyclerView",
+        "viewId": "com.example.chat:id/list",
+        "bounds": "[0,200][1080,2100]",
+        "scrollable": true,
+        "children": [
+          {
+            "className": "android.widget.TextView",
+            "text": "Kal milte hai?",
+            "bounds": "[40,1700][600,1800]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "haan, 6 baje",
+            "bounds": "[520,1840][1040,1940]"
+          }
+        ]
+      },
+      {
+        "className": "android.widget.EditText",
+        "viewId": "com.example.chat:id/entry",
+        "hint": "Message",
+        "bounds": "[30,2140][900,2290]",
+        "editable": true,
+        "focused": true,
+        "clickable": true
+      }
+    ]
+  }
+}
