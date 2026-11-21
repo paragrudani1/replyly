@@ -61,3 +61,4 @@
 - 2026-11-21: #22 (P3 onboarding) merged as `a60f51d` (merge head `51fc878`, CI 44931154144). Remaining polish: #24 (panel) fixes, #23 (settings) fixes.
 - 2026-11-21: #24 fixes at `3f66af3` (698 tests; tap fuzzer 2,000 seeds clean). Merger running (expects conflicts with #20/#22).
 - 2026-11-21: #23 fixes at `4c7937b` (786 tests). A final merger waits for #24 to merge, then merges main into #23 (panel checklist steps become 11.C), merges on green and confirms the latest-debug APK.
+- 2026-11-21: #24 (P2 panel) merged as `1e65e27` (merge head `6c4ac40`, CI 44934049383, 802 tests). Panel checklist steps are 11.20–11.29 and 11.40–11.43 on main; the #23 merger moves them to 11.C.
