@@ -1,0 +1,196 @@
+{
+  "formatVersion": 1,
+  "packageName": "org.telegram.messenger",
+  "capturedAt": "2026-11-21T10:15:30Z",
+  "screenWidth": 1080,
+  "screenHeight": 2340,
+  "root": {
+    "className": "android.widget.FrameLayout",
+    "bounds": "[0,0][1080,2340]",
+    "children": [
+      {
+        "className": "android.widget.FrameLayout",
+        "bounds": "[0,110][1080,257]",
+        "children": [
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Go back",
+            "bounds": "[0,120][110,247]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.FrameLayout",
+            "bounds": "[110,115][850,252]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.view.View",
+                "bounds": "[130,130][240,240]"
+              },
+              {
+                "className": "android.view.View",
+                "text": "Asha Patel",
+                "bounds": "[260,130][850,190]"
+              },
+              {
+                "className": "android.view.View",
+                "text": "last seen recently",
+                "bounds": "[260,192][850,240]"
+              }
+            ]
+          },
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "More options",
+            "bounds": "[960,130][1070,240]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "androidx.recyclerview.widget.RecyclerView",
+        "bounds": "[0,257][1080,2060]",
+        "scrollable": true,
+        "children": [
+          {
+            "className": "android.view.View",
+            "text": "Today",
+            "bounds": "[440,300][640,370]"
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[40,390][794,530]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.TextView",
+                "text": "Are you free tonight?",
+                "bounds": "[70,410][594,466]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "7:01 PM",
+                "bounds": "[604,470][724,510]"
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[502,546][1040,686]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.TextView",
+                "text": "Yes, after 8",
+                "bounds": "[532,566][840,622]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "7:03 PM",
+                "bounds": "[850,626][970,666]"
+              },
+              {
+                "className": "android.widget.ImageView",
+                "contentDescription": "Read",
+                "bounds": "[975,626][1020,666]"
+              }
+            ]
+          },
+          {
+            "className": "android.view.View",
+            "text": "Unread messages",
+            "bounds": "[0,702][1080,772]"
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[40,792][578,932]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.TextView",
+                "text": "Dinner at 9?",
+                "bounds": "[70,812][378,868]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "7:05 PM",
+                "bounds": "[388,872][508,912]"
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[40,948][386,1088]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.TextView",
+                "text": "9:30",
+                "bounds": "[70,968][186,1024]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "7:05 PM",
+                "bounds": "[196,1028][316,1068]"
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[646,1104][1040,1244]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.TextView",
+                "text": "Done 👍",
+                "bounds": "[676,1124][840,1180]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "7:06 PM",
+                "bounds": "[850,1184][970,1224]"
+              },
+              {
+                "className": "android.widget.ImageView",
+                "contentDescription": "Unread",
+                "bounds": "[975,1184][1020,1224]"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "className": "android.widget.FrameLayout",
+        "bounds": "[0,2060][1080,2214]",
+        "children": [
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Emoji, stickers, and GIFs",
+            "bounds": "[10,2085][120,2190]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.EditText",
+            "hint": "Message",
+            "bounds": "[130,2075][820,2195]",
+            "editable": true,
+            "focused": true,
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Attach media",
+            "bounds": "[830,2085][940,2190]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Record voice message",
+            "bounds": "[950,2085][1070,2190]",
+            "clickable": true
+          }
+        ]
+      }
+    ]
+  }
+}
