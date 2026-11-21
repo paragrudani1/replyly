@@ -18,3 +18,8 @@ One line per decision, with the date and the reason. Newest at the bottom. Longe
 - 2026-11-21 (#4): LLM error details use fixed wording per HTTP status and exception type only, never provider text or exception messages. Reason: those can echo the prompt.
 - 2026-11-21 (#4): Requests send only model, messages, max_tokens (1024; 512 per parallel call) and response_format (retried without it once if rejected, remembered per model); no temperature. Reason: some reasoning models reject temperature.
 - 2026-11-21 (#4): Prompt caps: 12k chars of history (oldest dropped), 600 per message, 25 style examples of 200 chars (last 20 from this chat, 15 from other chats, deduped), About me 1,500, note 1,000, instruction 300. Reason: bound cost and latency.
+- 2026-11-21 (#6): Endpoint must be https. Reason: the API key never travels over plain HTTP.
+- 2026-11-21 (#6): Settings bounds: N 1–200, retention 1–365 days, daily limit 1–5000, About me ≤1000 chars. Reason: catch typos.
+- 2026-11-21 (#6): Blocklist edits save immediately (not on Save). Reason: blocking is a privacy action.
+- 2026-11-21 (#6): An undecryptable API key (e.g. after reinstall) is deleted and reads as "no key". Reason: ask again instead of failing every request.
+- 2026-11-21 (#6): Cost counters never roll backwards. Reason: a clock change must not grant a fresh daily allowance.
