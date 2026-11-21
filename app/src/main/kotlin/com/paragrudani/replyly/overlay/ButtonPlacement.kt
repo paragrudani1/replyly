@@ -9,6 +9,18 @@ data class ButtonPosition(
 )
 
 /**
+ * Where the button window sits ([position]) and how far the user may drag it: its top edge stays
+ * within [minY]..[maxY] (below the status bar, above the keyboard). Always `minY <= maxY`.
+ */
+data class ButtonSlot(
+    val position: ButtonPosition,
+    val minY: Int,
+    val maxY: Int,
+) {
+    fun clampY(y: Int): Int = y.coerceIn(minY, maxY)
+}
+
+/**
  * Where the floating button goes (spec 7: above the keyboard). The keyboard window's bounds
  * include Gboard's toolbar, so anything above them is clear of it.
  *
@@ -17,6 +29,9 @@ data class ButtonPosition(
  *   [maxInputLiftPx]), above that bar instead, so the button never covers the chat app's send
  *   button, which lives on the right of the input bar.
  * - Always fully on screen, [marginPx] from every edge.
+ *
+ * The user can drag the button up and down ([slot]); the spot is remembered per app as the gap
+ * between the button and the keyboard top ("lift"), so it survives a taller or shorter keyboard.
  */
 class ButtonPlacement(
     private val buttonSizePx: Int,
@@ -41,4 +56,34 @@ class ButtonPlacement(
             y = y.coerceIn(marginPx, maxOf(marginPx, screenHeight - marginPx - buttonSizePx)),
         )
     }
+
+    /**
+     * [place], plus the drag range and the user's remembered spot. [savedLiftPx] is the gap the
+     * user left between the button's bottom edge and the keyboard top (see [liftOf]); `null` means
+     * never dragged in this app, so the default spot from [place] is used.
+     *
+     * Invariants (checked by `ButtonSlotPropertyTest`): `minY <= y <= maxY`; when the space allows
+     * it, the button is fully below `topInsetPx + marginPx` and fully above `keyboard.top - marginPx`;
+     * `slot(savedLiftPx = liftOf(y, keyboard.top))` gives back `y` for every `y` in range.
+     */
+    fun slot(
+        keyboard: Bounds,
+        input: Bounds?,
+        screenWidth: Int,
+        screenHeight: Int,
+        topInsetPx: Int = 0,
+        savedLiftPx: Int? = null,
+    ): ButtonSlot {
+        val default = place(keyboard, input, screenWidth, screenHeight)
+        val minY = topInsetPx.coerceAtLeast(0) + marginPx
+        val maxY = maxOf(minY, keyboard.top - marginPx - buttonSizePx)
+        val y = savedLiftPx?.let { keyboard.top - buttonSizePx - it } ?: default.y
+        return ButtonSlot(default.copy(y = y.coerceIn(minY, maxY)), minY, maxY)
+    }
+
+    /** The gap between the bottom of a button at [y] and the keyboard top: what gets remembered. */
+    fun liftOf(
+        y: Int,
+        keyboardTop: Int,
+    ): Int = keyboardTop - buttonSizePx - y
 }
