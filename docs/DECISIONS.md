@@ -29,3 +29,4 @@ One line per decision, with the date and the reason. Newest at the bottom. Longe
 - 2026-11-21 (#4 review): Style examples: at most 10 from this chat, so other chats of the app get 10–15. Reason: spec section 6.
 - 2026-11-21 (#6 review): Save never writes blocklists; a stored cost day more than 1 day in the future snaps back to today keeping counts; a corrupt cost file resets to empty (fresh allowance). Reason: no silent unblocking; a wrong clock must not lock the app for months; corruption is rare and recoverable.
 - 2026-11-21 (#6 review): A final sent message attaches only to an inserted feedback entry younger than 6 hours. Reason: keeps the feedback log's pairs meaningful.
+- 2026-11-21 (#4 fixes): New `Failure.InvalidApiKey` (key with non-visible-ASCII chars), separate from `NoApiKey`. Reason: the error card can tell the user to paste the key again. #5 must handle it.
