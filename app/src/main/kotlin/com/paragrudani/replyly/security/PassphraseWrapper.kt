@@ -1,10 +1,12 @@
 package com.paragrudani.replyly.security
 
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
+import java.security.GeneralSecurityException
 import java.security.InvalidKeyException
 import java.security.KeyStore
-import java.security.UnrecoverableKeyException
+import java.security.KeyStoreException
 import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
@@ -16,7 +18,10 @@ sealed interface UnwrapResult {
         val plain: ByteArray,
     ) : UnwrapResult
 
-    /** The wrapping key is gone or permanently invalidated: the passphrase cannot come back. */
+    /**
+     * The wrapping key is gone (no entry under its alias) or permanently invalidated: the
+     * passphrase cannot come back. Nothing else counts as lost.
+     */
     data object KeyLost : UnwrapResult
 
     /** The bytes are damaged, in an unknown format, or were wrapped with another key. */
@@ -38,7 +43,10 @@ interface PassphraseWrapper {
 
 /** Where the AES key lives. The seam that lets tests use a software key instead of the Keystore. */
 interface SecretKeySource {
-    /** `null` if there is no usable key. */
+    /**
+     * `null` only if there is no key at all. Any other failure (a busy or not yet ready Keystore)
+     * is thrown, so it is never mistaken for a lost key.
+     */
     fun get(): SecretKey?
 
     fun create(): SecretKey
@@ -46,12 +54,22 @@ interface SecretKeySource {
     fun delete()
 }
 
+/** True if [error] or one of its causes is a [KeyPermanentlyInvalidatedException]. */
+fun isKeyPermanentlyInvalidated(error: Throwable): Boolean =
+    generateSequence(error) { it.cause }.take(MAX_CAUSES).any { it is KeyPermanentlyInvalidatedException }
+
+private const val MAX_CAUSES = 8
+
 /**
  * AES-256-GCM wrapping. Format: `[version=1][iv length][iv][ciphertext + 128-bit tag]`, with a
  * fixed associated-data label so the bytes cannot be reused for another purpose.
+ *
+ * Only a missing key or [isPermanentlyInvalidated] gives [UnwrapResult.KeyLost]; every other
+ * Keystore error is thrown (transient), so it never leads to a wipe.
  */
 class AesGcmPassphraseWrapper(
     private val keys: SecretKeySource,
+    private val isPermanentlyInvalidated: (Throwable) -> Boolean = ::isKeyPermanentlyInvalidated,
 ) : PassphraseWrapper {
     override fun wrap(plain: ByteArray): ByteArray {
         val key = keys.get() ?: keys.create()
@@ -70,13 +88,19 @@ class AesGcmPassphraseWrapper(
         val iv = wrapped.copyOfRange(2, 2 + ivLength)
         val sealed = wrapped.copyOfRange(2 + ivLength, wrapped.size)
 
-        val key = keys.get() ?: return UnwrapResult.KeyLost
+        val key =
+            try {
+                keys.get()
+            } catch (e: GeneralSecurityException) {
+                if (isPermanentlyInvalidated(e)) return UnwrapResult.KeyLost
+                throw e
+            } ?: return UnwrapResult.KeyLost
         val cipher = Cipher.getInstance(TRANSFORMATION)
         try {
             cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(TAG_BYTES * 8, iv))
         } catch (e: InvalidKeyException) {
-            // Includes KeyPermanentlyInvalidatedException.
-            return UnwrapResult.KeyLost
+            if (isPermanentlyInvalidated(e)) return UnwrapResult.KeyLost
+            throw e
         }
         cipher.updateAAD(AAD)
         return try {
@@ -108,12 +132,13 @@ class AndroidKeystoreKeySource(
 ) : SecretKeySource {
     private fun keyStore(): KeyStore = KeyStore.getInstance(PROVIDER).apply { load(null) }
 
-    override fun get(): SecretKey? =
-        try {
-            keyStore().getKey(alias, null) as? SecretKey
-        } catch (e: UnrecoverableKeyException) {
-            null
-        }
+    override fun get(): SecretKey? {
+        val store = keyStore()
+        if (!store.containsAlias(alias)) return null
+        // Keystore2 can throw UnrecoverableKeyException for short-lived system errors (e.g. right
+        // after boot, when the accessibility service starts): it propagates as transient.
+        return store.getKey(alias, null) as? SecretKey ?: throw KeyStoreException("Entry is not a secret key")
+    }
 
     override fun create(): SecretKey {
         val spec =

@@ -64,6 +64,10 @@ class FileWrappedPassphraseStore(
  *   (the app wires it to wipe all encrypted DBs) and a fresh passphrase is created. History is
  *   lost, but the app keeps working: no exception, so no crash loop.
  * - A transient Keystore failure throws [DatabaseKeyUnavailableException] and wipes nothing.
+ * - Wipes never happen under an open DB. Every encrypted DB opens with this passphrase, so before
+ *   the first successful call of a process none is open. After it, the passphrase is kept in
+ *   memory (the DB open helpers keep it anyway) and returned without asking the Keystore again:
+ *   a key lost while the process runs is noticed, and the DBs wiped, at the next start.
  */
 class KeystoreDatabaseKeyProvider(
     private val wrapper: PassphraseWrapper,
@@ -71,8 +75,14 @@ class KeystoreDatabaseKeyProvider(
     private val onNewPassphrase: (NewPassphraseReason) -> Unit,
     private val random: SecureRandom = SecureRandom(),
 ) : DatabaseKeyProvider {
+    /** The passphrase once known in this process. Guarded by `this`. */
+    private var known: ByteArray? = null
+
+    /** Callers get a copy they may clear. */
     @Synchronized
-    override fun getOrCreatePassphrase(): ByteArray =
+    override fun getOrCreatePassphrase(): ByteArray = (known ?: load().also { known = it }).copyOf()
+
+    private fun load(): ByteArray =
         try {
             val saved = store.read()
             val reason =

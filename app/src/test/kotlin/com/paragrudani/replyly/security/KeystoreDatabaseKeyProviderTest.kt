@@ -1,14 +1,20 @@
 package com.paragrudani.replyly.security
 
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import com.google.common.truth.Truth.assertThat
 import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import java.io.File
+import java.security.InvalidKeyException
 import java.security.KeyStoreException
+import java.security.UnrecoverableKeyException
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
+import javax.crypto.spec.SecretKeySpec
 
 /** Software AES key standing in for the Android Keystore, which Robolectric does not have. */
 class FakeKeySource : SecretKeySource {
@@ -81,6 +87,24 @@ class AesGcmPassphraseWrapperTest {
         keys.create()
 
         assertThat(wrapper.unwrap(wrapped)).isEqualTo(UnwrapResult.Corrupt)
+    }
+
+    @Test
+    fun `an unrecoverable key is a transient error, not a lost key`() {
+        val wrapped = wrapper.wrap(secret)
+        keys.failWith = UnrecoverableKeyException("keystore busy after boot")
+
+        assertThrows(UnrecoverableKeyException::class.java) { wrapper.unwrap(wrapped) }
+    }
+
+    @Test
+    fun `a key the cipher rejects is a transient error unless it was permanently invalidated`() {
+        val wrapped = wrapper.wrap(secret)
+        keys.key = SecretKeySpec(ByteArray(8), "AES") // Rejected by Cipher.init with InvalidKeyException.
+
+        assertThrows(InvalidKeyException::class.java) { wrapper.unwrap(wrapped) }
+        val invalidated = AesGcmPassphraseWrapper(keys, isPermanentlyInvalidated = { it is InvalidKeyException })
+        assertThat(invalidated.unwrap(wrapped)).isEqualTo(UnwrapResult.KeyLost)
     }
 
     @Test
@@ -180,6 +204,38 @@ class KeystoreDatabaseKeyProviderTest {
     }
 
     @Test
+    fun `an unrecoverable or rejected key throws without wiping anything`() {
+        val old = provider().getOrCreatePassphrase()
+        val savedBytes = storeFile.readBytes()
+        val realKey = keys.key
+
+        keys.failWith = UnrecoverableKeyException("keystore busy")
+        assertThrows(DatabaseKeyUnavailableException::class.java) { provider().getOrCreatePassphrase() }
+        keys.failWith = null
+        keys.key = SecretKeySpec(ByteArray(8), "AES")
+        assertThrows(DatabaseKeyUnavailableException::class.java) { provider().getOrCreatePassphrase() }
+
+        assertThat(storeFile.readBytes()).isEqualTo(savedBytes)
+        assertThat(resets).hasSize(1)
+        keys.key = realKey
+        assertThat(provider().getOrCreatePassphrase()).isEqualTo(old)
+    }
+
+    @Test
+    fun `a key lost while the process runs wipes nothing until the next start`() {
+        // DBs opened with the passphrase stay open: wiping them now would leave Room on deleted files.
+        val running = provider()
+        val old = running.getOrCreatePassphrase()
+        keys.delete()
+
+        assertThat(running.getOrCreatePassphrase()).isEqualTo(old)
+        assertThat(resets).containsExactly(NewPassphraseReason.NO_SAVED_PASSPHRASE)
+
+        assertThat(provider().getOrCreatePassphrase()).isNotEqualTo(old)
+        assertThat(resets.last()).isEqualTo(NewPassphraseReason.KEY_LOST)
+    }
+
+    @Test
     fun `a transient keystore failure throws without wiping anything`() {
         val old = provider().getOrCreatePassphrase()
         val savedBytes = storeFile.readBytes()
@@ -209,5 +265,22 @@ class FileWrappedPassphraseStoreTest {
         assertThat(store.read()).isEqualTo(byteArrayOf(4, 5))
         store.delete()
         assertThat(store.read()).isNull()
+    }
+}
+
+@RunWith(RobolectricTestRunner::class)
+class KeyPermanentlyInvalidatedTest {
+    @Test
+    fun `only a permanently invalidated key counts as lost`() {
+        assertThat(isKeyPermanentlyInvalidated(KeyPermanentlyInvalidatedException())).isTrue()
+        assertThat(
+            isKeyPermanentlyInvalidated(
+                UnrecoverableKeyException().apply {
+                    initCause(KeyPermanentlyInvalidatedException())
+                },
+            ),
+        ).isTrue()
+        assertThat(isKeyPermanentlyInvalidated(InvalidKeyException("other"))).isFalse()
+        assertThat(isKeyPermanentlyInvalidated(UnrecoverableKeyException("busy"))).isFalse()
     }
 }
