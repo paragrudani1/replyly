@@ -72,3 +72,27 @@ have blocked the activity start from the overlay.
    delete link.
 
 Send back: pass/fail per step.
+
+## G. No extra LLM requests while the panel is open
+
+Each request counts against the daily limit, so the panel must make exactly one per open. Before
+each case, note the "requests today" count (Settings) or the number of entries in the feedback log.
+
+1. Open the panel in the WhatsApp chat and wait for the 3 cards. Rotate the phone to landscape and
+   back.
+2. You should see: no new "Writing 3 replies…" progress bar, the same 3 cards, and the count went
+   up by exactly 1 since you opened the panel.
+3. With the panel open and the cards shown, pull down quick settings and toggle Dark mode (then
+   toggle it back).
+4. You should see: the panel recolours but shows the same 3 cards, no progress bar, and the count
+   went up by exactly 1 since you opened the panel.
+5. Ask the other person to send you a message while the panel is open (or send one from a second
+   phone).
+6. You should see: the same cards, no new progress bar, count still up by exactly 1.
+7. Open the panel and tap Close while "Writing 3 replies…" is still showing (turn on a slow
+   connection or tap fast).
+8. You should see: the panel closes, and no new feedback log entry appears for that open (the
+   request may still count against the limit if it already reached the provider).
+
+Send back: the count before and after each case. If any case adds more than 1, say which one;
+#1 then re-creates the panel's `ComposeView` or composition on that event and must keep it instead.
