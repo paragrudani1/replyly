@@ -169,15 +169,19 @@ private fun BottomBar(
         modifier = Modifier.fillMaxWidth().padding(horizontal = Spacing.L, vertical = Spacing.M),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-            if (WelcomeFlow.previous(current) != null) TextButton(onClick = onBack) { Text("Back") }
+        // Side slots take their content's width so "Skip for now" stays on one line at large font
+        // sizes; the dots sit centred in the space between them.
+        Box(contentAlignment = Alignment.CenterStart) {
+            if (WelcomeFlow.previous(current) != null) TextButton(onClick = onBack) { Text("Back", maxLines = 1) }
         }
-        PageIndicator(current = current.ordinal, count = pageCount)
-        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) {
+        Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+            PageIndicator(current = current.ordinal, count = pageCount)
+        }
+        Box(contentAlignment = Alignment.CenterEnd) {
             when {
-                WelcomeFlow.next(current) != null -> Button(onClick = onNext) { Text("Next") }
-                allDone -> Button(onClick = onFinished) { Text("Done") }
-                else -> TextButton(onClick = onFinished) { Text("Skip for now") }
+                WelcomeFlow.next(current) != null -> Button(onClick = onNext) { Text("Next", maxLines = 1) }
+                allDone -> Button(onClick = onFinished) { Text("Done", maxLines = 1) }
+                else -> TextButton(onClick = onFinished) { Text("Skip for now", maxLines = 1) }
             }
         }
     }
@@ -313,10 +317,11 @@ private fun PrivacyPage(modifier: Modifier) {
 /** Spec sections 4, 7 and 8, in the user's words. */
 internal val PRIVACY_PROMISES =
     listOf(
-        "No backend. Your phone talks to the AI provider directly, with your own API key.",
+        "No backend. Your phone talks directly to the AI service you choose, with your own API key.",
         "Chat data stays on your phone, except the prompt sent with each request.",
         "Your API key is stored encrypted on this phone.",
-        "Secure screens, password fields and banking apps are never read.",
+        "Chats you open in supported apps are saved on this phone, encrypted, for 60 days by default. You can delete them.",
+        "Secure screens, password fields and known banking and payment apps are never read.",
         "Replyly never sends a message. It only fills in the text box; you press send.",
     )
 

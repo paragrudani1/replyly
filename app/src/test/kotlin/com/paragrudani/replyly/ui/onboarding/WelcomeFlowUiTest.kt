@@ -1,9 +1,12 @@
 package com.paragrudani.replyly.ui.onboarding
 
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.Snapshot
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
@@ -13,6 +16,9 @@ import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
 import com.google.common.truth.Truth.assertThat
 import com.paragrudani.replyly.onboarding.OnboardingState
 import com.paragrudani.replyly.onboarding.OnboardingStep
@@ -24,6 +30,8 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
+import org.robolectric.annotation.GraphicsMode
 
 @RunWith(RobolectricTestRunner::class)
 class WelcomeFlowUiTest {
@@ -165,6 +173,33 @@ class WelcomeFlowUiTest {
 
         val tick = compose.onNodeWithTag(tickTag(OnboardingStepId.BatteryUnrestricted), useUnmergedTree = true)
         assertThat(tick.progress()).isEqualTo(1f)
+    }
+
+    @Test
+    @Config(qualifiers = "w360dp-h780dp-xxhdpi")
+    @GraphicsMode(GraphicsMode.Mode.NATIVE) // real text measurement
+    fun `skip for now stays on one line at font scale 1_3`() {
+        compose.setContent {
+            val density = LocalDensity.current.density
+            CompositionLocalProvider(LocalDensity provides Density(density, fontScale = 1.3f)) {
+                ReplylyTheme(darkTheme = false, dynamicColor = false) {
+                    OnboardingContent(
+                        state = steps(),
+                        onOpen = {},
+                        onConfirmSleepingApps = {},
+                        onFinished = {},
+                        startPage = WelcomePage.Setup,
+                    )
+                }
+            }
+        }
+
+        val layouts = mutableListOf<TextLayoutResult>()
+        compose
+            .onNodeWithText("Skip for now", useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        assertThat(layouts.single().lineCount).isEqualTo(1)
+        assertThat(layouts.single().isLineEllipsized(0)).isFalse()
     }
 
     /** A state write from the test thread, delivered even while the test clock is paused. */
