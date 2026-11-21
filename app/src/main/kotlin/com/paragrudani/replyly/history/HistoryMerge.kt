@@ -75,7 +75,9 @@ object MessageHash {
  * a diff:
  *
  * 1. **Find the overlap.** Every pair (read index `i`, saved index `j`) of *exactly* equal
- *    messages (same hash) votes for the offset `d = j - i`. The offset with the most votes wins;
+ *    messages votes for the offset `d = j - i`. Exactly equal means the same hash, or someone
+ *    else's message with the same text and the same shown time where one side has no sender (a
+ *    group bubble whose name label is above the screen). A missing time never counts as exact. The offset with the most votes wins;
  *    ties go to the offset whose overlap has the fewest messages that cannot match, then to the
  *    newest offset.
  * 2. **Align.** A longest common subsequence between the read and the saved rows around that
@@ -225,10 +227,10 @@ object HistoryMerge {
     ): Boolean {
         if (pairs.size == 1) {
             val (i, j) = pairs.single()
-            return i == 0 && j == saved.lastIndex && read[i] == saved[j]
+            return i == 0 && j == saved.lastIndex && exactMatch(read[i], saved[j])
         }
         return pairs.size >= 2 &&
-            pairs.any { (i, j) -> read[i] == saved[j] } &&
+            pairs.any { (i, j) -> exactMatch(read[i], saved[j]) } &&
             2 * pairs.size >= overlapLength(offset, read.size, saved.size)
     }
 
@@ -238,11 +240,13 @@ object HistoryMerge {
         read: List<ChatMessage>,
     ): Int? {
         if (saved.isEmpty()) return null
-        // ChatMessage equality is exactly hash equality: the same four fields.
-        val byMessage = saved.indices.groupBy { saved[it] }
+        // Candidates share everything but the sender; exactMatch then checks the sender.
+        val byMessage = saved.indices.groupBy { saved[it].copy(sender = null) }
         val votes = HashMap<Int, Int>()
         read.forEachIndexed { i, message ->
-            byMessage[message]?.forEach { j -> votes.merge(j - i, 1, Int::plus) }
+            byMessage[message.copy(sender = null)]
+                ?.filter { j -> exactMatch(message, saved[j]) }
+                ?.forEach { j -> votes.merge(j - i, 1, Int::plus) }
         }
         if (votes.isEmpty()) return null
         val most = votes.values.max()
@@ -328,6 +332,21 @@ object HistoryMerge {
         j: Int,
         offset: Int,
     ): Long = MATCH_WEIGHT - abs(j - i - offset)
+
+    /**
+     * Steps 1 and 3: the same hash, or someone else's message that differs only by a sender one side
+     * did not show, with the time shown on both sides and equal. Two different known senders never
+     * match, and neither does a missing time.
+     */
+    private fun exactMatch(
+        a: ChatMessage,
+        b: ChatMessage,
+    ): Boolean {
+        if (a == b) return true
+        if (a.isMe || b.isMe || a.text != b.text) return false
+        if (a.timeShown == null || a.timeShown != b.timeShown) return false
+        return a.sender == null || b.sender == null
+    }
 
     /** Equal, allowing for a time or a sender of someone else's message that the screen did not show. */
     private fun sameMessage(

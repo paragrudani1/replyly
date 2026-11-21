@@ -347,6 +347,40 @@ class HistoryMergeTest {
         assertThat(history.messages().map { it.sender }).containsExactly("Ravi", "Meera").inOrder()
     }
 
+    @Test
+    fun `a group read whose top run has no sender labels anchors on the saved run`() {
+        val history =
+            historyOf(
+                them("x", "6:30 pm", sender = "Ravi"),
+                them("a", "6:40 pm", sender = "Ravi"),
+                them("b", "6:41 pm", sender = "Meera"),
+            )
+
+        val plan =
+            history.merge(
+                listOf(
+                    them("a", "6:40 pm", sender = null),
+                    them("b", "6:41 pm", sender = null),
+                    them("c", "6:42 pm", sender = "Meera"),
+                ),
+            )
+
+        assertThat(plan.anchored).isTrue()
+        assertThat(history.texts()).containsExactly("x", "a", "b", "c").inOrder()
+        assertThat(plan.newAtEnd.map { it.text }).containsExactly("c")
+        assertThat(history.messages().map { it.sender }).containsExactly("Ravi", "Ravi", "Meera", "Meera").inOrder()
+    }
+
+    @Test
+    fun `the same text and time from a different known sender does not match`() {
+        val history = historyOf(them("a", "6:40 pm", sender = "Ravi"), them("b", "6:41 pm", sender = "Ravi"))
+
+        val plan = history.merge(listOf(them("a", "6:40 pm", sender = "Meera"), them("b", "6:41 pm", sender = "Meera")))
+
+        assertThat(plan.anchored).isFalse()
+        assertThat(history.messages().map { it.sender }).containsExactly("Ravi", "Ravi", "Meera", "Meera").inOrder()
+    }
+
     // Adversarial scenarios from the #3 review (A, A2, B, C, D).
 
     @Test
