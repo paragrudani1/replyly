@@ -40,6 +40,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -56,7 +57,8 @@ import com.paragrudani.replyly.ui.theme.Spacing
  * The instruction field with Regenerate, and the quick-chips under it.
  *
  * A chip tap toggles that chip and regenerates once; chips and the typed text combine as
- * [combineInstruction] describes. While a call or an insert runs, and after an insert, the chips and
+ * [combineInstruction] describes. The field stops at [instructionRoom] (smaller with chips on) and
+ * shows a counter near that limit, so typed text is never cut silently. While a call or an insert runs, and after an insert, the chips and
  * Regenerate are disabled (the state also ignores those taps). Done on the keyboard only hides it: a model call needs a tap on
  * Regenerate or a chip (AGENTS.md rule 4).
  */
@@ -91,6 +93,7 @@ internal fun InstructionArea(
                 Icon(painterResource(R.drawable.ic_panel_refresh), contentDescription = "Regenerate replies")
             }
         }
+        InstructionCounter(ui)
         // Edge to edge, so chips scroll out under the sheet's edge instead of being cut at the padding.
         Row(
             Modifier
@@ -124,6 +127,31 @@ internal fun InstructionArea(
                 )
             }
         }
+    }
+}
+
+/**
+ * "n/limit" under the field's end, only near the limit ([INSTRUCTION_COUNTER_MARGIN]): the field
+ * stops at [instructionRoom], which the selected chips make smaller. Error colour at the limit.
+ */
+@Composable
+private fun InstructionCounter(ui: PanelUiState) {
+    val room = instructionRoom(ui.chips)
+    val length = ui.instruction.length
+    if (length < room - INSTRUCTION_COUNTER_MARGIN) return
+    val colors = MaterialTheme.colorScheme
+    Row(Modifier.fillMaxWidth().padding(end = MinTouchTarget + Spacing.S + Spacing.L)) {
+        Spacer(Modifier.weight(1f))
+        Text(
+            "$length/$room",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (length >= room) colors.error else colors.onSurfaceVariant,
+            modifier =
+                Modifier.semantics {
+                    contentDescription = "$length of $room characters"
+                    liveRegion = LiveRegionMode.Polite
+                },
+        )
     }
 }
 

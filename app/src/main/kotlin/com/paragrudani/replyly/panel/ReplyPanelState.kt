@@ -52,7 +52,7 @@ sealed interface SuggestionsUi {
 
 data class PanelUiState(
     val suggestions: SuggestionsUi = SuggestionsUi.Loading,
-    /** The instruction field, at most [MAX_INSTRUCTION_CHARS]. */
+    /** The instruction field, at most [instructionRoom] for the selected [chips]. */
     val instruction: String = "",
     /** True while a card's text is being inserted; further taps are ignored. */
     val inserting: Boolean = false,
@@ -144,8 +144,9 @@ class ReplyPanelState(
         generate()
     }
 
+    /** The field stops at [instructionRoom] for the selected chips, never inside an emoji. */
     fun onInstructionChange(text: String) {
-        mutableState.update { it.copy(instruction = text.take(MAX_INSTRUCTION_CHARS)) }
+        mutableState.update { it.copy(instruction = text.takeWholeCharacters(instructionRoom(it.chips))) }
     }
 
     /** Regenerate and Retry: one new call with the current instruction. Ignored while one runs. */
@@ -153,11 +154,18 @@ class ReplyPanelState(
 
     /**
      * A quick-chip tap: toggles [chip] and makes one new call with the combined instruction.
-     * Ignored (nothing changes) while a call runs or after the panel finished.
+     * Ignored (nothing changes) while a call or an insert runs, or after the panel finished.
+     *
+     * A chip takes room from the typed text: if the field holds more than the new
+     * [instructionRoom], the field itself is shortened (visible, with the counter at its limit), so
+     * what is sent is exactly what the field shows.
      */
     fun toggleChip(chip: QuickInstruction) {
         if (!canGenerate()) return
-        mutableState.update { it.copy(chips = if (chip in it.chips) it.chips - chip else it.chips + chip) }
+        mutableState.update {
+            val chips = if (chip in it.chips) it.chips - chip else it.chips + chip
+            it.copy(chips = chips, instruction = it.instruction.takeWholeCharacters(instructionRoom(chips)))
+        }
         generate()
     }
 

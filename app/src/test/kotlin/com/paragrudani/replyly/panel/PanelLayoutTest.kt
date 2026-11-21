@@ -144,6 +144,26 @@ class PanelLayoutTest {
     }
 
     @Test
+    fun `the character counter shows only near the field's limit, which chips make smaller`() {
+        var ui by mutableStateOf(ready.copy(instruction = "a".repeat(100)))
+        compose.setContent {
+            ReplylyTheme(darkTheme = false, dynamicColor = false, reducedMotion = true) {
+                PanelLayout(ui, "Riya", ComposeReplyPanel.DEFAULT_MAX_HEIGHT, actions)
+            }
+        }
+        compose.onNodeWithText("100/$MAX_INSTRUCTION_CHARS").assertDoesNotExist()
+
+        ui = ready.copy(instruction = "a".repeat(MAX_INSTRUCTION_CHARS - INSTRUCTION_COUNTER_MARGIN))
+        compose.onNodeWithText("270/$MAX_INSTRUCTION_CHARS").assertExists()
+
+        val chips = QuickInstruction.entries.toSet()
+        val room = instructionRoom(chips)
+        ui = ready.copy(chips = chips, instruction = "a".repeat(room))
+        compose.onNodeWithText("$room/$room").assertExists()
+        compose.onNodeWithContentDescription("$room of $room characters").assertExists()
+    }
+
+    @Test
     fun `the Copied confirmation is shown only after a copy`() {
         show(ready.copy(copied = true))
         compose.onNodeWithContentDescription("Copied").assertExists()

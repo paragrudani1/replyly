@@ -199,6 +199,58 @@ class ReplyPanelPolishStateTest {
             assertThat(generator.calls).isEqualTo(2)
         }
 
+    // The instruction field's room
+
+    @Test
+    fun `with chips on the field stops at the room they leave, and the call sends it whole`() =
+        runTest {
+            val generator = FakeGenerator()
+            val panel = opened(generator)
+            val all = QuickInstruction.entries
+            all.forEach {
+                panel.toggleChip(it)
+                advanceUntilIdle()
+            }
+            val room = instructionRoom(all.toSet())
+
+            panel.onInstructionChange("z".repeat(MAX_INSTRUCTION_CHARS))
+            assertThat(panel.state.value.instruction).hasLength(room)
+
+            panel.regenerate()
+            advanceUntilIdle()
+            assertThat(generator.requests.last().instruction).endsWith(" " + "z".repeat(room))
+        }
+
+    @Test
+    fun `turning a chip on shortens a too-long field itself, so nothing is cut out of sight`() =
+        runTest {
+            val generator = FakeGenerator()
+            val panel = opened(generator)
+            panel.onInstructionChange("w".repeat(MAX_INSTRUCTION_CHARS))
+            assertThat(panel.state.value.instruction).hasLength(MAX_INSTRUCTION_CHARS)
+
+            panel.toggleChip(QuickInstruction.MoreFormal)
+            advanceUntilIdle()
+
+            val room = instructionRoom(setOf(QuickInstruction.MoreFormal))
+            assertThat(panel.state.value.instruction).isEqualTo("w".repeat(room))
+            assertThat(generator.requests.last().instruction)
+                .isEqualTo("Make them more formal. " + "w".repeat(room))
+        }
+
+    @Test
+    fun `the field never keeps half an emoji at its limit`() =
+        runTest {
+            val panel = opened()
+            panel.toggleChip(QuickInstruction.AddEmoji)
+            advanceUntilIdle()
+            val room = instructionRoom(setOf(QuickInstruction.AddEmoji))
+
+            panel.onInstructionChange("k".repeat(room - 1) + "👍🏽")
+
+            assertThat(panel.state.value.instruction).isEqualTo("k".repeat(room - 1))
+        }
+
     // Long-press copy
 
     @Test
