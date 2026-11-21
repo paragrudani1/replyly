@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.RememberObserver
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -79,8 +80,9 @@ import kotlin.time.Duration.Companion.milliseconds
  *
  * The panel uses no Dialog, Popup, `LocalActivity`, Activity ViewModelStore or activity result
  * launcher: those need an Activity window token. Its state lives in [ReplyPanelState], created
- * with `remember` and running its coroutines in the composition's scope, so closing the panel
- * cancels any call still in flight.
+ * with an unkeyed `remember` (the [PanelRequest] passed when the panel opens is the one used; later
+ * requests are ignored until the next open). The state's own job is cancelled when the
+ * composition forgets it, so closing the panel cancels any call still in flight.
  */
 class ComposeReplyPanel(
     private val deps: ReplyPanelDependencies,
@@ -94,7 +96,12 @@ class ComposeReplyPanel(
     ) {
         val currentOnClose by rememberUpdatedState(onClose)
         val scope = rememberCoroutineScope()
-        val state = remember(request) { ReplyPanelState(request, deps, scope, onClose = { currentOnClose() }) }
+        // Unkeyed on purpose: one state (and one LLM call) per panel open. A new or equal
+        // [request] while the panel stays open never starts another call.
+        val state =
+            remember {
+                DisposingPanelState(ReplyPanelState(request, deps, scope, onClose = { currentOnClose() }))
+            }.state
         LaunchedEffect(state) { state.start() }
         val ui by state.state.collectAsState()
         val context = LocalContext.current
@@ -129,6 +136,17 @@ class ComposeReplyPanel(
         /** Leaves room for the chat's input field between the panel and Gboard on the S23. */
         val DEFAULT_MAX_HEIGHT: Dp = 340.dp
     }
+}
+
+/** Cancels the state's coroutines when the composition forgets it (panel closed). */
+private class DisposingPanelState(
+    val state: ReplyPanelState,
+) : RememberObserver {
+    override fun onRemembered() = Unit
+
+    override fun onForgotten() = state.dispose()
+
+    override fun onAbandoned() = state.dispose()
 }
 
 /** Opens Replyly's own settings from the overlay (no Activity here, so a new task). */

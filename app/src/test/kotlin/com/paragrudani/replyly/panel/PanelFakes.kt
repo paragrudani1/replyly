@@ -83,6 +83,7 @@ class FakeGenerator(
 ) : ReplyGenerator {
     private val queue = ArrayDeque(results.toList().ifEmpty { listOf(success()) })
     val requests = mutableListOf<SuggestionRequest>()
+    val calls: Int get() = requests.size
 
     override suspend fun generate(request: SuggestionRequest): SuggestionResult {
         requests += request
@@ -151,8 +152,12 @@ class FakeNoteStore(
 ) : ContactNoteStore {
     val notes = MutableStateFlow(initial)
     var failSet = false
+    var failGet = false
 
-    override suspend fun get(chatKey: ChatKey): String? = notes.value[chatKey]
+    override suspend fun get(chatKey: ChatKey): String? {
+        if (failGet) throw IllegalStateException("db closed")
+        return notes.value[chatKey]
+    }
 
     override suspend fun set(
         chatKey: ChatKey,

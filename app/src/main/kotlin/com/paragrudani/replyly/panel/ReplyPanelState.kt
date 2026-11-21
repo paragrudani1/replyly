@@ -13,11 +13,13 @@ import com.paragrudani.replyly.llm.SuggestionResult
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.plus
 import kotlin.time.Duration
 
 /** What the panel needs from [com.paragrudani.replyly.di.AppGraph]. */
@@ -76,8 +78,10 @@ const val MAX_NOTE_CHARS = 1_000
 const val MAX_INSTRUCTION_CHARS = 300
 
 /**
- * Plain state holder for one open panel. Created with `remember` in [ComposeReplyPanel], so it
- * lives exactly as long as the composition; [scope] is the composition's scope.
+ * Plain state holder for one open panel. Created with an unkeyed `remember` in [ComposeReplyPanel],
+ * so there is one state per panel open. Its coroutines run in their own [Job] on [scope]'s
+ * dispatcher, cancelled when [scope] ends (the composition's scope); [dispose] cancels that job when the composition forgets the state, so
+ * closing the panel cancels any call still in flight.
  */
 class ReplyPanelState(
     private val request: PanelRequest,
@@ -88,6 +92,19 @@ class ReplyPanelState(
     private val chatKey = request.chat.chatKey
     private val mutableState = MutableStateFlow(PanelUiState(showChatActions = request.chat.historyApplies))
     val state: StateFlow<PanelUiState> = mutableState.asStateFlow()
+
+    // Created on first use, never during composition (the composition scope's context is not
+    // available there).
+    private var disposed = false
+    private val ownScope: CoroutineScope by lazy {
+        // Not a structural child: nothing waits for this job to complete, but it is cancelled
+        // together with [scope] (the composition going away) or by [dispose], whichever is first.
+        val job = Job()
+        if (disposed) job.cancel()
+        val parentHandle = scope.coroutineContext[Job]?.invokeOnCompletion { job.cancel() }
+        job.invokeOnCompletion { parentHandle?.dispose() }
+        scope + job
+    }
 
     private var started = false
     private var generation: Job? = null
@@ -115,7 +132,7 @@ class ReplyPanelState(
                 .ifEmpty { null }
         mutableState.update { it.copy(suggestions = SuggestionsUi.Loading, insertError = null) }
         generation =
-            scope.launch {
+            ownScope.launch {
                 val suggestionRequest =
                     assembleOrNull(instruction) ?: run {
                         mutableState.update { it.copy(suggestions = SuggestionsUi.Error(HISTORY_READ_ERROR)) }
@@ -143,6 +160,9 @@ class ReplyPanelState(
     /**
      * Tapping card [index]: puts its text into the chat's input field, marks the feedback entry
      * and closes the panel. On failure the panel stays open and shows why. Never sends.
+     *
+     * Closing the panel while `markInserted` still runs cancels it: the text is already in the
+     * chat's field, only that feedback mark is lost.
      */
     fun insert(index: Int) {
         val current = mutableState.value
@@ -150,7 +170,7 @@ class ReplyPanelState(
         val suggestion = ready.suggestions.getOrNull(index) ?: return
         if (current.inserting) return
         mutableState.update { it.copy(inserting = true, insertError = null) }
-        scope.launch {
+        ownScope.launch {
             when (val result = ignoringErrors { deps.inserter.insert(suggestion.text) }) {
                 InsertResult.Inserted -> {
                     ready.feedbackEntryId?.let { id -> ignoringErrors { deps.feedbackLog.markInserted(id, index) } }
@@ -162,14 +182,9 @@ class ReplyPanelState(
                     mutableState.update { it.copy(inserting = false, insertError = NO_FOCUSED_FIELD) }
                 }
 
-                is InsertResult.Failed -> {
-                    mutableState.update {
-                        it.copy(inserting = false, insertError = "Could not insert the reply: ${result.reason}")
-                    }
-                }
-
-                null -> {
-                    mutableState.update { it.copy(inserting = false, insertError = "Could not insert the reply.") }
+                // Fixed text: the inserter's reason is never shown (it could carry node text).
+                is InsertResult.Failed, null -> {
+                    mutableState.update { it.copy(inserting = false, insertError = INSERT_FAILED) }
                 }
             }
         }
@@ -180,7 +195,7 @@ class ReplyPanelState(
         if (!request.chat.historyApplies || mutableState.value.note != null || noteLoading) return
         noteLoading = true
         mutableState.update { it.copy(notice = null, confirmingDelete = false) }
-        scope.launch {
+        ownScope.launch {
             // A failed load must not open an empty editor: saving it would delete the real note.
             val saved = ignoringErrors { Result.success(deps.contactNotes.get(chatKey)) }
             noteLoading = false
@@ -205,7 +220,7 @@ class ReplyPanelState(
         val editor = mutableState.value.note ?: return
         if (editor.saving) return
         mutableState.update { it.copy(note = editor.copy(saving = true, error = null)) }
-        scope.launch {
+        ownScope.launch {
             val saved = ignoringErrors { deps.contactNotes.set(chatKey, editor.text.trim()) } != null
             mutableState.update {
                 if (saved) {
@@ -235,12 +250,18 @@ class ReplyPanelState(
     fun confirmDelete() {
         if (!mutableState.value.confirmingDelete) return
         mutableState.update { it.copy(confirmingDelete = false) }
-        scope.launch {
+        ownScope.launch {
             val deleted = ignoringErrors { deps.history.deleteChat(chatKey) } != null
             val notice =
                 if (deleted) DELETED_NOTICE else "Could not delete this chat's history. Try again."
             mutableState.update { it.copy(notice = notice) }
         }
+    }
+
+    /** Cancels everything this state started. Called when the composition forgets the state. */
+    fun dispose() {
+        disposed = true
+        ownScope.cancel()
     }
 
     /** The feedback log is for judging quality later; its failure must not block the user. */
@@ -264,5 +285,7 @@ private suspend fun <T> ignoringErrors(block: suspend () -> T): T? =
     }
 
 internal const val NO_FOCUSED_FIELD = "Could not find the chat's message box. Tap it, then pick a reply again."
+
+internal const val INSERT_FAILED = "Could not insert the reply. Tap the message box, then try again."
 
 internal const val DELETED_NOTICE = "Saved messages for this chat were deleted."

@@ -8,7 +8,10 @@ import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.llm.SuggestionRequest
 import com.paragrudani.replyly.llm.SuggestionResult
 import com.paragrudani.replyly.parser.ParsedChat
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
@@ -192,7 +195,7 @@ class ReplyPanelStateTest {
         }
 
     @Test
-    fun `a failed insert shows the inserter's reason and keeps the panel open`() =
+    fun `a failed insert shows fixed text, never the inserter's reason, and keeps the panel open`() =
         runTest {
             inserter.result = InsertResult.Failed("field is not editable")
             val panel = panel()
@@ -202,7 +205,8 @@ class ReplyPanelStateTest {
             panel.insert(0)
             advanceUntilIdle()
 
-            assertThat(panel.state.value.insertError).isEqualTo("Could not insert the reply: field is not editable")
+            assertThat(panel.state.value.insertError)
+                .isEqualTo("Could not insert the reply. Tap the message box, then try again.")
             assertThat(closed).isEqualTo(0)
 
             inserter.result = InsertResult.Inserted
@@ -378,7 +382,8 @@ class ReplyPanelStateTest {
             panel.insert(0)
             advanceUntilIdle()
 
-            assertThat(panel.state.value.insertError).isEqualTo("Could not insert the reply.")
+            assertThat(panel.state.value.insertError)
+                .isEqualTo("Could not insert the reply. Tap the message box, then try again.")
             assertThat(closed).isEqualTo(0)
         }
 
@@ -457,12 +462,43 @@ class ReplyPanelStateTest {
                             "The provider had an error. Try again.",
                             ErrorAction.Retry,
                         ),
+                    SuggestionResult.Failure.Http(400, "Request rejected. Check the model id in Settings.") to
+                        PanelError(
+                            "The API returned an error (400)",
+                            "Request rejected. Check the model id in Settings.",
+                            ErrorAction.OpenSettings,
+                        ),
+                    SuggestionResult.Failure.Http(403, "Access denied for this key or model.") to
+                        PanelError(
+                            "The API returned an error (403)",
+                            "Access denied for this key or model.",
+                            ErrorAction.OpenSettings,
+                        ),
+                    SuggestionResult.Failure.Http(404, "Model or endpoint not found. Check Settings.") to
+                        PanelError(
+                            "The API returned an error (404)",
+                            "Model or endpoint not found. Check Settings.",
+                            ErrorAction.OpenSettings,
+                        ),
+                    SuggestionResult.Failure.Http(413, "Prompt too large for this model.") to
+                        PanelError(
+                            "The API returned an error (413)",
+                            "Prompt too large for this model.",
+                            ErrorAction.OpenSettings,
+                        ),
                     SuggestionResult.Failure.Http(418, null) to
                         PanelError("The API returned an error (418)", null, ErrorAction.Retry),
-                    SuggestionResult.Failure.BadOutput("reply cut off at the token limit") to
+                    SuggestionResult.Failure.BadOutput("reply cut off at the token limit", cutOff = true) to
                         PanelError(
                             "The reply was cut off",
                             "The model ran out of room before finishing. Try again.",
+                            ErrorAction.Retry,
+                        ),
+                    // Only the flag decides; the wording of the reason does not.
+                    SuggestionResult.Failure.BadOutput("cut off, but not at the token limit") to
+                        PanelError(
+                            "Could not read the model's reply",
+                            "It was not in the expected format. Try again.",
                             ErrorAction.Retry,
                         ),
                     SuggestionResult.Failure.BadOutput("reply was not JSON") to
@@ -501,5 +537,62 @@ class ReplyPanelStateTest {
                         ),
                     ),
                 )
+        }
+
+    @Test
+    fun `closing during a call cancels it, stays loading, records nothing, does not close`() =
+        runTest {
+            val generator = FakeGenerator()
+            val panel = panel(generator)
+
+            panel.start()
+            runCurrent()
+            assertThat(generator.calls).isEqualTo(1)
+
+            panel.dispose()
+            advanceUntilIdle()
+
+            assertThat(panel.state.value.suggestions).isEqualTo(SuggestionsUi.Loading)
+            assertThat(feedback.recorded).isEmpty()
+            assertThat(closed).isEqualTo(0)
+        }
+
+    @Test
+    fun `cancelling the parent scope during a call also stops it`() =
+        runTest {
+            val parent = CoroutineScope(coroutineContext + Job(coroutineContext[Job]))
+            val generator = FakeGenerator()
+            val panel =
+                ReplyPanelState(
+                    request = PanelRequest(whatsAppChat),
+                    deps = ReplyPanelDependencies(assembler, generator, inserter, feedback, notes, history),
+                    scope = parent,
+                    onClose = { closed++ },
+                )
+
+            panel.start()
+            runCurrent()
+            parent.cancel()
+            advanceUntilIdle()
+
+            assertThat(generator.calls).isEqualTo(1)
+            assertThat(panel.state.value.suggestions).isEqualTo(SuggestionsUi.Loading)
+            assertThat(feedback.recorded).isEmpty()
+            assertThat(closed).isEqualTo(0)
+        }
+
+    @Test
+    fun `a note that fails to load shows a notice and opens no editor`() =
+        runTest {
+            notes.failGet = true
+            val panel = panel()
+            panel.start()
+            advanceUntilIdle()
+
+            panel.openNote()
+            advanceUntilIdle()
+
+            assertThat(panel.state.value.note).isNull()
+            assertThat(panel.state.value.notice).isEqualTo("Could not open the note. Try again.")
         }
 }
