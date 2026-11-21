@@ -1,0 +1,95 @@
+name: Replyly CI
+# versionCode = GITHUB_RUN_NUMBER of this workflow. Renaming or recreating this file resets the
+# counter, and a lower versionCode cannot install over the app on the phone.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: replyly-ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Replyly checks (ktlint, lint, unit tests, debug APK)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Install Android SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37.2" "build-tools;37.0.0"
+
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-read-only: ${{ github.ref != 'refs/heads/main' }}
+
+      - name: Run all gates
+        run: scripts/check.sh
+
+      - name: Upload reports
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: replyly-reports
+          path: app/build/reports/
+          retention-days: 7
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: replyly-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
+
+  release-debug:
+    name: Replyly latest-debug release
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    concurrency:
+      group: replyly-release-debug
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TAG: latest-debug
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: replyly-debug-apk
+          path: apk
+
+      - name: Move tag and replace APK
+        run: |
+          set -euo pipefail
+          mv apk/app-debug.apk replyly-debug.apk
+          notes="Debug build of ${GITHUB_SHA} (run ${GITHUB_RUN_NUMBER}, versionCode ${GITHUB_RUN_NUMBER}).
+          ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
+
+          git tag -f "$TAG" "$GITHUB_SHA"
+          git push -f origin "refs/tags/$TAG"
+
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            gh release edit "$TAG" --title "Replyly debug (latest)" --notes "$notes"
+            gh release upload "$TAG" replyly-debug.apk --clobber
+          else
+            gh release create "$TAG" replyly-debug.apk --title "Replyly debug (latest)" --notes "$notes" --verify-tag
+          fi
