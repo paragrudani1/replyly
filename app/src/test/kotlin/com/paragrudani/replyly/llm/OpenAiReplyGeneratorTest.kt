@@ -71,12 +71,22 @@ class OpenAiReplyGeneratorTest {
             """"usage":{"prompt_tokens":$promptTokens,"completion_tokens":$completionTokens,""" +
             """"total_tokens":${promptTokens + completionTokens}}}"""
 
-    private fun ok(body: String) = MockResponse.Builder().code(200).addHeader("Content-Type", "application/json").body(body).build()
+    private fun ok(body: String) =
+        MockResponse
+            .Builder()
+            .code(200)
+            .addHeader("Content-Type", "application/json")
+            .body(body)
+            .build()
 
     private fun error(
         code: Int,
         body: String = """{"error":{"message":"Ravi said Kal cricket? sk-or-test-key"}}""",
-    ) = MockResponse.Builder().code(code).body(body).build()
+    ) = MockResponse
+        .Builder()
+        .code(code)
+        .body(body)
+        .build()
 
     private val threeJson =
         """{"suggestions":[{"intent":"agree","text":"Haan pakka"},{"intent":"decline","text":"Kal nahi yaar"},""" +
@@ -114,7 +124,9 @@ class OpenAiReplyGeneratorTest {
         assertThat(messages.map { it["role"]!!.jsonPrimitive.content }).containsExactly("system", "user").inOrder()
         assertThat(messages[0]["content"]!!.jsonPrimitive.content).isEqualTo(PromptBuilder.SYSTEM_PROMPT)
         assertThat(messages[1]["content"]!!.jsonPrimitive.content).contains("them: Kal cricket?")
-        assertThat(result.promptSent).isEqualTo(PromptBuilder.SYSTEM_PROMPT + "\n\n" + messages[1]["content"]!!.jsonPrimitive.content)
+        assertThat(
+            result.promptSent,
+        ).isEqualTo(PromptBuilder.SYSTEM_PROMPT + "\n\n" + messages[1]["content"]!!.jsonPrimitive.content)
     }
 
     @Test
@@ -249,7 +261,12 @@ class OpenAiReplyGeneratorTest {
         server.dispatcher =
             object : Dispatcher() {
                 override fun dispatch(request: RecordedRequest): MockResponse {
-                    val user = request.json()["messages"]!!.jsonArray[1].jsonObject["content"]!!.jsonPrimitive.content
+                    val user =
+                        request
+                            .json()["messages"]!!
+                            .jsonArray[1]
+                            .jsonObject["content"]!!
+                            .jsonPrimitive.content
                     val intent = FixedIntent.entries.first { user.contains("intent \"${it.id}\"") }
                     // The model may echo any intent label; the fixed intent wins.
                     val reply = """{"suggestions":[{"intent":"whatever","text":"reply ${intent.id}"}]}"""
@@ -278,7 +295,12 @@ class OpenAiReplyGeneratorTest {
         server.dispatcher =
             object : Dispatcher() {
                 override fun dispatch(request: RecordedRequest): MockResponse {
-                    val user = request.json()["messages"]!!.jsonArray[1].jsonObject["content"]!!.jsonPrimitive.content
+                    val user =
+                        request
+                            .json()["messages"]!!
+                            .jsonArray[1]
+                            .jsonObject["content"]!!
+                            .jsonPrimitive.content
                     if (user.contains("intent \"ask\"")) return error(503)
                     return ok(completion("""{"suggestions":[{"intent":"x","text":"fine"}]}""", 100, 10))
                 }

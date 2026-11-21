@@ -118,13 +118,20 @@ internal class ChatCompletionsClient(
     /** `content` is a string, or (some providers) a list of `{type:"text", text}` parts. */
     private fun contentText(content: Any?): String? =
         when (content) {
-            is JsonPrimitive -> content.takeIf { it.isString }?.content
-            is JsonArray ->
+            is JsonPrimitive -> {
+                content.takeIf { it.isString }?.content
+            }
+
+            is JsonArray -> {
                 content
                     .mapNotNull { ((it as? JsonObject)?.get("text") as? JsonPrimitive)?.content }
                     .joinToString("")
                     .takeIf { it.isNotEmpty() }
-            else -> null
+            }
+
+            else -> {
+                null
+            }
         }
 
     private fun JsonObject?.int(key: String): Int = (this?.get(key) as? JsonPrimitive)?.intOrNull ?: 0

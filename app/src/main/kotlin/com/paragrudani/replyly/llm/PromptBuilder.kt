@@ -101,12 +101,15 @@ object PromptBuilder {
 
     private fun taskLine(task: PromptTask): String =
         when (task) {
-            PromptTask.ThreeSuggestions ->
+            PromptTask.ThreeSuggestions -> {
                 "Task: write 3 suggestions for my next message, each with a different intent. " +
                     "Reply with only the JSON."
-            is PromptTask.Single ->
+            }
+
+            is PromptTask.Single -> {
                 "Task: write exactly 1 suggestion for my next message, with the intent \"${task.intent.id}\" " +
                     "(${task.intent.description}). Reply with only the JSON, using \"${task.intent.id}\" as its intent."
+            }
         }
 
     private class History(
@@ -138,14 +141,32 @@ object PromptBuilder {
         isGroup: Boolean,
         limits: PromptLimits,
     ): String {
-        val time = message.timeShown?.takeIf { it.isNotBlank() }?.let { "[${it.trim()}] " }.orEmpty()
+        val time =
+            message.timeShown
+                ?.takeIf { it.isNotBlank() }
+                ?.let { "[${it.trim()}] " }
+                .orEmpty()
         val who =
             when {
-                message.isMe -> "me"
-                isGroup && !message.sender.isNullOrBlank() -> "them (${message.sender.trim().cap(limits.maxTitleChars)})"
-                else -> "them"
+                message.isMe -> {
+                    "me"
+                }
+
+                isGroup && !message.sender.isNullOrBlank() -> {
+                    val sender = message.sender.trim().cap(limits.maxTitleChars)
+                    "them ($sender)"
+                }
+
+                else -> {
+                    "them"
+                }
             }
-        val text = message.text.trim().cap(limits.maxMessageChars).replace("\r", "").replace("\n", "\n  ")
+        val text =
+            message.text
+                .trim()
+                .cap(limits.maxMessageChars)
+                .replace("\r", "")
+                .replace("\n", "\n  ")
         return "$time$who: $text"
     }
 

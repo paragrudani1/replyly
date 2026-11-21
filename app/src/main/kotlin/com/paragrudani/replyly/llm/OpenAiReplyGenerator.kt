@@ -99,15 +99,22 @@ class OpenAiReplyGenerator(
     ): Parsed {
         val content =
             when (outcome) {
-                is CallOutcome.Failed -> return Parsed.Fail(outcome.failure)
-                is CallOutcome.Ok ->
+                is CallOutcome.Failed -> {
+                    return Parsed.Fail(outcome.failure)
+                }
+
+                is CallOutcome.Ok -> {
                     outcome.content?.takeIf { it.isNotBlank() }
                         ?: return Parsed.Fail(SuggestionResult.Failure.BadOutput("empty reply"))
+                }
             }
         val expected = if (task is PromptTask.Single) 1 else 3
         return when (val parsed = SuggestionOutputParser.parse(content, expected)) {
-            is ParsedSuggestions.Invalid -> Parsed.Fail(SuggestionResult.Failure.BadOutput(parsed.reason))
-            is ParsedSuggestions.Ok ->
+            is ParsedSuggestions.Invalid -> {
+                Parsed.Fail(SuggestionResult.Failure.BadOutput(parsed.reason))
+            }
+
+            is ParsedSuggestions.Ok -> {
                 Parsed.Ok(
                     if (task is PromptTask.Single) {
                         parsed.suggestions.map { it.copy(intent = task.intent.id) }
@@ -115,6 +122,7 @@ class OpenAiReplyGenerator(
                         parsed.suggestions
                     },
                 )
+            }
         }
     }
 
