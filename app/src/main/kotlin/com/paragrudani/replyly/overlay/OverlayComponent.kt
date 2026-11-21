@@ -7,6 +7,7 @@ import android.content.IntentFilter
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityEvent
 import com.paragrudani.replyly.di.AppGraph
@@ -36,6 +37,7 @@ class OverlayComponent(
     private val parsers: ChatParserRegistry,
     private val panel: () -> ReplyPanel,
     private val rememberTarget: (InputFieldRef) -> Unit,
+    private val positions: ButtonPositionStore? = null,
 ) : AccessibilityComponent {
     private var scope: CoroutineScope? = null
     private var controller: OverlayController? = null
@@ -56,7 +58,7 @@ class OverlayComponent(
             }
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + errors)
         val placement =
-            ButtonPlacement(buttonSizePx = dp(BUTTON_DP), marginPx = dp(MARGIN_DP), maxInputLiftPx = dp(MAX_LIFT_DP))
+            ButtonPlacement(buttonSizePx = dp(TOUCH_DP), marginPx = dp(MARGIN_DP), maxInputLiftPx = dp(MAX_LIFT_DP))
         val windowManager = service.getSystemService(WindowManager::class.java)
         val tapFlow = TapFlow(capture = { id -> host.captureWindowChecked(id) }, policy = policy, parsers = parsers)
         lateinit var controller: OverlayController
@@ -64,8 +66,9 @@ class OverlayComponent(
             OverlayWindows(
                 context = service,
                 panel = panel(),
-                buttonSizePx = dp(BUTTON_DP),
+                buttonSizePx = dp(TOUCH_DP),
                 onButtonTap = { controller.onButtonTapped() },
+                onButtonMoved = { y -> controller.onButtonMoved(y) },
                 // Posted: the panel's close button and Back run inside its own input dispatch,
                 // which must finish before the window is removed.
                 onPanelDismiss = { mainHandler.post { controller.onPanelClosed() } },
@@ -78,8 +81,24 @@ class OverlayComponent(
                         policy.evaluate(ScreenContext(pkg)) == SensitivityVerdict.Allowed
                     },
                 place = { shown ->
-                    val screen = windowManager.currentWindowMetrics.bounds
-                    placement.place(shown.keyboard, shown.input.bounds, screen.width(), screen.height())
+                    val metrics = windowManager.currentWindowMetrics
+                    val screen = metrics.bounds
+                    val topInset =
+                        metrics.windowInsets
+                            .getInsets(WindowInsets.Type.statusBars() or WindowInsets.Type.displayCutout())
+                            .top
+                    val savedLift = positions?.liftDp(shown.input.packageName)?.let { (it * density).roundToInt() }
+                    placement.slot(
+                        shown.keyboard,
+                        shown.input.bounds,
+                        screen.width(),
+                        screen.height(),
+                        topInset,
+                        savedLift,
+                    )
+                },
+                rememberPosition = { shown, y ->
+                    positions?.save(shown.input.packageName, placement.liftOf(y, shown.keyboard.top) / density)
                 },
                 ui = ui,
                 // Reading and parsing the tree is many IPC calls: off the main thread.
@@ -139,8 +158,15 @@ class OverlayComponent(
 
     companion object {
         private const val TAG = "ReplylyOverlay"
+
+        /** The visible circle. */
         const val BUTTON_DP = 44
-        const val MARGIN_DP = 8
+
+        /** The button window = its touch area (DESIGN.md: at least 48 dp); the rest is shadow room. */
+        const val TOUCH_DP = 56
+
+        /** Window to keyboard/screen edge; the circle sits (TOUCH_DP - BUTTON_DP) / 2 further in, 8 dp. */
+        const val MARGIN_DP = 2
 
         /** The chat's input bar may be up to this tall (multi-line) and still count as "on the keyboard". */
         const val MAX_LIFT_DP = 200
@@ -151,6 +177,7 @@ class OverlayComponent(
                 parsers = graph.chatParserRegistry,
                 panel = { graph.replyPanel },
                 rememberTarget = graph.accessibilityReplyInserter::rememberTarget,
+                positions = graph.buttonPositionStore,
             )
     }
 }
