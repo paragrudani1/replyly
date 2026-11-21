@@ -7,8 +7,10 @@ import com.paragrudani.replyly.feedback.FeedbackLog
 import com.paragrudani.replyly.feedback.InMemoryFeedbackLog
 import com.paragrudani.replyly.history.ContactNoteStore
 import com.paragrudani.replyly.history.HistoryRepository
-import com.paragrudani.replyly.history.InMemoryContactNoteStore
-import com.paragrudani.replyly.history.InMemoryHistoryRepository
+import com.paragrudani.replyly.history.RoomContactNoteStore
+import com.paragrudani.replyly.history.RoomHistoryRepository
+import com.paragrudani.replyly.history.capture.PassiveCaptureComponent
+import com.paragrudani.replyly.history.db.HistoryDatabases
 import com.paragrudani.replyly.insert.ReplyInserter
 import com.paragrudani.replyly.insert.UnavailableReplyInserter
 import com.paragrudani.replyly.llm.ReplyGenerator
@@ -22,7 +24,7 @@ import com.paragrudani.replyly.parser.Parsers
 import com.paragrudani.replyly.policy.MinimalSensitiveScreenPolicy
 import com.paragrudani.replyly.policy.SensitiveScreenPolicy
 import com.paragrudani.replyly.security.DatabaseKeyProvider
-import com.paragrudani.replyly.security.UnimplementedDatabaseKeyProvider
+import com.paragrudani.replyly.security.KeystoreDatabaseKeyProvider
 import com.paragrudani.replyly.service.AccessibilityComponent
 import com.paragrudani.replyly.service.AccessibilityHostHolder
 import com.paragrudani.replyly.service.NoOpAccessibilityComponent
@@ -65,16 +67,20 @@ class AppGraph(
     val chatParserRegistry: ChatParserRegistry by lazy { Parsers.registry() }
 
     // Ticket #3: passive capture.
-    val captureComponent: AccessibilityComponent by lazy { NoOpAccessibilityComponent }
+    val captureComponent: AccessibilityComponent by lazy { PassiveCaptureComponent.create(this) }
 
     // Ticket #3
-    val databaseKeyProvider: DatabaseKeyProvider by lazy { UnimplementedDatabaseKeyProvider }
+    val databaseKeyProvider: DatabaseKeyProvider by lazy { KeystoreDatabaseKeyProvider.create(app) }
 
     // Ticket #3
-    val historyRepository: HistoryRepository by lazy { InMemoryHistoryRepository(clock) }
+    val historyRepository: HistoryRepository by lazy {
+        RoomHistoryRepository(HistoryDatabases.shared(app, databaseKeyProvider), clock)
+    }
 
     // Ticket #3
-    val contactNoteStore: ContactNoteStore by lazy { InMemoryContactNoteStore() }
+    val contactNoteStore: ContactNoteStore by lazy {
+        RoomContactNoteStore(HistoryDatabases.shared(app, databaseKeyProvider), clock)
+    }
 
     // Ticket #4
     val replyGenerator: ReplyGenerator by lazy { StubReplyGenerator() }
