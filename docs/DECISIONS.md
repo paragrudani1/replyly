@@ -14,3 +14,7 @@ One line per decision, with the date and the reason. Newest at the bottom. Longe
 - 2026-11-21: Ticket agents write S23-only checks to `docs/device-checklist/ticket-<N>.md`; CoS merges them into `docs/DEVICE_CHECKLIST.md`. Reason: avoid merge conflicts between parallel tickets.
 - 2026-11-21: Toolchain JDK temurin-21 (mise.toml), AGP 9.5.2, Kotlin 2.4.21, Gradle 9.9.2, compile/target SDK 37, minSdk 34. Reason: latest stable that resolved on 2026-11-21 (skeleton agent).
 - 2026-11-21: Two SQLCipher DBs (history owned by #3, feedback owned by #6) with one Keystore-protected key. Reason: keeps parallel tickets out of each other's Room schema.
+- 2026-11-21 (#4): Parallel mode (3 calls, intents fixed agree/decline/ask) counts as 1 daily request, sums tokens, and fails as a whole if one call fails. Reason: one tap = one request; the contract needs exactly 3 suggestions.
+- 2026-11-21 (#4): LLM error details use fixed wording per HTTP status and exception type only, never provider text or exception messages. Reason: those can echo the prompt.
+- 2026-11-21 (#4): Requests send only model, messages, max_tokens (1024; 512 per parallel call) and response_format (retried without it once if rejected, remembered per model); no temperature. Reason: some reasoning models reject temperature.
+- 2026-11-21 (#4): Prompt caps: 12k chars of history (oldest dropped), 600 per message, 25 style examples of 200 chars (last 20 from this chat, 15 from other chats, deduped), About me 1,500, note 1,000, instruction 300. Reason: bound cost and latency.
