@@ -2,12 +2,17 @@ package com.paragrudani.replyly.ui.settings
 
 import com.paragrudani.replyly.cost.InMemoryCostGuard
 import com.paragrudani.replyly.feedback.InMemoryFeedbackLog
+import com.paragrudani.replyly.settings.ApiFormat
 import com.paragrudani.replyly.settings.InMemoryApiKeyStore
 import com.paragrudani.replyly.settings.InMemorySettingsRepository
+import com.paragrudani.replyly.settings.ProviderProfile
 import com.paragrudani.replyly.settings.ReplylySettings
 import com.paragrudani.replyly.testing.MutableClock
 import com.paragrudani.replyly.testing.ScreenshotRule
 import com.paragrudani.replyly.testing.ScreenshotTest
+import com.paragrudani.replyly.ui.settings.profiles.ProfileRow
+import com.paragrudani.replyly.ui.settings.profiles.ProfilesUiState
+import com.paragrudani.replyly.ui.settings.profiles.ProviderProfilesContent
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -36,9 +41,42 @@ class SettingsScreenshotTest {
         )
     }
 
+    private val profiles =
+        ProfilesUiState(
+            loaded = true,
+            rows =
+                listOf(
+                    ProfileRow(
+                        ProviderProfile(
+                            "or",
+                            "OpenRouter",
+                            ApiFormat.OpenAi,
+                            ReplylySettings.DEFAULT_ENDPOINT,
+                            ReplylySettings.DEFAULT_MODEL,
+                        ),
+                        active = true,
+                        hasKey = true,
+                    ),
+                ),
+        )
+
     @Test
     fun main() =
         shots.screen("settings/main") {
-            SettingsScreen(viewModel(), onOpenOnboarding = {}, onOpenDebug = {}, onOpenFeedbackLog = {})
+            SettingsScreen(
+                viewModel(),
+                onOpenOnboarding = {},
+                onOpenDebug = {},
+                onOpenFeedbackLog = {},
+                profilesSection = {
+                    ProviderProfilesContent(
+                        profiles,
+                        onSelect = {},
+                        onEdit = {},
+                        onTest = {},
+                        onAdd = {},
+                    )
+                },
+            )
         }
 }

@@ -126,6 +126,8 @@ fun SettingsScreen(
     onOpenOnboarding: () -> Unit,
     onOpenDebug: () -> Unit,
     onOpenFeedbackLog: () -> Unit,
+    /** Screenshot tests pass a fixed-state list; the real one reads storage. */
+    profilesSection: @Composable () -> Unit = { ProviderProfilesSection() },
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refreshUsage() }
@@ -164,7 +166,7 @@ fun SettingsScreen(
             }
             item { SectionHeader("LLM") }
             // Issue #18: endpoint, key and model now live in provider profiles (ui/settings/profiles/).
-            item { ProviderProfilesSection() }
+            item { profilesSection() }
             item {
                 SwitchRow(
                     label = "3 parallel calls (faster on slow models)",
