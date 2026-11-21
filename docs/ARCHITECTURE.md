@@ -27,7 +27,7 @@ All code lives in the single `:app` module, package `com.paragrudani.replyly`.
                           │                    FeedbackLog.attachFinalMessage
              ▼
      ReplyPanel.Content(PanelRequest(chat))   (panel/, in the overlay's modal window)
-             │ on open, and on Regenerate only
+             │ on open, and on Regenerate, Retry or a quick-chip tap only
              ├─► SuggestionRequestAssembler.assemble   merges the chat into history first, then
              │     reads history, contact note, settings, app label
              ├─► ReplyGenerator.generate ──► SuggestionResult
@@ -89,7 +89,8 @@ One lazy binding per interface, all real implementations:
 - Only `ReplyInserter` acts on another app, and only by setting text (`InvariantsTest`).
 - The only network use is in `llm/`, and the generator refuses a non-https endpoint
   (`Failure.InsecureEndpoint`) before the cost check.
-- Only a tap (button, Regenerate, Retry) leads to an LLM call; passive capture never calls it.
+- Only a tap leads to an LLM call: the button, Regenerate, Retry or a quick-chip tap, each one call
+  (none while a call or an insert runs, or after an insert). Passive capture never calls it.
 - Logs carry event names, counts and class names only: no chat text, prompts or key.
 
 ## Other decisions

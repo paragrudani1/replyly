@@ -8,7 +8,7 @@ Before touching code, read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the dat
 1. **Replyly never sends a message.** The only action on another app is `ReplyInserter` setting the text of the focused field. Clicks, Enter, gestures and global actions are off limits (`InvariantsTest` scans for them).
 2. **Chat text, prompts and the API key stay out of logcat**, crash messages and exception text. Log event names, counts and class names only.
 3. **The LLM call is the only network use**, and lives in `llm/` (`InvariantsTest` checks this).
-4. **Only a user tap (the button or Regenerate) leads to an LLM call.** Screen events never do.
+4. **Only a user tap leads to an LLM call: the button, Regenerate, Retry or a quick-chip tap, each one call.** Screen events, typing and the keyboard's Done never do.
 
 ## Build and test
 
