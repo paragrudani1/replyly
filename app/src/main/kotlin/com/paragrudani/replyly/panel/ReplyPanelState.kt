@@ -15,6 +15,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,10 +52,14 @@ sealed interface SuggestionsUi {
 
 data class PanelUiState(
     val suggestions: SuggestionsUi = SuggestionsUi.Loading,
-    /** The instruction field, at most [MAX_INSTRUCTION_CHARS]. */
+    /** The instruction field, at most [instructionRoom] for the selected [chips]. */
     val instruction: String = "",
     /** True while a card's text is being inserted; further taps are ignored. */
     val inserting: Boolean = false,
+    /** The card being inserted (highlighted); stays set after a successful insert while the panel closes. */
+    val insertingIndex: Int? = null,
+    /** A card was inserted and the panel is closing: every further action is ignored. */
+    val finished: Boolean = false,
     /** Why the last insert failed. The panel stays open so the user can try again. */
     val insertError: String? = null,
     /** Contact note and delete-history actions: only for chats with history (not generic apps). */
@@ -62,8 +67,16 @@ data class PanelUiState(
     /** The open contact-note editor, or null. */
     val note: NoteEditorUi? = null,
     val confirmingDelete: Boolean = false,
-    /** One-line result of a note or delete action. */
+    /** One-line result of a note, delete or copy action. */
     val notice: String? = null,
+    /** Selected quick-chips; they apply to every generation until tapped again. */
+    val chips: Set<QuickInstruction> = emptySet(),
+    /** Generations started so far: 1 is the first load, more means a regenerate (cards animate out and in). */
+    val generation: Int = 0,
+    /** A long-press just copied a card: shows the "Copied" confirmation for [COPIED_VISIBLE_MILLIS]. */
+    val copied: Boolean = false,
+    /** Successful copies so far; each new one plays the copy haptic once. */
+    val copies: Int = 0,
 )
 
 data class NoteEditorUi(
@@ -78,17 +91,29 @@ const val MAX_NOTE_CHARS = 1_000
 /** The prompt keeps 300 characters of instruction (decision #4), so the field stops there too. */
 const val MAX_INSTRUCTION_CHARS = 300
 
+/** How long the "Copied" confirmation stays. */
+const val COPIED_VISIBLE_MILLIS = 1_500L
+
 /**
  * Plain state holder for one open panel. Created with an unkeyed `remember` in [ComposeReplyPanel],
  * so there is one state per panel open. Its coroutines run in their own [Job] on [scope]'s
  * dispatcher, cancelled when [scope] ends (the composition's scope); [dispose] cancels that job when the composition forgets the state, so
  * closing the panel cancels any call still in flight.
+ *
+ * LLM calls: one on [start], one per [regenerate] and one per [toggleChip] tap, each ignored while
+ * a call runs, while an insert runs and after the panel finished. The panel's out-and-in card animation only follows [PanelUiState.suggestions]; it
+ * never starts or delays a call.
+ *
+ * The instruction sent is [combineInstruction]: the selected chips' fixed prompts, then the typed
+ * text. After a successful insert the state is [PanelUiState.finished] and ignores every action, so
+ * taps while the panel animates closed cannot insert, copy or call again.
  */
 class ReplyPanelState(
     private val request: PanelRequest,
     private val deps: ReplyPanelDependencies,
     private val scope: CoroutineScope,
     private val onClose: () -> Unit,
+    private val clipboard: SuggestionClipboard = SuggestionClipboard.Unavailable,
 ) {
     private val chatKey = request.chat.chatKey
     private val mutableState = MutableStateFlow(PanelUiState(showChatActions = request.chat.historyApplies))
@@ -110,6 +135,7 @@ class ReplyPanelState(
     private var started = false
     private var generation: Job? = null
     private var noteLoading = false
+    private var copiedTimer: Job? = null
 
     /** Call once when the panel opens (the user's button tap). Later calls do nothing. */
     fun start() {
@@ -118,20 +144,52 @@ class ReplyPanelState(
         generate()
     }
 
+    /** The field stops at [instructionRoom] for the selected chips, never inside an emoji. */
     fun onInstructionChange(text: String) {
-        mutableState.update { it.copy(instruction = text.take(MAX_INSTRUCTION_CHARS)) }
+        mutableState.update { it.copy(instruction = text.takeWholeCharacters(instructionRoom(it.chips))) }
     }
 
     /** Regenerate and Retry: one new call with the current instruction. Ignored while one runs. */
     fun regenerate() = generate()
 
+    /**
+     * A quick-chip tap: toggles [chip] and makes one new call with the combined instruction.
+     * Ignored (nothing changes) while a call or an insert runs, or after the panel finished.
+     *
+     * A chip takes room from the typed text: if the field holds more than the new
+     * [instructionRoom], the field itself is shortened (visible, with the counter at its limit), so
+     * what is sent is exactly what the field shows.
+     */
+    fun toggleChip(chip: QuickInstruction) {
+        if (!canGenerate()) return
+        mutableState.update {
+            val chips = if (chip in it.chips) it.chips - chip else it.chips + chip
+            it.copy(chips = chips, instruction = it.instruction.takeWholeCharacters(instructionRoom(chips)))
+        }
+        generate()
+    }
+
+    /**
+     * No call while one runs, while a card is being inserted (the insert may still succeed and
+     * close the panel), or after the panel finished.
+     */
+    private fun canGenerate(): Boolean {
+        val current = mutableState.value
+        return generation?.isActive != true && !current.inserting && !current.finished
+    }
+
     private fun generate() {
-        if (generation?.isActive == true) return
-        val instruction =
-            mutableState.value.instruction
-                .trim()
-                .ifEmpty { null }
-        mutableState.update { it.copy(suggestions = SuggestionsUi.Loading, insertError = null) }
+        if (!canGenerate()) return
+        val current = mutableState.value
+        val instruction = combineInstruction(current.instruction, current.chips)
+        mutableState.update {
+            it.copy(
+                suggestions = SuggestionsUi.Loading,
+                insertError = null,
+                generation = it.generation + 1,
+                copied = false,
+            )
+        }
         generation =
             ownScope.launch {
                 val suggestionRequest =
@@ -175,26 +233,61 @@ class ReplyPanelState(
         val current = mutableState.value
         val ready = current.suggestions as? SuggestionsUi.Ready ?: return
         val suggestion = ready.suggestions.getOrNull(index) ?: return
-        if (current.inserting) return
-        mutableState.update { it.copy(inserting = true, insertError = null) }
+        if (current.inserting || current.finished) return
+        mutableState.update { it.copy(inserting = true, insertingIndex = index, insertError = null) }
         ownScope.launch {
             when (val result = ignoringErrors { deps.inserter.insert(suggestion.text) }) {
                 InsertResult.Inserted -> {
                     ready.feedbackEntryId?.let { id -> ignoringErrors { deps.feedbackLog.markInserted(id, index) } }
-                    mutableState.update { it.copy(inserting = false) }
+                    // Stays highlighted and ignores every tap while the panel animates closed.
+                    mutableState.update { it.copy(inserting = false, finished = true) }
                     onClose()
                 }
 
                 InsertResult.NoFocusedField -> {
-                    mutableState.update { it.copy(inserting = false, insertError = NO_FOCUSED_FIELD) }
+                    mutableState.update {
+                        it.copy(inserting = false, insertingIndex = null, insertError = NO_FOCUSED_FIELD)
+                    }
                 }
 
                 // Fixed text: the inserter's reason is never shown (it could carry node text).
                 is InsertResult.Failed, null -> {
-                    mutableState.update { it.copy(inserting = false, insertError = INSERT_FAILED) }
+                    mutableState.update {
+                        it.copy(inserting = false, insertingIndex = null, insertError = INSERT_FAILED)
+                    }
                 }
             }
         }
+    }
+
+    /**
+     * Long-press on card [index]: copies its text (marked sensitive) instead of inserting it, and
+     * shows "Copied" briefly. Nothing is inserted, the feedback entry is not marked, the panel
+     * stays open. Ignored while loading, while inserting and after the panel finished.
+     */
+    fun copy(index: Int) {
+        val current = mutableState.value
+        val ready = current.suggestions as? SuggestionsUi.Ready ?: return
+        val suggestion = ready.suggestions.getOrNull(index) ?: return
+        if (current.inserting || current.finished) return
+        val copied =
+            try {
+                clipboard.copy(suggestion.text)
+            } catch (_: Exception) {
+                // Fixed text only: the exception could describe the clip.
+                false
+            }
+        copiedTimer?.cancel()
+        if (!copied) {
+            mutableState.update { it.copy(copied = false, notice = COPY_FAILED) }
+            return
+        }
+        mutableState.update { it.copy(copied = true, copies = it.copies + 1, notice = null) }
+        copiedTimer =
+            ownScope.launch {
+                delay(COPIED_VISIBLE_MILLIS)
+                mutableState.update { it.copy(copied = false) }
+            }
     }
 
     /** Opens the editor with this chat's saved note. Ignored for generic apps. */
@@ -315,3 +408,5 @@ internal const val NO_FOCUSED_FIELD = "Could not find the chat's message box. Ta
 internal const val INSERT_FAILED = "Could not insert the reply. Tap the message box, then try again."
 
 internal const val DELETED_NOTICE = "Saved messages for this chat were deleted."
+
+internal const val COPY_FAILED = "Could not copy the reply. Try again."

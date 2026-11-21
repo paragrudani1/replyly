@@ -14,7 +14,7 @@ data class PanelRequest(
  * and error states. Ticket #1's overlay window hosts [Content] in a ComposeView.
  *
  * Opening the panel is the user's button tap, so the panel may call the LLM once on open and
- * again on Regenerate, never otherwise. It gets its dependencies (generator, assembler, cost
+ * once per Regenerate, Retry or quick-chip tap, never otherwise. It gets its dependencies (generator, assembler, cost
  * guard, feedback log, contact notes, inserter) from AppGraph.
  */
 interface ReplyPanel {
