@@ -25,6 +25,12 @@ data class ScreenSnapshot(
     val screenWidth: Int,
     val screenHeight: Int,
     val root: ScreenNode,
+    /**
+     * True when the host found that the window has FLAG_SECURE, or could not tell (see
+     * `AccessibilityHost.captureActiveWindowChecked`). The host then reads nothing: [root] is an
+     * empty node. `SensitiveScreenPolicy` blocks such a snapshot.
+     */
+    val secureWindow: Boolean = false,
 ) {
     /** All nodes, depth first, root included. */
     fun allNodes(): Sequence<ScreenNode> = root.descendantsAndSelf()

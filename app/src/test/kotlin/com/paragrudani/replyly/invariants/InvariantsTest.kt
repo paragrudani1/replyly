@@ -35,6 +35,18 @@ class InvariantsTest {
     }
 
     @Test
+    fun `performAction only in the input field source`() {
+        // A raw id (performAction(16) is a click) would slip past the name scan above.
+        val action = Regex("""\bperformAction\(""")
+        assertWithMessage("performAction outside insert/AccessibilityInputFieldSource.kt")
+            .that(
+                offenders(action) {
+                    it.invariantSeparatorsPath.endsWith("/replyly/insert/AccessibilityInputFieldSource.kt")
+                },
+            ).isEmpty()
+    }
+
+    @Test
     fun `network only in the llm package`() {
         val network = Regex("""import okhttp3\.|java\.net\.URL\b|HttpURLConnection""")
         assertWithMessage("network code outside llm/")

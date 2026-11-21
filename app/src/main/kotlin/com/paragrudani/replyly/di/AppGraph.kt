@@ -9,20 +9,22 @@ import com.paragrudani.replyly.history.ContactNoteStore
 import com.paragrudani.replyly.history.HistoryRepository
 import com.paragrudani.replyly.history.InMemoryContactNoteStore
 import com.paragrudani.replyly.history.InMemoryHistoryRepository
+import com.paragrudani.replyly.insert.AccessibilityReplyInserter
 import com.paragrudani.replyly.insert.ReplyInserter
-import com.paragrudani.replyly.insert.UnavailableReplyInserter
 import com.paragrudani.replyly.llm.HistorySuggestionRequestAssembler
 import com.paragrudani.replyly.llm.OpenAiReplyGenerator
 import com.paragrudani.replyly.llm.ReplyGenerator
 import com.paragrudani.replyly.llm.SuggestionRequestAssembler
 import com.paragrudani.replyly.llm.packageManagerAppLabel
+import com.paragrudani.replyly.overlay.OverlayComponent
 import com.paragrudani.replyly.panel.ComposeReplyPanel
 import com.paragrudani.replyly.panel.ReplyPanel
 import com.paragrudani.replyly.panel.ReplyPanelDependencies
 import com.paragrudani.replyly.parser.ChatParserRegistry
 import com.paragrudani.replyly.parser.Parsers
-import com.paragrudani.replyly.policy.MinimalSensitiveScreenPolicy
+import com.paragrudani.replyly.policy.DefaultSensitiveScreenPolicy
 import com.paragrudani.replyly.policy.SensitiveScreenPolicy
+import com.paragrudani.replyly.policy.SettingsUnavailableNotice
 import com.paragrudani.replyly.security.DatabaseKeyProvider
 import com.paragrudani.replyly.security.UnimplementedDatabaseKeyProvider
 import com.paragrudani.replyly.service.AccessibilityComponent
@@ -55,13 +57,22 @@ class AppGraph(
     val accessibilityHostHolder: AccessibilityHostHolder = AccessibilityHostHolder()
 
     // Ticket #1: overlay and button.
-    val overlayComponent: AccessibilityComponent by lazy { NoOpAccessibilityComponent }
+    val overlayComponent: AccessibilityComponent by lazy { OverlayComponent.create(this) }
 
     // Ticket #1
-    val replyInserter: ReplyInserter by lazy { UnavailableReplyInserter }
+    val replyInserter: ReplyInserter by lazy { accessibilityReplyInserter }
+
+    // Ticket #1: the same inserter, typed, so the overlay can remember the insert target.
+    val accessibilityReplyInserter: AccessibilityReplyInserter by lazy {
+        AccessibilityReplyInserter.create(accessibilityHostHolder)
+    }
 
     // Ticket #1
-    val sensitiveScreenPolicy: SensitiveScreenPolicy by lazy { MinimalSensitiveScreenPolicy }
+    val sensitiveScreenPolicy: SensitiveScreenPolicy by lazy {
+        DefaultSensitiveScreenPolicy.create(settingsRepository, appScope, onUnavailable = {
+            SettingsUnavailableNotice.show(app)
+        })
+    }
 
     // Ticket #2: register parsers in parser/Parsers.kt, not here.
     val chatParserRegistry: ChatParserRegistry by lazy { Parsers.registry() }
