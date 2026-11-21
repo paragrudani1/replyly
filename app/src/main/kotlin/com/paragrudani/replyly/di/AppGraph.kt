@@ -9,8 +9,8 @@ import com.paragrudani.replyly.history.ContactNoteStore
 import com.paragrudani.replyly.history.HistoryRepository
 import com.paragrudani.replyly.history.InMemoryContactNoteStore
 import com.paragrudani.replyly.history.InMemoryHistoryRepository
+import com.paragrudani.replyly.insert.AccessibilityReplyInserter
 import com.paragrudani.replyly.insert.ReplyInserter
-import com.paragrudani.replyly.insert.UnavailableReplyInserter
 import com.paragrudani.replyly.llm.ReplyGenerator
 import com.paragrudani.replyly.llm.StubReplyGenerator
 import com.paragrudani.replyly.llm.StubSuggestionRequestAssembler
@@ -56,7 +56,7 @@ class AppGraph(
     val overlayComponent: AccessibilityComponent by lazy { NoOpAccessibilityComponent }
 
     // Ticket #1
-    val replyInserter: ReplyInserter by lazy { UnavailableReplyInserter }
+    val replyInserter: ReplyInserter by lazy { AccessibilityReplyInserter.create(accessibilityHostHolder) }
 
     // Ticket #1
     val sensitiveScreenPolicy: SensitiveScreenPolicy by lazy {
