@@ -24,6 +24,8 @@ data class ReplylySettings(
      * instead of one call for 3. Counts as 1 request against the daily limit.
      */
     val useParallelCalls: Boolean = false,
+    /** Material You: colours from the wallpaper instead of the Replyly brand colours. */
+    val useDynamicColor: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_ENDPOINT = "https://openrouter.ai/api/v1"

@@ -195,6 +195,29 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `the dynamic colour switch is stored at once and keeps unsaved edits`() =
+        runTest {
+            val vm = viewModel()
+            assertThat(vm.state.value.useDynamicColor).isFalse()
+            vm.editDraft { it.copy(aboutMe = "typing...") }
+
+            vm.setDynamicColor(true)
+
+            assertThat(settings.current().useDynamicColor).isTrue()
+            assertThat(vm.state.value.useDynamicColor).isTrue()
+            assertThat(
+                vm.state.value.draft
+                    ?.aboutMe,
+            ).isEqualTo("typing...")
+            assertThat(vm.state.value.dirty).isTrue()
+
+            vm.save()
+            assertThat(settings.current().useDynamicColor).isTrue()
+            vm.setDynamicColor(false)
+            assertThat(settings.current().useDynamicColor).isFalse()
+        }
+
+    @Test
     fun `a failed write shows a fixed message instead of crashing`() =
         runTest {
             val backing = settings

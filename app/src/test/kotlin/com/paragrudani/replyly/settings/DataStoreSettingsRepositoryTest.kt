@@ -28,6 +28,7 @@ class DataStoreSettingsRepositoryTest {
             assertThat(settings.dailyRequestLimit).isEqualTo(200)
             assertThat(settings.retentionDays).isEqualTo(60)
             assertThat(settings.blockedPackages).isEmpty()
+            assertThat(settings.useDynamicColor).isFalse()
         }
 
     @Test
@@ -44,6 +45,7 @@ class DataStoreSettingsRepositoryTest {
                     dailyRequestLimit = 50,
                     retentionDays = 30,
                     useParallelCalls = true,
+                    useDynamicColor = true,
                 )
             DataStoreSettingsRepository(stores.open("settings")).update { changed }
 

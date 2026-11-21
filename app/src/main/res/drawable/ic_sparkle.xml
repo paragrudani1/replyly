@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Four-point sparkle: the "AI" mark in the wordmark and icon. Tint it (accent or onPrimary). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+  android:width="24dp"
+  android:height="24dp"
+  android:viewportWidth="24"
+  android:viewportHeight="24">
+  <path
+    android:fillColor="#FFFFFFFF"
+    android:pathData="M12,2C12.9,7.6 16.4,11.1 22,12C16.4,12.9 12.9,16.4 12,22C11.1,16.4 7.6,12.9 2,12C7.6,11.1 11.1,7.6 12,2Z" />
+</vector>
