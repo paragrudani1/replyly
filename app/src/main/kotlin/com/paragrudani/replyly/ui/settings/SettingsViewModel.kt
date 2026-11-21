@@ -10,6 +10,7 @@ import com.paragrudani.replyly.settings.ApiKeyStore
 import com.paragrudani.replyly.settings.ReplylySettings
 import com.paragrudani.replyly.settings.SettingsRepository
 import com.paragrudani.replyly.settings.current
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -28,13 +29,17 @@ data class SettingsUiState(
     /** What is typed in the key field right now. Cleared once saved; never filled from storage. */
     val apiKeyInput: String = "",
     val apiKeyError: String? = null,
+    /** The user tapped "Replace" on a saved key. */
+    val replacingApiKey: Boolean = false,
     val usage: CostStatus = CostStatus(0, ReplylySettings().dailyRequestLimit, 0, 0),
 ) {
+    val showApiKeyField: Boolean get() = !apiKeySaved || replacingApiKey
+
     val dirty: Boolean get() = draft != null && saved != null && draft != SettingsDraft.from(saved)
 
     // Keeps a half-typed key out of any log or crash report that prints the state.
     override fun toString(): String =
-        "SettingsUiState(draft=$draft, errors=$errors, apiKeySaved=$apiKeySaved, " +
+        "SettingsUiState(draft=$draft, errors=$errors, apiKeySaved=$apiKeySaved, replacingApiKey=$replacingApiKey, " +
             "apiKeyInput=<${apiKeyInput.length} chars>, apiKeyError=$apiKeyError, usage=$usage)"
 }
 
@@ -127,12 +132,21 @@ class SettingsViewModel(
             return
         }
         viewModelScope.launch {
-            val stored = runCatching { apiKeyStore.set(input) }.isSuccess
+            val stored =
+                try {
+                    apiKeyStore.set(input)
+                    true
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (_: Exception) {
+                    false // Keystore failure; its message is not shown or logged.
+                }
             mutableState.update {
                 if (stored) {
                     it.copy(
                         apiKeyInput = "",
                         apiKeyError = null,
+                        replacingApiKey = false,
                     )
                 } else {
                     it.copy(apiKeyError = "Could not store the key securely. Try again.")
@@ -140,6 +154,13 @@ class SettingsViewModel(
             }
         }
     }
+
+    fun startReplacingApiKey() = mutableState.update { it.copy(replacingApiKey = true) }
+
+    fun cancelReplacingApiKey() =
+        mutableState.update {
+            it.copy(replacingApiKey = false, apiKeyInput = "", apiKeyError = null)
+        }
 
     fun clearApiKey() {
         viewModelScope.launch { apiKeyStore.set("") }

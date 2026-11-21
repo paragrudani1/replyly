@@ -93,6 +93,41 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `replacing a saved key keeps the field open until the new key is stored`() =
+        runTest {
+            val vm = viewModel()
+            vm.setApiKeyInput("sk-or-v1-0123456789abcdef")
+            vm.saveApiKey()
+            assertThat(vm.state.value.showApiKeyField).isFalse()
+
+            vm.startReplacingApiKey()
+            assertThat(vm.state.value.showApiKeyField).isTrue()
+            vm.setApiKeyInput("bad key")
+            vm.saveApiKey()
+            assertThat(vm.state.value.showApiKeyField).isTrue()
+            assertThat(vm.state.value.apiKeyError).isNotNull()
+
+            vm.setApiKeyInput("sk-or-v1-fedcba9876543210")
+            vm.saveApiKey()
+            assertThat(vm.state.value.showApiKeyField).isFalse()
+            assertThat(apiKeys.get()).isEqualTo("sk-or-v1-fedcba9876543210")
+        }
+
+    @Test
+    fun `cancelling a replacement keeps the old key`() =
+        runTest {
+            val vm = viewModel()
+            vm.setApiKeyInput("sk-or-v1-0123456789abcdef")
+            vm.saveApiKey()
+            vm.startReplacingApiKey()
+            vm.setApiKeyInput("sk-or-v1-half")
+            vm.cancelReplacingApiKey()
+            assertThat(vm.state.value.showApiKeyField).isFalse()
+            assertThat(vm.state.value.apiKeyInput).isEmpty()
+            assertThat(apiKeys.get()).isEqualTo("sk-or-v1-0123456789abcdef")
+        }
+
+    @Test
     fun `a bad api key is refused with a message that does not echo it`() =
         runTest {
             val vm = viewModel()
