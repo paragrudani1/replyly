@@ -35,6 +35,7 @@ class DataStoreSettingsRepository(
             dailyRequestLimit = this[DAILY_LIMIT] ?: defaults.dailyRequestLimit,
             retentionDays = this[RETENTION_DAYS] ?: defaults.retentionDays,
             useParallelCalls = this[PARALLEL_CALLS] ?: defaults.useParallelCalls,
+            useDynamicColor = this[DYNAMIC_COLOR] ?: defaults.useDynamicColor,
         )
     }
 
@@ -48,6 +49,7 @@ class DataStoreSettingsRepository(
         this[DAILY_LIMIT] = settings.dailyRequestLimit
         this[RETENTION_DAYS] = settings.retentionDays
         this[PARALLEL_CALLS] = settings.useParallelCalls
+        this[DYNAMIC_COLOR] = settings.useDynamicColor
     }
 
     private companion object {
@@ -60,5 +62,6 @@ class DataStoreSettingsRepository(
         val DAILY_LIMIT = intPreferencesKey("daily_request_limit")
         val RETENTION_DAYS = intPreferencesKey("retention_days")
         val PARALLEL_CALLS = booleanPreferencesKey("use_parallel_calls")
+        val DYNAMIC_COLOR = booleanPreferencesKey("use_dynamic_color")
     }
 }
