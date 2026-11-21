@@ -176,7 +176,7 @@ private class JobSlot {
 }
 
 @Composable
-private fun OnboardingContent(
+internal fun OnboardingContent(
     state: OnboardingState?,
     onOpen: (OnboardingStepId) -> Unit,
     onConfirmSleepingApps: (Boolean) -> Unit,

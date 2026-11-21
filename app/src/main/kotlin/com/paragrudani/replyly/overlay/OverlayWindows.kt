@@ -9,7 +9,6 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
-import android.widget.ImageView
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -22,20 +21,20 @@ import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
-import androidx.compose.ui.unit.dp
 import com.paragrudani.replyly.R
 import com.paragrudani.replyly.panel.PanelRequest
 import com.paragrudani.replyly.panel.ReplyPanel
+import com.paragrudani.replyly.ui.theme.Elevation
 import com.paragrudani.replyly.ui.theme.ReplylyTheme
+import com.paragrudani.replyly.ui.theme.SheetShape
 
 /**
  * The two overlay windows (TYPE_ACCESSIBILITY_OVERLAY, no extra permission needed):
@@ -74,16 +73,7 @@ class OverlayWindows(
             windowManager.updateViewLayout(existing, params)
             return
         }
-        val view =
-            ImageView(context).apply {
-                setImageResource(R.drawable.overlay_button_icon)
-                setBackgroundResource(R.drawable.overlay_button_background)
-                scaleType = ImageView.ScaleType.CENTER
-                elevation = 6 * resources.displayMetrics.density
-                contentDescription = context.getString(R.string.overlay_button_description)
-                setOnClickListener { onButtonTap() }
-                alpha = buttonAlpha()
-            }
+        val view = createOverlayButton(context, onButtonTap).apply { alpha = buttonAlpha() }
         val params =
             baseParams(buttonSizePx, buttonSizePx).apply {
                 flags = flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
@@ -203,7 +193,7 @@ private fun PanelHost(
         Box(
             Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.32f))
+                .background(ReplylyTheme.colors.backdrop)
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -216,9 +206,10 @@ private fun PanelHost(
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars)),
-            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
-            tonalElevation = 3.dp,
-            shadowElevation = 8.dp,
+            shape = SheetShape,
+            color = MaterialTheme.colorScheme.surfaceContainerLow,
+            tonalElevation = Elevation.Flat,
+            shadowElevation = Elevation.Sheet,
         ) {
             panel.Content(request, onClose)
         }

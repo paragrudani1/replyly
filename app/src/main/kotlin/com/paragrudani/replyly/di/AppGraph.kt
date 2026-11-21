@@ -45,6 +45,7 @@ import com.paragrudani.replyly.settings.ProfileRepository
 import com.paragrudani.replyly.settings.ProfileSecretStore
 import com.paragrudani.replyly.settings.ReplylyDataStores
 import com.paragrudani.replyly.settings.SettingsRepository
+import com.paragrudani.replyly.ui.theme.ThemeSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -191,6 +192,9 @@ class AppGraph(
             settingsRepository.settings.map { it.retentionDays },
         )
     }
+
+    // Polish #0: the dynamic-colour setting, kept hot so overlay windows open in the right colours.
+    val themeSettings: ThemeSettings by lazy { ThemeSettings.create(settingsRepository, appScope) }
 
     // Skeleton: the order components receive events in.
     fun accessibilityComponents(): List<AccessibilityComponent> = listOf(overlayComponent, captureComponent)

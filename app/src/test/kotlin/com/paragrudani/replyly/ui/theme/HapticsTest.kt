@@ -1,0 +1,92 @@
+package com.paragrudani.replyly.ui.theme
+
+import android.content.Context
+import android.provider.Settings
+import android.view.HapticFeedbackConstants
+import android.view.View
+import androidx.compose.ui.test.junit4.createComposeRule
+import androidx.test.core.app.ApplicationProvider
+import com.google.common.truth.Truth.assertThat
+import org.junit.After
+import org.junit.Rule
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+
+@RunWith(RobolectricTestRunner::class)
+class HapticsTest {
+    @get:Rule val compose = createComposeRule()
+
+    private val context: Context = ApplicationProvider.getApplicationContext()
+
+    /** Records what the helper asks the system to play. */
+    private class RecordingView(
+        context: Context,
+    ) : View(context) {
+        val played = mutableListOf<Int>()
+
+        override fun performHapticFeedback(feedbackConstant: Int): Boolean {
+            played += feedbackConstant
+            return true
+        }
+    }
+
+    private fun setSystemTouchFeedback(on: Boolean) {
+        Settings.System.putInt(context.contentResolver, Settings.System.HAPTIC_FEEDBACK_ENABLED, if (on) 1 else 0)
+    }
+
+    @After fun resetSetting() = setSystemTouchFeedback(true)
+
+    @Test
+    fun `each event maps to its one feedback type`() {
+        val expected =
+            mapOf(
+                HapticEvent.Tap to HapticFeedbackConstants.VIRTUAL_KEY,
+                HapticEvent.CardInsert to HapticFeedbackConstants.CONFIRM,
+                HapticEvent.LongPressCopy to HapticFeedbackConstants.LONG_PRESS,
+                HapticEvent.DragSnap to HapticFeedbackConstants.SEGMENT_TICK,
+                HapticEvent.ToggleOn to HapticFeedbackConstants.TOGGLE_ON,
+                HapticEvent.ToggleOff to HapticFeedbackConstants.TOGGLE_OFF,
+                HapticEvent.Save to HapticFeedbackConstants.CONFIRM,
+            )
+        // A new event must get a deliberate mapping (and a row in DESIGN.md > Haptics).
+        assertThat(HapticEvent.entries.toSet()).isEqualTo(expected.keys)
+        HapticEvent.entries.forEach { assertThat(it.feedbackConstant).isEqualTo(expected.getValue(it)) }
+    }
+
+    @Test
+    fun `toggle picks on or off`() {
+        assertThat(HapticEvent.toggle(true)).isEqualTo(HapticEvent.ToggleOn)
+        assertThat(HapticEvent.toggle(false)).isEqualTo(HapticEvent.ToggleOff)
+    }
+
+    @Test
+    fun `view entry point plays the mapped constant`() {
+        val view = RecordingView(context)
+        assertThat(view.performReplylyHaptic(HapticEvent.LongPressCopy)).isTrue()
+        assertThat(view.played).containsExactly(HapticFeedbackConstants.LONG_PRESS)
+    }
+
+    @Test
+    fun `nothing plays when system touch feedback is off`() {
+        setSystemTouchFeedback(false)
+        val view = RecordingView(context)
+        assertThat(view.performReplylyHaptic(HapticEvent.Tap)).isFalse()
+        assertThat(view.played).isEmpty()
+    }
+
+    @Test
+    fun `nothing plays when the view disabled haptics`() {
+        val view = RecordingView(context).apply { isHapticFeedbackEnabled = false }
+        assertThat(ReplylyHaptics(view).perform(HapticEvent.Save)).isFalse()
+        assertThat(view.played).isEmpty()
+    }
+
+    @Test
+    fun `compose entry point binds to the current view`() {
+        var haptics: ReplylyHaptics? = null
+        compose.setContent { haptics = rememberReplylyHaptics() }
+        compose.runOnIdle { haptics!!.perform(HapticEvent.CardInsert) }
+        assertThat(haptics).isNotNull()
+    }
+}

@@ -604,69 +604,114 @@ but everything works).
 counters and history are gone (one `NO_SAVED_PASSPHRASE` line, a fresh `capture merged`).
 **Send:** anything that survived the uninstall.
 
-## 11. Provider profiles (issue #18)
+## 11. Polish
+
+Look and feel from the UI polish pass (issue #17). The parallel polish PRs add their own steps
+here (button animation and drag, panel motion, haptics, onboarding transitions).
+
+11.1 **Do:** after installing, look at Replyly on the home screen and in the app drawer.
+**See:** an ink-blue icon with a white chat bubble (two blue text lines) and a yellow four-point
+sparkle top right; nothing clipped by the icon shape, the mark roughly centred. **Send:**
+Screenshot of the home screen.
+
+11.2 **Do:** Settings > Wallpaper and style > Color palette: turn on "Themed icons" (or Home screen
+settings > Themed icons). **See:** the Replyly icon turns into the One UI themed colours with the
+same bubble and sparkle, text lines cut out. **Send:** Screenshot of the home screen.
+
+11.3 **Do:** long-press the Replyly icon, or drag it into a folder. **See:** the round/folder
+version still shows the whole mark. **Send:** Screenshot if anything is cut off.
+
+11.4 **Do:** open Replyly settings. **See:** "replyly" with a small yellow sparkle above
+"Settings"; long-pressing it still opens the debug screen. **Send:** Screenshot.
+
+11.5 **Do:** Settings > Appearance > turn on "Material You colours", go back to the home screen
+and return; then open a WhatsApp chat and tap the button. **See:** settings, the floating button
+and the panel switch to your wallpaper colours (buttons, switches, the button fill). Turn it off
+again: everything goes back to ink blue. Also force-stop Replyly with Material You on and open
+it again: a brief flash of ink blue before the wallpaper colours appear is possible (the setting
+loads after the first frame). **Send:** two Screenshots (on and off) of settings and of the
+button over a chat, and say whether the cold-start flash is noticeable.
+
+11.6 **Do:** with "Material You colours" on, change the wallpaper (Settings > Wallpaper and
+style) to one with a clearly different colour, then reopen Replyly. **See:** Replyly picks up the
+new palette. **Send:** Screenshot if it keeps the old colours.
+
+11.7 **Do:** turn on dark mode (quick settings), open Replyly settings and a WhatsApp chat with
+the button and the panel. **See:** dark backgrounds, light text, a light periwinkle button with a
+dark mark; all text readable. **Send:** Screenshots of settings, button and panel.
+
+11.8 **Do:** Settings > Accessibility > Visibility enhancements > turn on "Remove animations"
+(on some One UI versions: Advanced settings > Remove animations). Use the button and panel.
+**See:** everything still works, things appear without animating. Turn it off afterwards.
+**Send:** anything that looks stuck half-way.
+
+11.9 **Do:** Settings > Display > Font size and style: set the font size two steps larger; open
+settings, onboarding and the panel. **See:** no text cut off or overlapping. **Send:** Screenshots
+of anything clipped.
+
+## 12. Provider profiles (issue #18)
 
 Endpoint, key and model now live in a provider profile: where sections 8 and 9 say "settings →
 endpoint / API key / model", use Settings → "Provider profiles" → Edit on the selected profile.
-You need an OpenRouter key; for 11.4–11.6 also an OpenAI and an Anthropic key with a little
+You need an OpenRouter key; for 12.4–12.6 also an OpenAI and an Anthropic key with a little
 credit. Note the Usage card's "Requests today" and tokens before each test.
 
-11.1 **Do:** with a build from before profiles installed and a key saved, install the new APK over
+12.1 **Do:** with a build from before profiles installed and a key saved, install the new APK over
 it and open Settings. **See:** under "Provider profiles" one selected row "OpenRouter",
 "OpenAI-compatible · <your model>", no red "No API key". Tap the button in a WhatsApp chat: 3
 cards, without entering the key again. **Send:** screenshot of the profiles section; error card
 text if any.
 
-11.2 **Do:** tap "Test connection" on the OpenRouter row. **See:** "OK · N ms" within about 3 s;
+12.2 **Do:** tap "Test connection" on the OpenRouter row. **See:** "OK · N ms" within about 3 s;
 Requests today goes up by exactly 1 and tokens by a few. **Send:** the text and the usage numbers
 before and after.
 
-11.3 **Do:** "Add profile" → preset "OpenAI" → paste an OpenAI key → model: a chat model from your
+12.3 **Do:** "Add profile" → preset "OpenAI" → paste an OpenAI key → model: a chat model from your
 OpenAI account → Save. Tap "Test connection" on the new row. **See:** the editor's hint says
 "Requests go to https://api.openai.com/v1/chat/completions"; the test shows "OK · N ms". **Send:**
 the test text, or the error text.
 
-11.4 **Do:** "Add profile" → preset "Anthropic" (base URL `https://api.anthropic.com/v1`, model
+12.4 **Do:** "Add profile" → preset "Anthropic" (base URL `https://api.anthropic.com/v1`, model
 `claude-haiku-5-5`) → paste an Anthropic key → Save → "Test connection". **See:** the hint says
 "Requests go to https://api.anthropic.com/v1/messages"; the test shows "OK · N ms". **Send:** the
 test text, or the error text.
 
-11.5 **Do:** tap the Anthropic row to select it. In a WhatsApp chat tap the button, then
+12.5 **Do:** tap the Anthropic row to select it. In a WhatsApp chat tap the button, then
 Regenerate twice. **See:** 3 cards each time within about 2 s, in your language and style, never
 "The reply was cut off" or "Could not read the model's reply". Open Settings → Feedback log.
 **See:** the newest entries show model `claude-haiku-5-5`. **Send:** latency of each try, any
 error card text, pass/fail on style.
 
-11.6 **Do:** select the OpenAI profile and repeat 11.5. Then turn on "3 parallel calls" and repeat
-once with the Anthropic profile. **See:** as 11.5; parallel mode still adds 1 request per tap.
+12.6 **Do:** select the OpenAI profile and repeat 12.5. Then turn on "3 parallel calls" and repeat
+once with the Anthropic profile. **See:** as 12.5; parallel mode still adds 1 request per tap.
 **Send:** latency per profile, parallel off vs on.
 
-11.7 **Do:** switch back to the OpenRouter row, tap the button. **See:** cards come back; the
+12.7 **Do:** switch back to the OpenRouter row, tap the button. **See:** cards come back; the
 feedback log shows the OpenRouter model again. **Send:** pass/fail.
 
-11.8 **Do:** edit the Anthropic profile, base URL `https://api.anthropic.com` (no `/v1`), Save,
+12.8 **Do:** edit the Anthropic profile, base URL `https://api.anthropic.com` (no `/v1`), Save,
 Test. **See:** the hint still ends in `/v1/messages`; "OK · N ms". **Send:** pass/fail.
 
-11.9 **Do:** on the Anthropic profile: Replace the key with a wrong one (change one character),
+12.9 **Do:** on the Anthropic profile: Replace the key with a wrong one (change one character),
 Save, Test. Then restore the key and set model `claude-does-not-exist`, Save, Test. **See:** "API
 key rejected (401). Check the key in Settings." then "The API returned an error (404). Model or
 endpoint not found. Check Settings." Each test adds 1 request. Restore the model. **Send:** the
 exact texts.
 
-11.10 **Do:** edit any profile → "Add header" → name `X-Replyly-Test`, value `abc123` → Save. Edit
+12.10 **Do:** edit any profile → "Add header" → name `X-Replyly-Test`, value `abc123` → Save. Edit
 again. **See:** "X-Replyly-Test: value saved", the value is never shown; "API key: saved ••••••••".
 Force-stop Replyly and reopen: still the same. Test connection still OK (most providers ignore
 unknown headers). Remove the header. **Send:** screenshot of the editor.
 
-11.11 **Do:** while running 11.2–11.9, keep
+12.11 **Do:** while running 12.2–12.9, keep
 `adb logcat -v time | grep -i -E "sk-|x-api-key|abc123|authorization"` open. **See:** no lines.
 **Send:** any line it prints (blur the key).
 
-11.12 **Do:** delete a profile that is not selected; then delete the selected one. **See:** a
+12.12 **Do:** delete a profile that is not selected; then delete the selected one. **See:** a
 confirmation each time; after deleting the selected one another row becomes selected. With one
 profile left, "Delete profile" is disabled. **Send:** pass/fail.
 
-11.13 **Do:** select a profile without a key (add one and skip the key), then open Setup steps.
+12.13 **Do:** select a profile without a key (add one and skip the key), then open Setup steps.
 **See:** step 5 (API key and model) is not done. Select a profile with a key and open Setup
 steps again: step 5 is done.
 **Send:** pass/fail.

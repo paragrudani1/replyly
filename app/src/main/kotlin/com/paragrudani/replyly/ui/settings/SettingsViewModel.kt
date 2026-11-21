@@ -41,6 +41,9 @@ data class SettingsUiState(
 ) {
     val showApiKeyField: Boolean get() = !apiKeySaved || replacingApiKey
 
+    /** Material You colours. Saved at once (not part of the Save bar), like the blocklists. */
+    val useDynamicColor: Boolean get() = saved?.useDynamicColor ?: false
+
     val dirty: Boolean get() = draft != null && saved != null && draft != SettingsDraft.from(saved)
 
     // Keeps a half-typed key out of any log or crash report that prints the state.
@@ -201,6 +204,11 @@ class SettingsViewModel(
 
     fun removeBlockedChat(key: String) {
         viewModelScope.launch { writeSettings { it.copy(blockedChatKeys = it.blockedChatKeys - key) } }
+    }
+
+    /** Applies at once: the theme follows the stored setting, so a Save bar would only delay it. */
+    fun setDynamicColor(enabled: Boolean) {
+        viewModelScope.launch { writeSettings { it.copy(useDynamicColor = enabled) } }
     }
 
     fun dismissSaveError() = mutableState.update { it.copy(saveError = null) }

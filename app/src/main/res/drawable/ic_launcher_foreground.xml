@@ -1,13 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive icon foreground: white reply bubble with ink text lines and a marigold sparkle.
+  The mark is the 24-unit overlay_button_icon geometry scaled 2.3x, its visual centre (11.5, 12)
+  moved to the icon centre. It stays inside the 66 dp safe circle (farthest point ~30.4 dp out).
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
   android:width="108dp"
   android:height="108dp"
   android:viewportWidth="108"
   android:viewportHeight="108">
-  <path
-    android:fillColor="#FFFFFF"
-    android:pathData="M36,34h36a8,8 0,0 1,8 8v20a8,8 0,0 1,-8 8H50l-10,9v-9h-4a8,8 0,0 1,-8 -8V42a8,8 0,0 1,8 -8z" />
-  <path
-    android:fillColor="#9333EA"
-    android:pathData="M44,52m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0M54,52m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0M64,52m-4,0a4,4 0,1 1,8 0a4,4 0,1 1,-8 0" />
+  <group android:scaleX="2.3" android:scaleY="2.3" android:translateX="27.55" android:translateY="26.4">
+    <path
+      android:fillColor="#FFFFFFFF"
+      android:pathData="M6,8H13A3.5,3.5 0,0 1,16.5 11.5V15.5A3.5,3.5 0,0 1,13 19H8.2L4.6,21.9C4.2,22.2 3.6,21.9 3.7,21.4L4.1,18.7A3.5,3.5 0,0 1,2.5 15.5V11.5A3.5,3.5 0,0 1,6 8Z" />
+    <path
+      android:fillColor="@color/replyly_ink"
+      android:pathData="M6.2,12.2H12.8A0.7,0.7 0,0 1,12.8 13.6H6.2A0.7,0.7 0,0 1,6.2 12.2Z M6.2,15H9.8A0.7,0.7 0,0 1,9.8 16.4H6.2A0.7,0.7 0,0 1,6.2 15Z" />
+    <path
+      android:fillColor="@color/replyly_marigold"
+      android:pathData="M18.5,1C18.9,3.5 20.5,5.1 23,5.5C20.5,5.9 18.9,7.5 18.5,10C18.1,7.5 16.5,5.9 14,5.5C16.5,5.1 18.1,3.5 18.5,1Z" />
+  </group>
 </vector>

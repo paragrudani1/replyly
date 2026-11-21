@@ -39,7 +39,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.input.KeyboardType
@@ -55,6 +58,8 @@ import androidx.navigation.compose.composable
 import com.paragrudani.replyly.appGraph
 import com.paragrudani.replyly.cost.CostStatus
 import com.paragrudani.replyly.ui.settings.profiles.ProviderProfilesSection
+import com.paragrudani.replyly.ui.theme.ReplylyWordmark
+import com.paragrudani.replyly.ui.theme.Spacing
 import kotlinx.serialization.Serializable
 import java.text.NumberFormat
 
@@ -168,6 +173,16 @@ fun SettingsScreen(
                     onCheckedChange = { v -> vm.editDraft { it.copy(useParallelCalls = v) } },
                 )
             }
+            item { SectionHeader("Appearance") }
+            item {
+                // Polish #0: a plain switch; the settings redesign restyles it.
+                SwitchRow(
+                    label = "Material You colours",
+                    supporting = "Use colours from your wallpaper instead of Replyly blue.",
+                    checked = state.useDynamicColor,
+                    onCheckedChange = vm::setDynamicColor,
+                )
+            }
             item { SectionHeader("Prompt") }
             item {
                 ValidatedField(
@@ -268,13 +283,21 @@ private fun SwitchRow(
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Title(onOpenDebug: () -> Unit) {
-    // Hidden entry to the debug screen: long-press the title.
-    Text(
-        "Replyly settings",
-        style = MaterialTheme.typography.headlineMedium,
-        modifier = Modifier.combinedClickable(onClick = {}, onLongClick = onOpenDebug),
-    )
+    // Hidden entry to the debug screen: long-press the title (wordmark and heading together).
+    Column(
+        modifier =
+            Modifier
+                .testTag(SETTINGS_TITLE_TAG)
+                .combinedClickable(onClick = {}, onLongClick = onOpenDebug)
+                .semantics(mergeDescendants = true) { heading() },
+        verticalArrangement = Arrangement.spacedBy(Spacing.XS),
+    ) {
+        ReplylyWordmark(style = MaterialTheme.typography.titleLarge)
+        Text("Settings", style = MaterialTheme.typography.headlineMedium)
+    }
 }
+
+internal const val SETTINGS_TITLE_TAG = "settings_title"
 
 @Composable
 private fun SectionHeader(text: String) {

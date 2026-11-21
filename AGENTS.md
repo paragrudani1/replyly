@@ -12,9 +12,10 @@ Before touching code, read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the dat
 
 ## Build and test
 
-- Gate (exactly what CI runs): `scripts/check.sh` = `./gradlew spotlessCheck lintDebug testDebugUnitTest assembleDebug`. It must pass before you push. On the KSP init flake (`PluginEnabler` / `ExceptionInInitializerError`) it retries once by itself in a fresh JVM; do not add your own retry.
+- Gate (exactly what CI runs): `scripts/check.sh` = `./gradlew spotlessCheck lintDebug testDebugUnitTest assembleDebug -Proborazzi.test.verify=true`. It must pass before you push. On the KSP init flake (`PluginEnabler` / `ExceptionInInitializerError`) it retries once by itself in a fresh JVM; do not add your own retry.
 - Fix formatting: `./gradlew spotlessApply` (ktlint via Spotless; rules in `.editorconfig`).
 - One test class: `./gradlew testDebugUnitTest --tests '*ChatParserRegistryTest'`.
+- UI work: follow [docs/DESIGN.md](docs/DESIGN.md) (theme, tokens, motion, accessibility). Screenshot tests are verified by the gate; a changed screen needs `scripts/record-screenshots.sh` and the new PNGs committed ([docs/SCREENSHOTS.md](docs/SCREENSHOTS.md)).
 
 ## Toolchain (shared VM)
 
