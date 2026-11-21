@@ -76,6 +76,8 @@ sealed interface SuggestionResult {
         /** The reply was not the expected JSON with 3 suggestions. */
         data class BadOutput(
             val reason: String,
+            /** True when the reply stopped at the token limit before it was complete. */
+            val cutOff: Boolean = false,
         ) : Failure
     }
 }

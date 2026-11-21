@@ -132,7 +132,11 @@ class OpenAiReplyGenerator(
     private fun badOutput(
         reason: String,
         outcome: CallOutcome.Ok,
-    ) = SuggestionResult.Failure.BadOutput(if (outcome.finishReason == "length") CUT_OFF else reason)
+    ) = if (outcome.finishReason == "length") {
+        SuggestionResult.Failure.BadOutput(CUT_OFF, cutOff = true)
+    } else {
+        SuggestionResult.Failure.BadOutput(reason)
+    }
 
     private inner class Call(
         val url: HttpUrl,
