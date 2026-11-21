@@ -174,13 +174,6 @@ object ChatText {
     /** A toolbar line that is a status, not a chat title. */
     fun isStatusLine(text: String): Boolean =
         groupHint(text) != GroupHint.UNKNOWN || isFixedStatus(text) || squash(text).lowercase().contains(" is typing")
-
-    /**
-     * Screen chrome that holds no private content and that the parsers need to recognise, so the
-     * debug-dump scrambler keeps it readable.
-     */
-    fun isNonPrivateChrome(text: String): Boolean =
-        isTime(text) || isDateSeparator(text) || isAlwaysChrome(text) || isBubbleLabel(text) || isFixedStatus(text)
 }
 
 /** What the subtitle of a chat says about whether it is a group. */

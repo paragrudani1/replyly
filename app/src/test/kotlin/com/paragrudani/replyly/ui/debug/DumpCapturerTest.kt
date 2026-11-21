@@ -2,6 +2,9 @@ package com.paragrudani.replyly.ui.debug
 
 import android.accessibilityservice.AccessibilityService
 import com.google.common.truth.Truth.assertThat
+import com.paragrudani.replyly.parser.ChatParser
+import com.paragrudani.replyly.parser.ChatParserRegistry
+import com.paragrudani.replyly.parser.ParsedChat
 import com.paragrudani.replyly.parser.Parsers
 import com.paragrudani.replyly.policy.BlockReason
 import com.paragrudani.replyly.policy.MinimalSensitiveScreenPolicy
@@ -9,6 +12,7 @@ import com.paragrudani.replyly.policy.SensitiveScreenPolicy
 import com.paragrudani.replyly.policy.SensitivityVerdict
 import com.paragrudani.replyly.screen.ScreenSnapshot
 import com.paragrudani.replyly.service.AccessibilityHost
+import com.paragrudani.replyly.settings.ReplylySettings
 import com.paragrudani.replyly.testing.Fixtures
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,15 +47,34 @@ class DumpCapturerTest {
     private val store by lazy { DebugDumpStore(folder.root) }
     private val hosts = MutableStateFlow<AccessibilityHost?>(null)
 
-    private fun TestScope.capturer(policy: SensitiveScreenPolicy = MinimalSensitiveScreenPolicy) =
-        DumpCapturer(
-            hosts = hosts,
-            store = store,
-            policy = policy,
-            registry = Parsers.registry(),
-            ownPackage = "com.paragrudani.replyly",
-            workDispatcher = StandardTestDispatcher(testScheduler),
-        )
+    private fun TestScope.capturer(
+        policy: SensitiveScreenPolicy = MinimalSensitiveScreenPolicy,
+        registry: ChatParserRegistry = Parsers.registry(),
+        settings: ReplylySettings = ReplylySettings(),
+    ) = DumpCapturer(
+        hosts = hosts,
+        store = store,
+        policy = policy,
+        registry = registry,
+        ownPackage = "com.paragrudani.replyly",
+        settings = { settings },
+        workDispatcher = StandardTestDispatcher(testScheduler),
+    )
+
+    private val crashingParser =
+        object : ChatParser {
+            override val packages = setOf("com.whatsapp")
+
+            override fun parse(snapshot: ScreenSnapshot): ParsedChat? = error("parser bug")
+        }
+    private val nullParser =
+        object : ChatParser {
+            override val packages = emptySet<String>()
+
+            override fun parse(snapshot: ScreenSnapshot): ParsedChat? = null
+        }
+    private val crashing get() = ChatParserRegistry(listOf(crashingParser), crashingParser)
+    private val readsNothing get() = ChatParserRegistry(emptyList(), nullParser)
 
     private val whatsapp = Fixtures.snapshot("whatsapp/synthetic-one_to_one.json")
 
@@ -125,6 +148,43 @@ class DumpCapturerTest {
                 }
 
             assertThat(capturer(blockChat).capture(0.seconds))
+                .isEqualTo(DumpCapturer.Outcome.Blocked(BlockReason.BLOCKLISTED_CHAT))
+            assertThat(store.list()).isEmpty()
+        }
+
+    @Test
+    fun `a saved dump says whether the chat blocklist could be checked`() =
+        runTest {
+            hosts.value = FakeHost(whatsapp)
+
+            val parsed = capturer().capture(0.seconds) as DumpCapturer.Outcome.Saved
+            val crashed = capturer(registry = crashing).capture(0.seconds)
+
+            assertThat(parsed.chatKeyChecked).isTrue()
+            assertThat((crashed as DumpCapturer.Outcome.Saved).chatKeyChecked).isFalse()
+        }
+
+    @Test
+    fun `a blocklisted app is never saved, even when the parser fails`() =
+        runTest {
+            hosts.value = FakeHost(whatsapp)
+            val settings = ReplylySettings(blockedPackages = setOf("com.whatsapp"))
+
+            listOf(Parsers.registry(), crashing, readsNothing)
+                .forEach { registry ->
+                    assertThat(capturer(registry = registry, settings = settings).capture(0.seconds))
+                        .isEqualTo(DumpCapturer.Outcome.Blocked(BlockReason.BLOCKLISTED_APP))
+                }
+            assertThat(store.list()).isEmpty()
+        }
+
+    @Test
+    fun `a blocklisted chat is never saved, even before the real policy lands`() =
+        runTest {
+            hosts.value = FakeHost(whatsapp)
+            val settings = ReplylySettings(blockedChatKeys = setOf("com.whatsapp:Asha Patel"))
+
+            assertThat(capturer(settings = settings).capture(0.seconds))
                 .isEqualTo(DumpCapturer.Outcome.Blocked(BlockReason.BLOCKLISTED_CHAT))
             assertThat(store.list()).isEmpty()
         }

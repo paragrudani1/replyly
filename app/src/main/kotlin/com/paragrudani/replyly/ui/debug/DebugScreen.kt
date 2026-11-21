@@ -13,6 +13,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -108,7 +109,9 @@ fun DebugScreen(onBack: () -> Unit) {
                 CaptureCard(
                     serviceOn = ui.serviceOn,
                     countdown = ui.countdown,
+                    delaySeconds = ui.delaySeconds,
                     status = ui.status,
+                    onDelay = vm::setDelay,
                     onCapture = vm::startCapture,
                 )
             }
@@ -132,6 +135,7 @@ fun DebugScreen(onBack: () -> Unit) {
             items(ui.dumps, key = { it.entry.name }) { item ->
                 DumpCard(
                     item = item,
+                    scramble = ui.scramble,
                     onShare = {
                         withJson(item.entry.name) { fileName, json ->
                             if (DumpActions.fitsAsText(json)) {
@@ -217,23 +221,36 @@ private fun ServiceCard(
 private fun CaptureCard(
     serviceOn: Boolean,
     countdown: Int?,
+    delaySeconds: Int,
     status: String?,
+    onDelay: (Int) -> Unit,
     onCapture: () -> Unit,
 ) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
-                "Tap the button, then switch to the chat (recent apps) within " +
-                    "${DebugViewModel.CAPTURE_DELAY_SECONDS} seconds and leave it on screen. " +
+                "Tap the button, switch to the chat (recent apps) within $delaySeconds seconds, then tap " +
+                    "the message field if you want the keyboard open. Leave it on screen. " +
                     "A toast says when the dump is saved.",
                 style = MaterialTheme.typography.bodySmall,
             )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Delay", style = MaterialTheme.typography.bodyMedium)
+                DebugViewModel.DELAY_CHOICES.forEach { seconds ->
+                    FilterChip(
+                        selected = seconds == delaySeconds,
+                        onClick = { onDelay(seconds) },
+                        enabled = countdown == null,
+                        label = { Text("$seconds s") },
+                    )
+                }
+            }
             Button(onClick = onCapture, enabled = serviceOn && countdown == null) {
                 Text(
                     if (countdown ==
                         null
                     ) {
-                        "Dump in ${DebugViewModel.CAPTURE_DELAY_SECONDS} s"
+                        "Dump in $delaySeconds s"
                     } else {
                         "Switch to the chat now… $countdown"
                     },
@@ -249,6 +266,7 @@ private val timeFormat = DateTimeFormatter.ofPattern("d MMM HH:mm:ss").withZone(
 @Composable
 private fun DumpCard(
     item: DumpItem,
+    scramble: Boolean,
     onShare: () -> Unit,
     onCopy: () -> Unit,
     onSave: () -> Unit,
@@ -275,6 +293,13 @@ private fun DumpCard(
                 OutlinedButton(onClick = onCopy) { Text("Copy") }
                 OutlinedButton(onClick = onSave) { Text("Save") }
                 TextButton(onClick = onDelete) { Text("Delete") }
+            }
+            if (!scramble) {
+                Text(
+                    "Scramble is off: Save writes the real chat text to shared Downloads.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
     }

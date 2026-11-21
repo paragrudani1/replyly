@@ -55,6 +55,52 @@ class ScramblerTest {
     }
 
     @Test
+    fun `text that only starts like chrome is scrambled whole, kept words included`() {
+        val fixed = Scrambler(ByteArray(32) { it.toByte() })
+        listOf(
+            "Active on Sunday? call Priya at 98765 43210",
+            "typing this from the hospital, Rahul is ok",
+            "last seen at Raj's house near Andheri station",
+            "5 members of the Mehta family are coming",
+            "Messages are end-to-end encrypted, my password is hunter2",
+            "Waiting for this message from Neha about the loan",
+            "Tap here for the address: 12 MG Road",
+            "I am at you know where, sent from Priya",
+            "Sent from my phone at 6:30",
+        ).forEach { original ->
+            val scrambled = fixed.scrambleText(original)
+            val words = Regex("""\p{L}{2,}""").findAll(original).map { it.value }.toList()
+            val kept =
+                Regex("""\p{L}{2,}""")
+                    .findAll(scrambled)
+                    .map { it.value }
+                    .filter { it in words }
+                    .toList()
+
+            assertThat(kept).isEmpty()
+            assertThat(shape(scrambled)).isEqualTo(shape(original))
+        }
+    }
+
+    @Test
+    fun `the same name scrambles the same way in every cell, subtitle and member list`() {
+        val a = scrambler.scrambleText("Asha\nGood morning\nReceived today at 8:02 AM").lines()
+        val b = scrambler.scrambleText("Asha\nok\nReceived today at 8:03 AM").lines()
+        val typing = scrambler.scrambleText("Asha is typing…")
+        val members = scrambler.scrambleText("Asha, Ravi, You")
+
+        assertThat(a.first()).isEqualTo(b.first())
+        assertThat(a.first()).isNotEqualTo("Asha")
+        assertThat(typing).isEqualTo("${a.first()} is typing…")
+        assertThat(members).isEqualTo("${a.first()}, ${scrambler.scrambleText("Ravi")}, You")
+        assertThat(a.last()).isEqualTo("Received today at 8:02 AM")
+        // A forwarded line keeps its prefix only inside a Telegram cell.
+        val forwarded = scrambler.scrambleText("Ravi\nForwarded from Trek Club\nRoute map\nReceived today at 8:06 AM")
+        assertThat(forwarded.lines()[1]).startsWith("Forwarded from ")
+        assertThat(forwarded.lines()[1]).doesNotContain("Trek")
+    }
+
+    @Test
     fun `scrambles text, descriptions and hints but keeps ids, classes, bounds and package`() {
         val original = Fixtures.snapshot("whatsapp/synthetic-group.json")
         val scrambled = scrambler.scramble(original)
@@ -77,6 +123,10 @@ class ScramblerTest {
             val scrambled = Parsers.registry().parse(scrambler.scramble(original))!!
 
             assertThat(scrambled.isGroup).isEqualTo(plain.isGroup)
+
+            // Same sender, same scrambled name: the runs of senders keep their shape.
+            fun runs(senders: List<String?>) = senders.map { s -> s?.let { senders.indexOf(it) } }
+            assertThat(runs(scrambled.messages.map { it.sender })).isEqualTo(runs(plain.messages.map { it.sender }))
             assertThat(scrambled.messages.map { it.isMe to it.timeShown })
                 .isEqualTo(plain.messages.map { it.isMe to it.timeShown })
             assertThat(scrambled.messages.map { it.text.length }).isEqualTo(plain.messages.map { it.text.length })

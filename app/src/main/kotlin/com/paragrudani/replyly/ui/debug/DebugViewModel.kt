@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.paragrudani.replyly.di.AppGraph
 import com.paragrudani.replyly.parser.explain
 import com.paragrudani.replyly.screen.ScreenSnapshotJson
+import com.paragrudani.replyly.settings.current
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,6 +30,8 @@ data class DebugUiState(
     /** Result of the last capture or action, for the user. */
     val status: String? = null,
     val scramble: Boolean = false,
+    /** Countdown before the capture: [DebugViewModel.DELAY_CHOICES]. */
+    val delaySeconds: Int = DebugViewModel.DEFAULT_DELAY_SECONDS,
     val dumps: List<DumpItem> = emptyList(),
 )
 
@@ -43,6 +46,7 @@ class DebugViewModel(
             policy = graph.sensitiveScreenPolicy,
             registry = graph.chatParserRegistry,
             ownPackage = graph.app.packageName,
+            settings = { graph.settingsRepository.current() },
         )
     private val state = MutableStateFlow(DebugUiState())
     val ui: StateFlow<DebugUiState> = state.asStateFlow()
@@ -74,15 +78,14 @@ class DebugViewModel(
      */
     fun startCapture() {
         if (state.value.countdown != null) return
-        state.update { it.copy(countdown = CAPTURE_DELAY_SECONDS, status = null) }
+        val delay = state.value.delaySeconds
+        state.update { it.copy(countdown = delay, status = null) }
         graph.appScope.launch {
             // Never let a failure escape into the app scope (it would crash the app). Class name
             // only: exception messages can contain chat text.
             val message =
                 runCatching {
-                    capturer.capture(
-                        CAPTURE_DELAY_SECONDS.seconds,
-                    ) { left -> state.update { it.copy(countdown = left) } }
+                    capturer.capture(delay.seconds) { left -> state.update { it.copy(countdown = left) } }
                 }.fold(::describe) { "capture failed (${it::class.simpleName})." }
             state.update { it.copy(countdown = null, status = message) }
             withContext(Dispatchers.Main) { Toast.makeText(graph.app, "Replyly: $message", Toast.LENGTH_LONG).show() }
@@ -91,6 +94,10 @@ class DebugViewModel(
     }
 
     fun setScramble(on: Boolean) = state.update { it.copy(scramble = on) }
+
+    fun setDelay(seconds: Int) {
+        if (seconds in DELAY_CHOICES && state.value.countdown == null) state.update { it.copy(delaySeconds = seconds) }
+    }
 
     fun delete(name: String) {
         viewModelScope.launch {
@@ -122,7 +129,7 @@ class DebugViewModel(
             }
 
             DumpCapturer.Outcome.StillOnReplyly -> {
-                "Replyly was still on top. Tap \"Dump in $CAPTURE_DELAY_SECONDS s\", then switch to the chat."
+                "Replyly was still on top. Pick a longer delay, tap Dump, then switch to the chat."
             }
 
             is DumpCapturer.Outcome.Blocked -> {
@@ -130,12 +137,17 @@ class DebugViewModel(
             }
 
             is DumpCapturer.Outcome.Saved -> {
-                "dump saved (${outcome.entry.packageName})."
+                if (outcome.chatKeyChecked) {
+                    "dump saved (${outcome.entry.packageName})."
+                } else {
+                    "dump saved (${outcome.entry.packageName}); no chat parsed, so the chat blocklist was not checked."
+                }
             }
         }
 
     companion object {
-        const val CAPTURE_DELAY_SECONDS = 5
+        val DELAY_CHOICES = listOf(5, 10, 15)
+        const val DEFAULT_DELAY_SECONDS = 10
         const val DUMP_DIR = "debug-dumps"
     }
 }
