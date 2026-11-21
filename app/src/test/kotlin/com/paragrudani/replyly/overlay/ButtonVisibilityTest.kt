@@ -1,0 +1,115 @@
+package com.paragrudani.replyly.overlay
+
+import com.google.common.truth.Truth.assertThat
+import com.paragrudani.replyly.screen.Bounds
+import org.junit.Test
+
+class ButtonVisibilityTest {
+    private val blocked = mutableSetOf<String>()
+    private val visibility = ButtonVisibility(ownPackage = OWN, isAppAllowed = { it !in blocked })
+
+    private val chatWindow = WindowFacts(id = 7, kind = WindowKind.APPLICATION, bounds = SCREEN, active = true)
+    private val keyboardWindow = WindowFacts(id = 9, kind = WindowKind.INPUT_METHOD, bounds = KEYBOARD)
+    private val input =
+        FocusedInput(
+            windowId = 7,
+            packageName = WHATSAPP,
+            editable = true,
+            password = false,
+            viewId = "com.whatsapp:id/entry",
+            bounds = Bounds(30, 1300, 900, 1420),
+        )
+
+    private fun decide(
+        focused: FocusedInput? = input,
+        vararg windows: WindowFacts = arrayOf(chatWindow, keyboardWindow),
+    ) = visibility.decide(ScreenFacts(windows.toList(), focused))
+
+    private fun hidden(reason: HideReason) = ButtonDecision.Hide(reason)
+
+    @Test
+    fun `shows in a chat app with a focused input and the keyboard open`() {
+        assertThat(decide()).isEqualTo(ButtonDecision.Show(input, KEYBOARD))
+    }
+
+    @Test
+    fun `shows in any app that is not blocked (generic mode)`() {
+        val slack = input.copy(packageName = "com.Slack")
+
+        assertThat(decide(slack)).isEqualTo(ButtonDecision.Show(slack, KEYBOARD))
+    }
+
+    @Test
+    fun `hides when the keyboard is closed`() {
+        assertThat(decide(input, chatWindow)).isEqualTo(hidden(HideReason.KEYBOARD_CLOSED))
+    }
+
+    @Test
+    fun `a zero-height keyboard window counts as closed`() {
+        val collapsed = keyboardWindow.copy(bounds = Bounds(0, 2340, 1080, 2340))
+
+        assertThat(decide(input, chatWindow, collapsed)).isEqualTo(hidden(HideReason.KEYBOARD_CLOSED))
+    }
+
+    @Test
+    fun `hides when nothing has input focus`() {
+        assertThat(decide(focused = null)).isEqualTo(hidden(HideReason.NO_INPUT_FOCUS))
+    }
+
+    @Test
+    fun `hides on a focused field that is not editable`() {
+        assertThat(decide(input.copy(editable = false))).isEqualTo(hidden(HideReason.NOT_EDITABLE))
+    }
+
+    @Test
+    fun `hides on a password field`() {
+        assertThat(decide(input.copy(password = true))).isEqualTo(hidden(HideReason.PASSWORD_FIELD))
+    }
+
+    @Test
+    fun `hides when the focused field's window is not the active app window`() {
+        val inactive = chatWindow.copy(active = false)
+
+        assertThat(decide(input, inactive, keyboardWindow)).isEqualTo(hidden(HideReason.WINDOW_NOT_ACTIVE))
+    }
+
+    @Test
+    fun `a focused but not active app window still counts`() {
+        val focusedOnly = chatWindow.copy(active = false, focused = true)
+
+        assertThat(decide(input, focusedOnly, keyboardWindow)).isEqualTo(ButtonDecision.Show(input, KEYBOARD))
+    }
+
+    @Test
+    fun `hides when the focused field lives in a non-app window, such as the keyboard's own search box`() {
+        val inKeyboard = input.copy(windowId = keyboardWindow.id, packageName = "com.google.android.inputmethod.latin")
+
+        assertThat(decide(inKeyboard)).isEqualTo(hidden(HideReason.WINDOW_NOT_ACTIVE))
+    }
+
+    @Test
+    fun `hides when the focused field's window is gone`() {
+        assertThat(decide(input.copy(windowId = 42))).isEqualTo(hidden(HideReason.WINDOW_NOT_ACTIVE))
+    }
+
+    @Test
+    fun `never shows over Replyly itself or the system UI`() {
+        assertThat(decide(input.copy(packageName = OWN))).isEqualTo(hidden(HideReason.EXCLUDED_APP))
+        assertThat(decide(input.copy(packageName = "com.android.systemui")))
+            .isEqualTo(hidden(HideReason.EXCLUDED_APP))
+    }
+
+    @Test
+    fun `hides in a blocked app`() {
+        blocked += WHATSAPP
+
+        assertThat(decide()).isEqualTo(hidden(HideReason.BLOCKED_APP))
+    }
+
+    private companion object {
+        const val OWN = "com.paragrudani.replyly"
+        const val WHATSAPP = "com.whatsapp"
+        val SCREEN = Bounds(0, 0, 1080, 2340)
+        val KEYBOARD = Bounds(0, 1440, 1080, 2340)
+    }
+}
