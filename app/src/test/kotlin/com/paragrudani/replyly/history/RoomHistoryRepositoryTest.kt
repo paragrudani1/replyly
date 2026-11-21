@@ -1,7 +1,9 @@
 package com.paragrudani.replyly.history
 
 import android.content.Context
+import android.database.sqlite.SQLiteDatabaseCorruptException
 import android.database.sqlite.SQLiteException
+import android.database.sqlite.SQLiteFullException
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import app.cash.turbine.test
@@ -14,6 +16,7 @@ import com.paragrudani.replyly.parser.ChatMessage
 import com.paragrudani.replyly.parser.ParsedChat
 import kotlinx.coroutines.test.runTest
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -231,7 +234,13 @@ class RoomHistoryRepositoryTest {
             HistoryDatabases.openOrWipe(
                 open = {
                     opens++
-                    if (opens == 1) UnreadableDatabase.create(context) else fresh
+                    if (opens ==
+                        1
+                    ) {
+                        UnreadableDatabase.create(context, SQLiteDatabaseCorruptException("not a db"))
+                    } else {
+                        fresh
+                    }
                 },
                 discard = { discarded++ },
             )
@@ -240,11 +249,30 @@ class RoomHistoryRepositoryTest {
         assertThat(discarded).isEqualTo(1)
         fresh.close()
     }
+
+    @Test
+    fun `a full disk or other SQLite error fails without wiping the database`() {
+        var discarded = 0
+
+        assertThrows(SQLiteFullException::class.java) {
+            HistoryDatabases.openOrWipe(
+                open = { UnreadableDatabase.create(context, SQLiteFullException("disk full")) },
+                discard = { discarded++ },
+            )
+        }
+        assertThat(discarded).isEqualTo(0)
+    }
 }
 
-/** A DB whose open helper fails the way SQLCipher does with a wrong passphrase. */
+/**
+ * A DB whose open helper throws [error] on open. SQLCipher reports a wrong passphrase or a file
+ * that is not a database (SQLITE_NOTADB) as [SQLiteDatabaseCorruptException].
+ */
 private object UnreadableDatabase {
-    fun create(context: Context): HistoryDatabase =
+    fun create(
+        context: Context,
+        error: SQLiteException,
+    ): HistoryDatabase =
         Room
             .inMemoryDatabaseBuilder(context, HistoryDatabase::class.java)
             .openHelperFactory { configuration ->
@@ -254,7 +282,7 @@ private object UnreadableDatabase {
                     override fun setWriteAheadLoggingEnabled(enabled: Boolean) {}
 
                     override val writableDatabase: androidx.sqlite.db.SupportSQLiteDatabase
-                        get() = throw SQLiteException("file is not a database")
+                        get() = throw error
 
                     override val readableDatabase: androidx.sqlite.db.SupportSQLiteDatabase
                         get() = writableDatabase

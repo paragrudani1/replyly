@@ -1,7 +1,7 @@
 package com.paragrudani.replyly.history.db
 
 import android.content.Context
-import android.database.sqlite.SQLiteException
+import android.database.sqlite.SQLiteDatabaseCorruptException
 import android.util.Log
 import androidx.room.Room
 import com.paragrudani.replyly.security.DatabaseKeyProvider
@@ -69,9 +69,10 @@ object HistoryDatabases {
     }
 
     /**
-     * Opens [open] and forces the file open. On a [SQLiteException] (wrong passphrase, damaged
-     * file) it logs the class name, [discard]s the DB and opens a fresh one: losing history beats
-     * a service that crashes on every start.
+     * Opens [open] and forces the file open. On a [SQLiteDatabaseCorruptException] (SQLCipher's
+     * error for a wrong passphrase or a file that is not a database) it logs the class name,
+     * [discard]s the DB and opens a fresh one: losing history beats a service that crashes on
+     * every start. Any other error (full disk, I/O error, locked DB) is thrown and wipes nothing.
      */
     fun openOrWipe(
         open: () -> HistoryDatabase,
@@ -81,7 +82,7 @@ object HistoryDatabases {
         try {
             first.openHelper.writableDatabase
             return first
-        } catch (e: SQLiteException) {
+        } catch (e: SQLiteDatabaseCorruptException) {
             Log.w(TAG, "history db unreadable, recreating: ${e::class.simpleName}")
             discard(first)
         }
