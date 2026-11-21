@@ -3,6 +3,7 @@ package com.paragrudani.replyly.panel
 import com.paragrudani.replyly.feedback.FeedbackLog
 import com.paragrudani.replyly.history.ContactNoteStore
 import com.paragrudani.replyly.history.HistoryRepository
+import com.paragrudani.replyly.insert.InsertResult
 import com.paragrudani.replyly.insert.ReplyInserter
 import com.paragrudani.replyly.llm.ReplyGenerator
 import com.paragrudani.replyly.llm.Suggestion
@@ -36,6 +37,8 @@ sealed interface SuggestionsUi {
         val suggestions: List<Suggestion>,
         val model: String,
         val latency: Duration,
+        /** Null when the feedback log could not store the entry; inserting still works. */
+        val feedbackEntryId: Long?,
     ) : SuggestionsUi
 
     data class Error(
@@ -47,6 +50,10 @@ data class PanelUiState(
     val suggestions: SuggestionsUi = SuggestionsUi.Loading,
     /** The instruction field, at most [MAX_INSTRUCTION_CHARS]. */
     val instruction: String = "",
+    /** True while a card's text is being inserted; further taps are ignored. */
+    val inserting: Boolean = false,
+    /** Why the last insert failed. The panel stays open so the user can try again. */
+    val insertError: String? = null,
 )
 
 /** The prompt keeps 300 characters of instruction (decision #4), so the field stops there too. */
@@ -85,7 +92,7 @@ class ReplyPanelState(
     private fun generate() {
         if (generation?.isActive == true) return
         val instruction = mutableState.value.instruction.trim().ifEmpty { null }
-        mutableState.update { it.copy(suggestions = SuggestionsUi.Loading) }
+        mutableState.update { it.copy(suggestions = SuggestionsUi.Loading, insertError = null) }
         generation =
             scope.launch {
                 val suggestionRequest =
@@ -96,8 +103,8 @@ class ReplyPanelState(
                 val next =
                     when (val result = deps.generator.generate(suggestionRequest)) {
                         is SuggestionResult.Success -> {
-                            deps.feedbackLog.record(request.chat.chatKey, result.model, result.promptSent, result.suggestions)
-                            SuggestionsUi.Ready(result.suggestions, result.model, result.latency)
+                            val entryId = recordOrNull(result)
+                            SuggestionsUi.Ready(result.suggestions, result.model, result.latency, entryId)
                         }
                         is SuggestionResult.Failure -> SuggestionsUi.Error(result.toPanelError())
                     }
@@ -105,12 +112,51 @@ class ReplyPanelState(
             }
     }
 
-    private suspend fun assembleOrNull(instruction: String?): SuggestionRequest? =
-        try {
-            deps.assembler.assemble(request.chat, instruction)
-        } catch (e: CancellationException) {
-            throw e
-        } catch (_: Exception) {
-            null
+    /**
+     * Tapping card [index]: puts its text into the chat's input field, marks the feedback entry
+     * and closes the panel. On failure the panel stays open and shows why. Never sends.
+     */
+    fun insert(index: Int) {
+        val current = mutableState.value
+        val ready = current.suggestions as? SuggestionsUi.Ready ?: return
+        val suggestion = ready.suggestions.getOrNull(index) ?: return
+        if (current.inserting) return
+        mutableState.update { it.copy(inserting = true, insertError = null) }
+        scope.launch {
+            when (val result = deps.inserter.insert(suggestion.text)) {
+                InsertResult.Inserted -> {
+                    ready.feedbackEntryId?.let { id -> ignoringErrors { deps.feedbackLog.markInserted(id, index) } }
+                    mutableState.update { it.copy(inserting = false) }
+                    onClose()
+                }
+                InsertResult.NoFocusedField ->
+                    mutableState.update { it.copy(inserting = false, insertError = NO_FOCUSED_FIELD) }
+                is InsertResult.Failed ->
+                    mutableState.update {
+                        it.copy(inserting = false, insertError = "Could not insert the reply: ${result.reason}")
+                    }
+            }
         }
+    }
+
+    /** The feedback log is for judging quality later; its failure must not block the user. */
+    private suspend fun recordOrNull(result: SuggestionResult.Success): Long? =
+        ignoringErrors {
+            deps.feedbackLog.record(request.chat.chatKey, result.model, result.promptSent, result.suggestions)
+        }
+
+    private suspend fun assembleOrNull(instruction: String?): SuggestionRequest? =
+        ignoringErrors { deps.assembler.assemble(request.chat, instruction) }
 }
+
+/** Runs [block]; any exception except cancellation becomes null. Exception text is never shown or logged. */
+private suspend fun <T> ignoringErrors(block: suspend () -> T): T? =
+    try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (_: Exception) {
+        null
+    }
+
+internal const val NO_FOCUSED_FIELD = "Could not find the chat's message box. Tap it, then pick a reply again."

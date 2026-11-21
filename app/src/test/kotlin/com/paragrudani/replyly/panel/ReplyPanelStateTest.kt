@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.panel
 
 import com.google.common.truth.Truth.assertThat
+import com.paragrudani.replyly.insert.InsertResult
 import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.llm.SuggestionResult
 import com.paragrudani.replyly.parser.ParsedChat
@@ -137,6 +138,91 @@ class ReplyPanelStateTest {
             advanceUntilIdle()
 
             assertThat(panel.state.value.suggestions).isInstanceOf(SuggestionsUi.Ready::class.java)
+        }
+
+    @Test
+    fun `tapping a card inserts its text, marks the feedback entry and closes`() =
+        runTest {
+            val panel = panel()
+            panel.start()
+            advanceUntilIdle()
+
+            panel.insert(1)
+            advanceUntilIdle()
+
+            assertThat(inserter.inserted).containsExactly("Kal nahi ho payega yaar")
+            assertThat(feedback.marked).containsExactly(41L to 1) // the fake's first entry id
+            assertThat(closed).isEqualTo(1)
+        }
+
+    @Test
+    fun `an insert into the latest generation marks that generation's entry`() =
+        runTest {
+            val panel = panel()
+            panel.start()
+            advanceUntilIdle()
+            panel.regenerate()
+            advanceUntilIdle()
+
+            panel.insert(2)
+            advanceUntilIdle()
+
+            assertThat(feedback.marked).containsExactly(42L to 2)
+        }
+
+    @Test
+    fun `no focused field shows an error and keeps the panel open`() =
+        runTest {
+            inserter.result = InsertResult.NoFocusedField
+            val panel = panel()
+            panel.start()
+            advanceUntilIdle()
+
+            panel.insert(0)
+            advanceUntilIdle()
+
+            assertThat(panel.state.value.insertError)
+                .isEqualTo("Could not find the chat's message box. Tap it, then pick a reply again.")
+            assertThat(feedback.marked).isEmpty()
+            assertThat(closed).isEqualTo(0)
+            assertThat(panel.state.value.suggestions).isInstanceOf(SuggestionsUi.Ready::class.java)
+        }
+
+    @Test
+    fun `a failed insert shows the inserter's reason and keeps the panel open`() =
+        runTest {
+            inserter.result = InsertResult.Failed("field is not editable")
+            val panel = panel()
+            panel.start()
+            advanceUntilIdle()
+
+            panel.insert(0)
+            advanceUntilIdle()
+
+            assertThat(panel.state.value.insertError).isEqualTo("Could not insert the reply: field is not editable")
+            assertThat(closed).isEqualTo(0)
+
+            inserter.result = InsertResult.Inserted
+            panel.insert(0)
+            advanceUntilIdle()
+            assertThat(closed).isEqualTo(1)
+        }
+
+    @Test
+    fun `a feedback log failure still shows suggestions, and insert still works`() =
+        runTest {
+            feedback.failRecord = true
+            val panel = panel()
+            panel.start()
+            advanceUntilIdle()
+            assertThat(panel.state.value.suggestions).isInstanceOf(SuggestionsUi.Ready::class.java)
+
+            panel.insert(0)
+            advanceUntilIdle()
+
+            assertThat(inserter.inserted).hasSize(1)
+            assertThat(feedback.marked).isEmpty()
+            assertThat(closed).isEqualTo(1)
         }
 
     @Test
