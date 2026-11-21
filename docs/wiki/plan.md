@@ -12,3 +12,4 @@
 ## Wave 3 follow-ups collected (2026-11-21)
 - From #4 (`ticket-4-llm@6d81602`): Settings needs a "3 parallel calls" switch for `useParallelCalls` (#6 was briefed before that field existed). The manifest may need a `<queries>` entry so `PackageManager` can label generic apps. Consider OpenRouter's `reasoning` effort if `~openai/gpt-mini-latest` is slow. Remove `Stub*` LLM classes once #5 lands.
 - From #6 (`ticket-6-settings@b1fa11a`): once #3 has merged, bind `feedbackLog = RoomFeedbackLog(FeedbackDatabase.open(app, databaseKeyProvider), clock, settingsRepository.settings.map { it.retentionDays })`. Add the `useParallelCalls` switch to the settings screen. No Compose ui-test dependency yet.
+- From #4 review: ApiKeyStore (#6) should trim the key on `set`.

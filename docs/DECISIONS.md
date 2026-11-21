@@ -23,3 +23,7 @@ One line per decision, with the date and the reason. Newest at the bottom. Longe
 - 2026-11-21 (#6): Blocklist edits save immediately (not on Save). Reason: blocking is a privacy action.
 - 2026-11-21 (#6): An undecryptable API key (e.g. after reinstall) is deleted and reads as "no key". Reason: ask again instead of failing every request.
 - 2026-11-21 (#6): Cost counters never roll backwards. Reason: a clock change must not grant a fresh daily allowance.
+- 2026-11-21 (#4 review): With an openrouter.ai endpoint, requests send `reasoning: {effort: "low"}`; a reply cut off at the token limit (`finish_reason: length`) becomes a fixed "cut off" BadOutput. Reason: reasoning tokens count toward max_tokens and blow the 1–2 s target.
+- 2026-11-21 (#4 review): Replies match the language, mix and script the user writes in this chat (fallback: the latest messages). Reason: a contact writing English or Devanagari should not pull the user's Hinglish replies away from their own style.
+- 2026-11-21 (#4 review): The conversation goes into the prompt inside `<conversation>` tags marked untrusted; titles and sender names lose newlines. Reason: limit prompt injection from chat text.
+- 2026-11-21 (#4 review): Style examples: at most 10 from this chat, so other chats of the app get 10–15. Reason: spec section 6.
