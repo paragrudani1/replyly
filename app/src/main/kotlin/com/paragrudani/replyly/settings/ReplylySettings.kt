@@ -19,6 +19,11 @@ data class ReplylySettings(
     val blockedPackages: Set<String> = emptySet(),
     val dailyRequestLimit: Int = 200,
     val retentionDays: Int = 60,
+    /**
+     * Spec 6 latency fallback: 3 concurrent single-suggestion calls (agree / decline / ask)
+     * instead of one call for 3. Counts as 1 request against the daily limit.
+     */
+    val useParallelCalls: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_ENDPOINT = "https://openrouter.ai/api/v1"
@@ -47,7 +52,7 @@ interface ApiKeyStore {
 
     suspend fun get(): String?
 
-    /** A blank [key] clears it. */
+    /** Stores [key] trimmed; a blank result clears it. */
     suspend fun set(key: String)
 }
 
@@ -70,7 +75,7 @@ class InMemoryApiKeyStore : ApiKeyStore {
     override suspend fun get(): String? = key.value
 
     override suspend fun set(key: String) {
-        this.key.value = key.takeIf { it.isNotBlank() }
+        this.key.value = key.trim().takeIf { it.isNotEmpty() }
         present.value = this.key.value != null
     }
 }

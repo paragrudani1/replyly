@@ -1,0 +1,132 @@
+{
+  "formatVersion": 1,
+  "packageName": "org.telegram.messenger",
+  "capturedAt": "2026-11-21T10:15:30Z",
+  "screenWidth": 1080,
+  "screenHeight": 2340,
+  "root": {
+    "className": "android.widget.FrameLayout",
+    "bounds": "[0,0][1080,2340]",
+    "children": [
+      {
+        "className": "android.widget.FrameLayout",
+        "bounds": "[0,110][1080,257]",
+        "children": [
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Go back",
+            "bounds": "[0,120][110,247]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.FrameLayout",
+            "bounds": "[110,115][850,252]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.view.View",
+                "bounds": "[130,130][240,240]"
+              },
+              {
+                "className": "android.view.View",
+                "text": "Rohan Bhai",
+                "bounds": "[260,130][850,190]"
+              },
+              {
+                "className": "android.view.View",
+                "text": "typing...",
+                "bounds": "[260,192][850,240]"
+              }
+            ]
+          },
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "More options",
+            "bounds": "[960,130][1070,240]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "androidx.recyclerview.widget.RecyclerView",
+        "bounds": "[0,257][1080,2060]",
+        "scrollable": true,
+        "children": [
+          {
+            "className": "android.view.View",
+            "text": "Today",
+            "bounds": "[0,262][1080,352]"
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "Bhai kal ka plan kya hai? 😅\nReceived today at 11:40 AM",
+            "bounds": "[0,352][1080,524]",
+            "clickable": true
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "Kal 6:30 tak aa jaunga, tension mat le\nSent today at 11:42 AM, Read",
+            "bounds": "[0,524][1080,696]",
+            "clickable": true
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "Acha theek hai 👍\nAur haan, Mummy ne bola ghar pe khana khake jana\nReceived today at 11:43 AM",
+            "bounds": "[0,696][1080,924]",
+            "clickable": true
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "Haan haan pakka 🙏🏽\nSent today at 11:45 AM, Read",
+            "bounds": "[0,924][1080,1096]",
+            "clickable": true
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "Kem cho? Majama?\nReceived today at 11:50 AM",
+            "bounds": "[0,1096][1080,1268]",
+            "clickable": true
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "Majama! Tame kaho\nSent today at 11:51 AM, Unread",
+            "bounds": "[0,1268][1080,1440]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "android.widget.FrameLayout",
+        "bounds": "[0,2060][1080,2214]",
+        "children": [
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Emoji, stickers, and GIFs",
+            "bounds": "[10,2085][120,2190]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.EditText",
+            "hint": "Message",
+            "bounds": "[130,2075][820,2195]",
+            "editable": true,
+            "focused": true,
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Attach media",
+            "bounds": "[830,2085][940,2190]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Record voice message",
+            "bounds": "[950,2085][1070,2190]",
+            "clickable": true
+          }
+        ]
+      }
+    ]
+  }
+}

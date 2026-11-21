@@ -18,6 +18,7 @@ sealed interface InsertResult {
     data object NoFocusedField : InsertResult
 
     data class Failed(
+        /** Fixed wording for logs and tests, never chat text or exception messages. The panel does not show it. */
         val reason: String,
     ) : InsertResult
 }

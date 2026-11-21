@@ -47,6 +47,12 @@ sealed interface SuggestionResult {
     sealed interface Failure : SuggestionResult {
         data object NoApiKey : Failure
 
+        /** The stored key has characters outside visible ASCII (e.g. a zero-width space from pasting). */
+        data object InvalidApiKey : Failure {
+            /** Fixed wording for the error card; never includes the key. */
+            const val MESSAGE: String = "The API key has invalid characters. Paste it again in Settings."
+        }
+
         data class LimitReached(
             val dailyLimit: Int,
         ) : Failure
@@ -58,7 +64,10 @@ sealed interface SuggestionResult {
             val message: String,
         ) : Failure
 
-        /** Non-2xx reply. [detail] is a short, safe excerpt of the error body, if any. */
+        /**
+         * Non-2xx reply, or an error object inside a 200. [detail] is fixed wording per status
+         * (null for statuses without one); the provider's error body is never shown.
+         */
         data class Http(
             val code: Int,
             val detail: String?,
@@ -67,6 +76,8 @@ sealed interface SuggestionResult {
         /** The reply was not the expected JSON with 3 suggestions. */
         data class BadOutput(
             val reason: String,
+            /** True when the reply stopped at the token limit before it was complete. */
+            val cutOff: Boolean = false,
         ) : Failure
     }
 }
