@@ -69,7 +69,8 @@ fun NavGraphBuilder.onboardingDestination(
 }
 
 /** How this onboarding entry was reached, read from its route arguments. */
-internal fun NavBackStackEntry.onboardingEntry(): OnboardingEntry = OnboardingEntry.of(fromSettings = toRoute<OnboardingRoute>().fromSettings)
+internal fun NavBackStackEntry.onboardingEntry(): OnboardingEntry =
+    OnboardingEntry.of(fromSettings = toRoute<OnboardingRoute>().fromSettings)
 
 /**
  * Where the app opens: onboarding until every step is done, settings after that. Returns null
