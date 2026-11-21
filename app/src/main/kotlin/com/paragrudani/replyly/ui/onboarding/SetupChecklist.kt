@@ -2,12 +2,12 @@ package com.paragrudani.replyly.ui.onboarding
 
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.Animatable
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -22,6 +22,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithCache
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathMeasure
@@ -68,7 +69,7 @@ internal fun SetupChecklistPage(
                         "$done of ${state.steps.size} done",
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.semantics { liveRegion = LiveRegionMode.Polite },
+                        // No live region: each step already announces its own change ("Battery: done").
                     )
                 }
             }
@@ -198,37 +199,47 @@ private fun StepCheck(step: OnboardingStep) {
         }
     val fill = MaterialTheme.colorScheme.primary
     val check = MaterialTheme.colorScheme.onPrimary
-    val value = progress.value
-    val checkPath = remember { Path() }
-    val measure = remember { PathMeasure() }
-    Canvas(
+    // progress.value is read only while drawing (and in the test-only semantics), never in
+    // composition, so the tick animates without recomposing this step every frame.
+    Spacer(
         Modifier
             .size(28.dp)
             .testTag(tickTag(step.id))
-            .semantics { tickProgress = value },
-    ) {
-        val stroke = 2.dp.toPx()
-        // Empty ring, fading out as the disc grows over it.
-        drawCircle(ring.copy(alpha = 1f - value), radius = size.minDimension / 2 - stroke / 2, style = Stroke(stroke))
-        // Disc: grows in the first 60 %, with a slight overshoot settled by the easing.
-        val disc = (value / 0.6f).coerceIn(0f, 1f)
-        if (disc > 0f) scale(0.6f + 0.4f * disc) { drawCircle(fill.copy(alpha = disc)) }
-        // Check: drawn from 30 % to the end.
-        val drawn = ((value - 0.3f) / 0.7f).coerceIn(0f, 1f)
-        if (drawn > 0f) {
-            val w = size.width
-            val full =
-                Path().apply {
-                    moveTo(w * 0.28f, w * 0.52f)
-                    lineTo(w * 0.44f, w * 0.67f)
-                    lineTo(w * 0.73f, w * 0.36f)
+            .semantics { tickProgress = progress.value }
+            .drawWithCache {
+                val stroke = 2.dp.toPx()
+                val w = size.width
+                // Built once per size; each frame only cuts the drawn segment from it.
+                val full =
+                    Path().apply {
+                        moveTo(w * 0.28f, w * 0.52f)
+                        lineTo(w * 0.44f, w * 0.67f)
+                        lineTo(w * 0.73f, w * 0.36f)
+                    }
+                val measure = PathMeasure().apply { setPath(full, false) }
+                val checkPath = Path()
+                val checkStroke = Stroke(stroke * 1.2f, cap = StrokeCap.Round, join = StrokeJoin.Round)
+                onDrawBehind {
+                    val value = progress.value
+                    // Empty ring, fading out as the disc grows over it.
+                    drawCircle(
+                        ring.copy(alpha = 1f - value),
+                        radius = size.minDimension / 2 - stroke / 2,
+                        style = Stroke(stroke),
+                    )
+                    // Disc: grows in the first 60 %, with a slight overshoot settled by the easing.
+                    val disc = (value / 0.6f).coerceIn(0f, 1f)
+                    if (disc > 0f) scale(0.6f + 0.4f * disc) { drawCircle(fill.copy(alpha = disc)) }
+                    // Check: drawn from 30 % to the end.
+                    val drawn = ((value - 0.3f) / 0.7f).coerceIn(0f, 1f)
+                    if (drawn > 0f) {
+                        checkPath.reset()
+                        measure.getSegment(0f, measure.length * drawn, checkPath, true)
+                        drawPath(checkPath, check, style = checkStroke)
+                    }
                 }
-            measure.setPath(full, false)
-            checkPath.reset()
-            measure.getSegment(0f, measure.length * drawn, checkPath, true)
-            drawPath(checkPath, check, style = Stroke(stroke * 1.2f, cap = StrokeCap.Round, join = StrokeJoin.Round))
-        }
-    }
+            },
+    )
 }
 
 private const val TICK_MILLIS = MotionDurations.LONG + MotionDurations.MEDIUM
