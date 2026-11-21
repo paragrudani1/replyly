@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "db84ffc41df2d81e3ecc7327b06eb6ad",
+    "identityHash": "4329f33477496293c70cab0abd7ae90d",
     "entities": [
       {
         "tableName": "messages",
@@ -114,6 +114,30 @@
         ]
       },
       {
+        "tableName": "chat_positions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`chat_key` TEXT NOT NULL, `message_id` INTEGER NOT NULL, PRIMARY KEY(`chat_key`))",
+        "fields": [
+          {
+            "fieldPath": "chatKey",
+            "columnName": "chat_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "messageId",
+            "columnName": "message_id",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "chat_key"
+          ]
+        }
+      },
+      {
         "tableName": "contact_notes",
         "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`chat_key` TEXT NOT NULL, `note` TEXT NOT NULL, `updated_at` INTEGER NOT NULL, PRIMARY KEY(`chat_key`))",
         "fields": [
@@ -146,7 +170,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'db84ffc41df2d81e3ecc7327b06eb6ad')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '4329f33477496293c70cab0abd7ae90d')"
     ]
   }
 }

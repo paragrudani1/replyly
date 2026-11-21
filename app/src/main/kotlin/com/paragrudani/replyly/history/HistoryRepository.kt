@@ -26,13 +26,20 @@ interface HistoryRepository {
      */
     suspend fun merge(chat: ParsedChat): Int
 
-    /** The last [limit] messages of a chat. */
+    /**
+     * The last [limit] messages of a chat up to its current position: the last message of the
+     * latest merged read. The assembler merges the on-screen read right before it calls this, so
+     * the list ends with the bottom of the screen even when older messages are stored after it.
+     */
     suspend fun lastMessages(
         chatKey: ChatKey,
         limit: Int,
     ): List<StoredMessage>
 
-    /** The user's own most recent messages in other chats of the same app: the style examples. */
+    /**
+     * The user's own most recent messages in other chats of the same app: the style examples. Each
+     * chat counts only up to its current position (see [lastMessages]).
+     */
     suspend fun recentOwnMessagesInOtherChats(
         packageName: String,
         excluding: ChatKey,

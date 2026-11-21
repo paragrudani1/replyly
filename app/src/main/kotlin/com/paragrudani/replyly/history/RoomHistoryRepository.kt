@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.history
 
 import androidx.room.withTransaction
+import com.paragrudani.replyly.history.db.ChatPositionEntity
 import com.paragrudani.replyly.history.db.ContactNoteEntity
 import com.paragrudani.replyly.history.db.HistoryDatabaseHandle
 import com.paragrudani.replyly.history.db.MessageEntity
@@ -20,7 +21,7 @@ import java.time.Instant
 data class MergeOutcome(
     val inserted: Int,
     val edited: Int,
-    /** See [MergePlan.newAtEnd]: new messages below the saved tail, oldest first. */
+    /** See [MergePlan.newAtEnd]: new messages below the current segment, oldest first. */
     val newAtEnd: List<ChatMessage>,
 ) {
     companion object {
@@ -35,6 +36,10 @@ fun interface HistoryReadMerger {
 
 /**
  * [HistoryRepository] on the encrypted Room DB. Merge logic: [HistoryMerge].
+ *
+ * Every merge also stores the chat's current position ([MergePlan.currentRowId]): the row of the
+ * read's last message. [lastMessages] and [recentOwnMessagesInOtherChats] read up to it, so a
+ * block of old messages stored at the end after a gap is not taken for the latest messages.
  *
  * Capture merges after every pause, so a merge first loads only the newest [tailSize] rows of the
  * chat; it loads the whole chat only when the read does not overlap them (see
@@ -58,15 +63,22 @@ class RoomHistoryRepository(
         val chatKey = chat.chatKey.encoded
         return mergeLock.withLock {
             db.withTransaction {
+                val current = dao.currentRowId(chatKey)
                 val tail = dao.newestInChat(chatKey, tailSize).asReversed().map { it.toRow() }
                 val plan =
                     if (tail.size < tailSize) {
-                        HistoryMerge.plan(tail, chat.messages) // The tail is the whole chat.
+                        HistoryMerge.plan(tail, chat.messages, current) // The tail is the whole chat.
                     } else {
-                        HistoryMerge.planAgainstTail(tail, chat.messages)
-                            ?: HistoryMerge.plan(dao.allInChat(chatKey).map { it.toRow() }, chat.messages)
+                        HistoryMerge.planAgainstTail(tail, chat.messages, current)
+                            ?: HistoryMerge.plan(dao.allInChat(chatKey).map { it.toRow() }, chat.messages, current)
                     }
-                if (plan.isNoOp) return@withTransaction MergeOutcome.NONE
+                if (plan.isNoOp) {
+                    // A re-read still moves the current position (a scroll inside saved rows).
+                    plan.currentRowId
+                        ?.takeIf { it != current }
+                        ?.let { dao.setCurrent(ChatPositionEntity(chatKey, it)) }
+                    return@withTransaction MergeOutcome.NONE
+                }
                 plan.moves.forEach { dao.move(it.id, it.position) }
                 plan.gapsCleared.forEach { dao.clearGap(it) }
                 plan.edits.forEach { edit ->
@@ -74,23 +86,26 @@ class RoomHistoryRepository(
                     dao.edit(edit.id, m.sender, m.text, m.timeShown, MessageHash.of(m))
                 }
                 val now = clock.millis()
-                dao.insert(
-                    plan.inserts.map { insert ->
-                        val m = insert.message
-                        MessageEntity(
-                            chatKey = chatKey,
-                            packageName = chat.packageName,
-                            position = insert.position,
-                            gapBefore = insert.gapBefore,
-                            isMe = m.isMe,
-                            sender = m.sender,
-                            text = m.text,
-                            timeShown = m.timeShown,
-                            hash = MessageHash.of(m),
-                            firstSeenAt = now,
-                        )
-                    },
-                )
+                val insertedIds =
+                    dao.insert(
+                        plan.inserts.map { insert ->
+                            val m = insert.message
+                            MessageEntity(
+                                chatKey = chatKey,
+                                packageName = chat.packageName,
+                                position = insert.position,
+                                gapBefore = insert.gapBefore,
+                                isMe = m.isMe,
+                                sender = m.sender,
+                                text = m.text,
+                                timeShown = m.timeShown,
+                                hash = MessageHash.of(m),
+                                firstSeenAt = now,
+                            )
+                        },
+                    )
+                // The read's last message is a saved row, or else the last insert.
+                dao.setCurrent(ChatPositionEntity(chatKey, plan.currentRowId ?: insertedIds.last()))
                 MergeOutcome(plan.inserts.size, plan.edits.size, plan.newAtEnd)
             }
         }
@@ -103,7 +118,7 @@ class RoomHistoryRepository(
         handle
             .get()
             .messages()
-            .newestInChat(chatKey.encoded, limit)
+            .endingAtCurrent(chatKey.encoded, limit)
             .asReversed()
             .map { it.toStored() }
 
@@ -120,7 +135,13 @@ class RoomHistoryRepository(
             .map { it.toStored() }
 
     override suspend fun deleteChat(chatKey: ChatKey) {
-        mergeLock.withLock { handle.get().messages().deleteChat(chatKey.encoded) }
+        mergeLock.withLock {
+            val db = handle.get()
+            db.withTransaction {
+                db.messages().deleteChat(chatKey.encoded)
+                db.messages().deleteCurrent(chatKey.encoded)
+            }
+        }
     }
 
     override suspend fun purgeOlderThan(cutoff: Instant): Int =

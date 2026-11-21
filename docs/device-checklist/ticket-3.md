@@ -10,6 +10,10 @@ native library, so none of this ran on the VM. Useful commands (USB debugging on
 Until ticket #2 lands real parsers, capture finds no chat and stores nothing. Do steps 2 to 9 on a
 build that has #2 merged.
 
+If a build of #3 from before 2026-11-21 evening is installed, clear Replyly's storage first
+(Settings > Apps > Replyly > Storage > Clear storage): the history schema changed without a version
+bump, and the old file would fail to open.
+
 ## 1. The DB opens and is encrypted
 
 1. Install the debug APK, enable the accessibility service, open WhatsApp and one chat. Wait 2 s.
@@ -127,3 +131,20 @@ Checks that a read after a gap in history never turns an old message into an "ed
 5. If a prompt preview or the feedback screen (#4, #6) is available: the history around the gap
    still shows M with its original text.
 6. If it fails, send back the `ReplylyCapture` lines and how many screens you scrolled.
+
+## 13. After reading old messages, the prompt context is the bottom of the chat again
+
+Needs #4 (the assembler) merged, or a debug view of the prompt.
+
+1. Open a 1:1 WhatsApp chat with a long history. Wait 2 s at the bottom.
+2. Jump far up (tap the date header, or fling up several screens quickly) so that nothing on the
+   screen was on the first screen. Wait 2 s, scroll down one screen, wait 2 s.
+3. Go back to the bottom (the down-arrow button) and wait 2 s.
+4. Focus the input field and tap the Replyly button.
+5. Expect: the suggestions answer the newest messages at the bottom, not the old ones you read in
+   step 2. If a prompt preview exists, its last message is the bottom bubble on screen.
+6. Send a message, wait 2 s. Expect a `feedback final message attached` line in logcat when a
+   suggestion was used just before.
+7. If it fails, send back the `ReplylyCapture` lines from step 1 on, and say which messages the
+   suggestions answered.
+
