@@ -11,10 +11,11 @@ import com.paragrudani.replyly.history.InMemoryContactNoteStore
 import com.paragrudani.replyly.history.InMemoryHistoryRepository
 import com.paragrudani.replyly.insert.ReplyInserter
 import com.paragrudani.replyly.insert.UnavailableReplyInserter
+import com.paragrudani.replyly.llm.HistorySuggestionRequestAssembler
+import com.paragrudani.replyly.llm.OpenAiReplyGenerator
 import com.paragrudani.replyly.llm.ReplyGenerator
-import com.paragrudani.replyly.llm.StubReplyGenerator
-import com.paragrudani.replyly.llm.StubSuggestionRequestAssembler
 import com.paragrudani.replyly.llm.SuggestionRequestAssembler
+import com.paragrudani.replyly.llm.packageManagerAppLabel
 import com.paragrudani.replyly.panel.PlaceholderReplyPanel
 import com.paragrudani.replyly.panel.ReplyPanel
 import com.paragrudani.replyly.parser.ChatParserRegistry
@@ -77,10 +78,17 @@ class AppGraph(
     val contactNoteStore: ContactNoteStore by lazy { InMemoryContactNoteStore() }
 
     // Ticket #4
-    val replyGenerator: ReplyGenerator by lazy { StubReplyGenerator() }
+    val replyGenerator: ReplyGenerator by lazy { OpenAiReplyGenerator(settingsRepository, apiKeyStore, costGuard) }
 
     // Ticket #4
-    val suggestionRequestAssembler: SuggestionRequestAssembler by lazy { StubSuggestionRequestAssembler() }
+    val suggestionRequestAssembler: SuggestionRequestAssembler by lazy {
+        HistorySuggestionRequestAssembler(
+            historyRepository,
+            contactNoteStore,
+            settingsRepository,
+            packageManagerAppLabel(app.packageManager),
+        )
+    }
 
     // Ticket #5
     val replyPanel: ReplyPanel by lazy { PlaceholderReplyPanel }
