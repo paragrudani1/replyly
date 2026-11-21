@@ -42,6 +42,8 @@ class SecureWindowDetector(
     private val cacheMillis: Long = 1_000,
     private val timeoutMillis: Long = 1_500,
     private val rateLimitRetryMillis: Long = 400,
+    /** Event names and codes only. */
+    private val log: (String) -> Unit = {},
 ) {
     private data class Entry(
         val state: SecureWindowState,
@@ -69,6 +71,9 @@ class SecureWindowDetector(
                 ProbeResult.Failed(AccessibilityService.ERROR_TAKE_SCREENSHOT_SECURE_WINDOW) -> SecureWindowState.SECURE
                 else -> SecureWindowState.UNKNOWN
             }
+        if (state != SecureWindowState.NOT_SECURE) {
+            log("secure check state=$state code=${(result as? ProbeResult.Failed)?.errorCode ?: "timeout"}")
+        }
         if (state != SecureWindowState.UNKNOWN) {
             synchronized(cache) {
                 if (cache.size > MAX_ENTRIES) cache.clear()

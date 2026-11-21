@@ -82,6 +82,7 @@ class OverlayComponent(
                 tap = { input -> withContext(Dispatchers.Default) { tapFlow.run(input.packageName, input.windowId) } },
                 rememberTarget = rememberTarget,
                 scope = scope,
+                log = { Log.d(TAG, it) },
             )
         this.scope = scope
         this.controller = controller

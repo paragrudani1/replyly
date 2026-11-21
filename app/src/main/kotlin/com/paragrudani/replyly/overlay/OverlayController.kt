@@ -51,7 +51,11 @@ class OverlayController(
     private val rememberTarget: (InputFieldRef) -> Unit,
     private val scope: CoroutineScope,
     private val settleMillis: Long = 60,
+    /** Event names and enum values only, never chat text. */
+    private val log: (String) -> Unit = {},
 ) {
+    private var lastDecision: String? = null
+
     private var shown: ButtonDecision.Show? = null
     private var shownAt: ButtonPosition? = null
     private var panelOpen = false
@@ -74,7 +78,9 @@ class OverlayController(
         tapInFlight = true
         scope.launch {
             try {
-                when (val outcome = tap(current.input)) {
+                val outcome = tap(current.input)
+                log("tap outcome=${outcome.logName}")
+                when (outcome) {
                     is TapOutcome.Open -> openPanel(current.input, outcome)
                     is TapOutcome.Blocked -> ui.showNotice(Notice.OFF_HERE)
                     TapOutcome.NotAChat -> ui.showNotice(Notice.NO_CHAT)
@@ -114,7 +120,11 @@ class OverlayController(
 
     private fun refresh() {
         if (panelOpen) return hide()
-        when (val decision = visibility.decide(readFacts())) {
+        val decision = visibility.decide(readFacts())
+        val name = if (decision is ButtonDecision.Hide) "hidden reason=${decision.reason}" else "shown"
+        if (name != lastDecision) log("button $name")
+        lastDecision = name
+        when (decision) {
             is ButtonDecision.Hide -> {
                 hide()
             }
@@ -138,3 +148,11 @@ class OverlayController(
         }
     }
 }
+
+private val TapOutcome.logName: String
+    get() =
+        when (this) {
+            is TapOutcome.Open -> "open"
+            is TapOutcome.Blocked -> "blocked reason=$reason"
+            TapOutcome.NotAChat -> "no_chat"
+        }

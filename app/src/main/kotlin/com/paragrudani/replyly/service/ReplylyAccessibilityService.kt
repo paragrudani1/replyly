@@ -51,7 +51,12 @@ class ReplylyAccessibilityService :
     override fun captureActiveWindow(): ScreenSnapshot? = rootInActiveWindow?.let { snapshotOf(it) }
 
     // Ticket #1: FLAG_SECURE probe (see SecureWindowDetector).
-    private val secureWindows by lazy { SecureWindowDetector(AccessibilityScreenshotProbe(this)) }
+    private val secureWindows by lazy {
+        SecureWindowDetector(
+            AccessibilityScreenshotProbe(this),
+            log = { Log.d(TAG, it) },
+        )
+    }
 
     override suspend fun captureActiveWindowChecked(): ScreenSnapshot? =
         rootInActiveWindow?.let { checkedSnapshotOf(it) }
