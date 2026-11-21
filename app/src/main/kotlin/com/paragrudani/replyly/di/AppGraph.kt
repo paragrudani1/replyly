@@ -19,6 +19,7 @@ import com.paragrudani.replyly.llm.OpenAiReplyGenerator
 import com.paragrudani.replyly.llm.ReplyGenerator
 import com.paragrudani.replyly.llm.SuggestionRequestAssembler
 import com.paragrudani.replyly.llm.packageManagerAppLabel
+import com.paragrudani.replyly.overlay.ButtonPositionStore
 import com.paragrudani.replyly.overlay.OverlayComponent
 import com.paragrudani.replyly.panel.ComposeReplyPanel
 import com.paragrudani.replyly.panel.ReplyPanel
@@ -161,6 +162,11 @@ class AppGraph(
 
     // Polish #0: the dynamic-colour setting, kept hot so overlay windows open in the right colours.
     val themeSettings: ThemeSettings by lazy { ThemeSettings.create(settingsRepository, appScope) }
+
+    // Polish #3: the floating button's dragged position per app (overlay/ButtonPositionStore).
+    val buttonPositionStore: ButtonPositionStore by lazy {
+        ButtonPositionStore(ReplylyDataStores.create(app, ReplylyDataStores.BUTTON_POSITIONS), appScope)
+    }
 
     // Skeleton: the order components receive events in.
     fun accessibilityComponents(): List<AccessibilityComponent> = listOf(overlayComponent, captureComponent)
