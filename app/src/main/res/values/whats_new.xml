@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  "What's new" sheet, shown once after an update (ui/settings/WhatsNew.kt).
+  To change it: edit the title and the items below, one short sentence each, 3 to 5 items.
+  An empty array means no sheet for this version.
+-->
+<resources>
+  <string name="whats_new_title">What\'s new in Replyly</string>
+  <string-array name="whats_new_notes">
+    <item>A fresh look: calmer colours, a new icon and optional Material You colours.</item>
+    <item>Settings are grouped into clear sections, with a usage ring for today\'s requests.</item>
+    <item>The feedback log is now a timeline by day, showing which reply you inserted.</item>
+    <item>Everything still stays on your phone, and Replyly still never sends a message.</item>
+  </string-array>
+</resources>

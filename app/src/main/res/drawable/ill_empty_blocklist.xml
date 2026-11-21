@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Empty blocklist: a shield. Single colour, tinted by EmptyState (primary). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+  android:width="48dp"
+  android:height="48dp"
+  android:viewportWidth="48"
+  android:viewportHeight="48">
+  <path
+    android:fillColor="#FFFFFFFF"
+    android:fillAlpha="0.35"
+    android:pathData="M24,4l16,6v12c0,10.5 -6.8,19.4 -16,22c-9.2,-2.6 -16,-11.5 -16,-22V10Z" />
+  <path
+    android:fillColor="#FFFFFFFF"
+    android:pathData="M21.6,30.4l-6,-6a1.7,1.7 0,0 1,2.4 -2.4l4.8,4.8l8.4,-8.4a1.7,1.7 0,0 1,2.4 2.4l-9.6,9.6a1.7,1.7 0,0 1,-2.4 0Z" />
+</vector>

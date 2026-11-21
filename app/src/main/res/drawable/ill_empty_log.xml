@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Empty feedback log: two stacked reply cards. Single colour, tinted by EmptyState (primary);
+  the sparkle on top is drawn separately in the accent colour.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+  android:width="120dp"
+  android:height="96dp"
+  android:viewportWidth="120"
+  android:viewportHeight="96">
+  <!-- back card, faint: only the part the front card does not cover, so the line holes stay clean -->
+  <path
+    android:fillColor="#FFFFFFFF"
+    android:fillAlpha="0.35"
+    android:pathData="M30,14h66a8,8 0,0 1,8 8v30a8,8 0,0 1,-8 8h-4V42a8,8 0,0 0,-8 -8H22V22a8,8 0,0 1,8 -8Z" />
+  <!-- front card with a tail; the two text lines are holes (evenOdd) -->
+  <path
+    android:fillColor="#FFFFFFFF"
+    android:fillType="evenOdd"
+    android:pathData="M18,34h66a8,8 0,0 1,8 8v26a8,8 0,0 1,-8 8H36l-12,10v-10h-6a8,8 0,0 1,-8 -8V42a8,8 0,0 1,8 -8Z M22,46h46a2,2 0,0 1,0 4H22a2,2 0,0 1,0 -4Z M22,58h30a2,2 0,0 1,0 4H22a2,2 0,0 1,0 -4Z" />
+</vector>
