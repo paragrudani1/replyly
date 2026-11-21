@@ -6,9 +6,11 @@ import com.paragrudani.replyly.testing.MutableClock
 import com.paragrudani.replyly.testing.TestDataStores
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -126,10 +128,13 @@ class PersistentCostGuardTest {
     @Test
     fun `counts survive a restart`() =
         runBlocking<Unit> {
-            val first = guard()
+            // The first "process" gets its own scope so it can be fully shut down before the restart.
+            val firstScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
+            val first = PersistentCostGuard(stores.open("cost"), limit, clock, firstScope, ticks)
             first.tryAcquire()
             first.recordUsage(TokenUsage(40, 2))
             first.awaitStatus { it.requestsToday == 1 && it.totalTokensThisMonth == 42L }
+            firstScope.coroutineContext[Job]!!.cancelAndJoin()
 
             val second = PersistentCostGuard(stores.reopen("cost"), limit, clock, scope, ticks)
             second.awaitStatus { it.requestsToday == 1 && it.totalTokensThisMonth == 42L }
