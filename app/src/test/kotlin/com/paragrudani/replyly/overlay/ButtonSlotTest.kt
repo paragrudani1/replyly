@@ -16,12 +16,31 @@ class ButtonSlotTest {
     ) = placement.slot(keyboard, input, 1080, 2340, topInsetPx = 110, savedLiftPx = lift)
 
     @Test
-    fun `never dragged - the default spot, with a range from below the status bar to above the keyboard`() {
+    fun `never dragged - the default spot, with a range from below the status bar to above the input bar`() {
         val slot = slot()
 
         assertThat(slot.position).isEqualTo(placement.place(keyboard, input, 1080, 2340))
         assertThat(slot.minY).isEqualTo(122)
+        // The input bar rests on the keyboard: never lower than the default spot (send button).
+        assertThat(slot.maxY).isEqualTo(1300 - 12 - 156)
+        assertThat(slot.maxY).isEqualTo(slot.position.y)
+    }
+
+    @Test
+    fun `without an input bar on the keyboard the range goes down to just above the keyboard`() {
+        val slot = placement.slot(keyboard, input = null, 1080, 2340, topInsetPx = 110)
+
         assertThat(slot.maxY).isEqualTo(1440 - 12 - 156)
+    }
+
+    @Test
+    fun `a spot saved before the input bar grew is clamped above the taller bar`() {
+        val saved = placement.liftOf(1132, keyboard.top) // Just above the one-line bar.
+        val threeLines = input.copy(top = 1100)
+
+        val slot = placement.slot(keyboard, threeLines, 1080, 2340, topInsetPx = 110, savedLiftPx = saved)
+
+        assertThat(slot.position.y).isEqualTo(1100 - 12 - 156)
     }
 
     @Test
@@ -42,8 +61,8 @@ class ButtonSlotTest {
     }
 
     @Test
-    fun `a negative lift stops just above the keyboard`() {
-        assertThat(slot(lift = -300).position.y).isEqualTo(1440 - 12 - 156)
+    fun `a negative lift stops just above the input bar`() {
+        assertThat(slot(lift = -300).position.y).isEqualTo(1300 - 12 - 156)
     }
 
     @Test

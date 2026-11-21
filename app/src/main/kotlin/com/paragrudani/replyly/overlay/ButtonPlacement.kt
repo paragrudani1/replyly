@@ -44,11 +44,7 @@ class ButtonPlacement(
         screenWidth: Int,
         screenHeight: Int,
     ): ButtonPosition {
-        val inputBarOnKeyboard =
-            input != null &&
-                input.bottom <= keyboard.top + marginPx &&
-                keyboard.top - input.top in 0..maxInputLiftPx
-        val anchorTop = if (inputBarOnKeyboard) input.top else keyboard.top
+        val anchorTop = input?.takeIf { inputBarOnKeyboard(keyboard, it) }?.top ?: keyboard.top
         val x = keyboard.right - marginPx - buttonSizePx
         val y = anchorTop - marginPx - buttonSizePx
         return ButtonPosition(
@@ -62,9 +58,14 @@ class ButtonPlacement(
      * user left between the button's bottom edge and the keyboard top (see [liftOf]); `null` means
      * never dragged in this app, so the default spot from [place] is used.
      *
+     * When the input bar rests on the keyboard, the lowest spot ([ButtonSlot.maxY]) is the default
+     * spot above that bar, and a saved spot is clamped to it: a drag never puts the button over the
+     * send button, also after a multi-line input bar grew taller than when the spot was saved.
+     *
      * Invariants (checked by `ButtonSlotPropertyTest`): `minY <= y <= maxY`; when the space allows
      * it, the button is fully below `topInsetPx + marginPx` and fully above `keyboard.top - marginPx`;
-     * `slot(savedLiftPx = liftOf(y, keyboard.top))` gives back `y` for every `y` in range.
+     * with the input bar on the keyboard, `maxY <= max(minY, default y)`; `slot(savedLiftPx =
+     * liftOf(y, keyboard.top))` gives back `y` for every `y` in range.
      */
     fun slot(
         keyboard: Bounds,
@@ -76,10 +77,21 @@ class ButtonPlacement(
     ): ButtonSlot {
         val default = place(keyboard, input, screenWidth, screenHeight)
         val minY = topInsetPx.coerceAtLeast(0) + marginPx
-        val maxY = maxOf(minY, keyboard.top - marginPx - buttonSizePx)
+        val aboveKeyboard = keyboard.top - marginPx - buttonSizePx
+        val lowest = if (inputBarOnKeyboard(keyboard, input)) minOf(aboveKeyboard, default.y) else aboveKeyboard
+        val maxY = maxOf(minY, lowest)
         val y = savedLiftPx?.let { keyboard.top - buttonSizePx - it } ?: default.y
         return ButtonSlot(default.copy(y = y.coerceIn(minY, maxY)), minY, maxY)
     }
+
+    /** The focused input bar sits right on top of the keyboard, so its send button is there too. */
+    private fun inputBarOnKeyboard(
+        keyboard: Bounds,
+        input: Bounds?,
+    ): Boolean =
+        input != null &&
+            input.bottom <= keyboard.top + marginPx &&
+            keyboard.top - input.top in 0..maxInputLiftPx
 
     /** The gap between the bottom of a button at [y] and the keyboard top: what gets remembered. */
     fun liftOf(
