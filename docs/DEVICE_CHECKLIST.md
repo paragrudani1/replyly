@@ -649,7 +649,7 @@ dark mark; all text readable. **Send:** Screenshots of settings, button and pane
 settings, onboarding and the panel. **See:** no text cut off or overlapping. **Send:** Screenshots
 of anything clipped.
 
-### Suggestion panel (items 11.20–11.31)
+### Suggestion panel (items 11.20–11.33)
 
 Panel motion, gestures and the instruction chips. Do 11.20–11.29 with "Remove animations" OFF,
 then 11.30 with it on. Haptics need "Touch interactions" vibration on (Settings > Sounds and
@@ -718,6 +718,21 @@ through it. **See:** each card is read once as its tag and text ("Agree. Haan pa
 "Insert" and "Copy"; the chips read as "Shorter, checkbox/selected" style toggles; the arrow reads
 "Regenerate replies"; "Copied" and errors are announced. **Send:** a TalkBack audio/screen
 recording of anything read twice, unlabelled or missing.
+
+11.32 **Do:** in a WhatsApp chat, open the panel and tap the instruction field so Gboard opens (also
+try with Gboard's emoji or clipboard strip open, and with display size set to the largest under
+Settings > Display > Font size and style / Screen zoom). **See:** the whole top bar (grabber, chat
+name, note and Close icons) stays fully below the status bar (clock, battery); the cards scroll in
+the space between. **Send:** a screenshot with the keyboard open if any part of the top bar is
+under the status bar or cut.
+
+11.33 **Do:** turn on all four chips, then paste or type a long instruction (more than 200
+characters) into the field. **See:** a small "n/m" counter appears under the right end of the field
+when about 30 characters are left; typing stops at the limit and the counter turns red; an emoji at
+the limit is either whole or not added (never a broken box). Now turn one chip off and on again
+with a full field. **See:** turning it on shortens the text in the field (visible), and the new
+replies follow the whole field. **Send:** a screenshot of the counter, and one if a broken
+character appears.
 
 ### Floating button (polish #3)
 

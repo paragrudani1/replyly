@@ -77,9 +77,9 @@ import kotlin.time.Duration.Companion.milliseconds
  *   without `FLAG_NOT_TOUCH_MODAL`, `FLAG_NOT_FOCUSABLE` or `FLAG_ALT_FOCUSABLE_IM`, so the
  *   instruction field and the note editor get the keyboard. Touches do not pass through to the chat
  *   app: a dimmed backdrop covers it, and tapping the backdrop closes the panel.
- * - `SOFT_INPUT_ADJUST_RESIZE`, and the panel's sheet is padded by the IME and navigation-bar insets
- *   (`WindowInsets.ime.union(WindowInsets.navigationBars)`), so it sits right above Gboard. Not
- *   ADJUST_PAN, which shifts the whole window up instead of moving only the sheet.
+ * - `SOFT_INPUT_ADJUST_RESIZE`, and the panel's sheet is padded by `WindowInsets.safeDrawing` (IME,
+ *   navigation bar, status bar, cutout), so it sits right above Gboard and never slides under the
+ *   status bar. Not ADJUST_PAN, which shifts the whole window up instead of moving only the sheet.
  * - The host wraps [Content] in [PanelSheet] (backdrop, sheet surface, slide-up spring, swipe down)
  *   and passes `PanelSheetState::requestClose` as `onClose`. So every close the panel asks for
  *   (insert, Close, Open settings) slides the sheet down first; the window is removed when the

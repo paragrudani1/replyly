@@ -10,9 +10,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.ime
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -74,7 +72,9 @@ class PanelSheetState(
 }
 
 /**
- * The panel's window content: a dimmed backdrop and a bottom sheet above the keyboard.
+ * The panel's window content: a dimmed backdrop and a bottom sheet above the keyboard, padded by
+ * `WindowInsets.safeDrawing` (keyboard, navigation bar, status bar, cutout), so its top bar stays
+ * below the status bar when the keyboard leaves little room.
  *
  * - **Open:** the sheet slides up from below the screen with the theme spring; the backdrop fades in
  *   with it.
@@ -140,7 +140,9 @@ fun PanelSheet(
         PanelSheetSurface(
             Modifier
                 .align(Alignment.BottomCenter)
-                .windowInsetsPadding(WindowInsets.ime.union(WindowInsets.navigationBars))
+                // Keyboard and navigation bar below, status bar (and cutout) above: with Gboard up
+                // the window is short, and the sheet shrinks rather than slide under the status bar.
+                .windowInsetsPadding(WindowInsets.safeDrawing)
                 .onGloballyPositioned { coordinates ->
                     // Measured before the translation below, so this is the resting position.
                     val root = coordinates.findRootCoordinates()
