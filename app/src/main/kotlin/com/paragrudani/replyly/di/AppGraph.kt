@@ -14,8 +14,9 @@ import com.paragrudani.replyly.history.capture.PassiveCaptureComponent
 import com.paragrudani.replyly.history.db.HistoryDatabases
 import com.paragrudani.replyly.insert.AccessibilityReplyInserter
 import com.paragrudani.replyly.insert.ReplyInserter
+import com.paragrudani.replyly.llm.ConnectionTester
 import com.paragrudani.replyly.llm.HistorySuggestionRequestAssembler
-import com.paragrudani.replyly.llm.OpenAiReplyGenerator
+import com.paragrudani.replyly.llm.LlmReplyGenerator
 import com.paragrudani.replyly.llm.ReplyGenerator
 import com.paragrudani.replyly.llm.SuggestionRequestAssembler
 import com.paragrudani.replyly.llm.packageManagerAppLabel
@@ -33,11 +34,16 @@ import com.paragrudani.replyly.security.DatabaseKeyProvider
 import com.paragrudani.replyly.security.KeystoreDatabaseKeyProvider
 import com.paragrudani.replyly.service.AccessibilityComponent
 import com.paragrudani.replyly.service.AccessibilityHostHolder
+import com.paragrudani.replyly.settings.ActiveProfileApiKeyStore
 import com.paragrudani.replyly.settings.AesGcmCipher
 import com.paragrudani.replyly.settings.AndroidKeystoreKeys
 import com.paragrudani.replyly.settings.ApiKeyStore
+import com.paragrudani.replyly.settings.DataStoreProfileRepository
 import com.paragrudani.replyly.settings.DataStoreSettingsRepository
 import com.paragrudani.replyly.settings.EncryptedApiKeyStore
+import com.paragrudani.replyly.settings.EncryptedProfileSecretStore
+import com.paragrudani.replyly.settings.ProfileRepository
+import com.paragrudani.replyly.settings.ProfileSecretStore
 import com.paragrudani.replyly.settings.ReplylyDataStores
 import com.paragrudani.replyly.settings.SettingsRepository
 import com.paragrudani.replyly.ui.theme.ThemeSettings
@@ -101,8 +107,16 @@ class AppGraph(
         RoomContactNoteStore(HistoryDatabases.shared(app, databaseKeyProvider), clock)
     }
 
-    // Ticket #4
-    val replyGenerator: ReplyGenerator by lazy { OpenAiReplyGenerator(settingsRepository, apiKeyStore, costGuard) }
+    // Ticket #4 (issue #18: the active provider profile, OpenAI or Anthropic format)
+    val replyGenerator: ReplyGenerator by lazy { llmReplyGenerator }
+
+    // Issue #18: the same generator, typed, for "Test connection".
+    val llmReplyGenerator: LlmReplyGenerator by lazy {
+        LlmReplyGenerator(settingsRepository, profileRepository, costGuard)
+    }
+
+    // Issue #18
+    val connectionTester: ConnectionTester by lazy { llmReplyGenerator }
 
     // Ticket #4
     val suggestionRequestAssembler: SuggestionRequestAssembler by lazy {
@@ -133,11 +147,31 @@ class AppGraph(
         DataStoreSettingsRepository(ReplylyDataStores.create(app, ReplylyDataStores.SETTINGS))
     }
 
-    // Ticket #6
-    val apiKeyStore: ApiKeyStore by lazy {
+    // Ticket #6 (issue #18: now the active profile's key, so onboarding's "key saved" check follows profiles)
+    val apiKeyStore: ApiKeyStore by lazy { ActiveProfileApiKeyStore(profileRepository, profileSecretStore) }
+
+    // Issue #18: the pre-profiles single key, read once by the migration and kept for rollback.
+    private val legacyApiKeyStore: ApiKeyStore by lazy {
         EncryptedApiKeyStore(
             ReplylyDataStores.create(app, ReplylyDataStores.API_KEY),
             AesGcmCipher { AndroidKeystoreKeys.getOrCreateAesKey(AndroidKeystoreKeys.API_KEY_ALIAS) },
+        )
+    }
+
+    // Issue #18: same Keystore key and AES-GCM scheme as the API key, one blob per profile and kind.
+    val profileSecretStore: ProfileSecretStore by lazy {
+        EncryptedProfileSecretStore(ReplylyDataStores.create(app, ReplylyDataStores.PROFILE_SECRETS), {
+            AndroidKeystoreKeys.getOrCreateAesKey(AndroidKeystoreKeys.API_KEY_ALIAS)
+        })
+    }
+
+    // Issue #18: migrates the single legacy config to an "OpenRouter" profile on first read.
+    val profileRepository: ProfileRepository by lazy {
+        DataStoreProfileRepository(
+            ReplylyDataStores.create(app, ReplylyDataStores.PROFILES),
+            profileSecretStore,
+            settingsRepository,
+            legacyApiKeyStore,
         )
     }
 

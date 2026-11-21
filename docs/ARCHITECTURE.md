@@ -31,7 +31,7 @@ All code lives in the single `:app` module, package `com.paragrudani.replyly`.
              ├─► SuggestionRequestAssembler.assemble   merges the chat into history first, then
              │     reads history, contact note, settings, app label
              ├─► ReplyGenerator.generate ──► SuggestionResult
-             │     API key, https endpoint, CostGuard.tryAcquire, call(s), recordUsage
+             │     active profile, API key, https endpoint, CostGuard.tryAcquire, call(s), recordUsage
              ├─► FeedbackLog.record
              │ user taps a card
              └─► ReplyInserter.insert(text) (ACTION_SET_TEXT on the remembered input) + markInserted
@@ -55,9 +55,11 @@ One lazy binding per interface, all real implementations:
 | `databaseKeyProvider` | `KeystoreDatabaseKeyProvider` | One SQLCipher passphrase, wrapped by a Keystore key. |
 | `historyRepository`, `contactNoteStore` | `RoomHistoryRepository`, `RoomContactNoteStore` | Share `history.db`. |
 | `suggestionRequestAssembler` | `HistorySuggestionRequestAssembler` | App labels via `PackageManager` (launcher apps are visible through `<queries>`). |
-| `replyGenerator` | `OpenAiReplyGenerator` | OpenAI-compatible chat completions; optional 3 parallel calls. |
+| `replyGenerator`, `llmReplyGenerator`, `connectionTester` | `LlmReplyGenerator` | Active provider profile, OpenAI or Anthropic format (see below); optional 3 parallel calls; "Test connection". |
 | `replyPanel` | `ComposeReplyPanel` | |
-| `settingsRepository`, `apiKeyStore`, `costGuard` | DataStore-backed (`settings`, `api_key` AES-GCM, `cost`) | |
+| `settingsRepository`, `costGuard` | DataStore-backed (`settings`, `cost`) | |
+| `profileRepository`, `profileSecretStore` | `DataStoreProfileRepository`, `EncryptedProfileSecretStore` | `profiles` (no secrets), `profile_secrets` (AES-GCM per profile id). Migrates the legacy config once. |
+| `apiKeyStore` | `ActiveProfileApiKeyStore` | The active profile's key, behind the old interface (onboarding uses it). The legacy `api_key` store is only read by the migration. |
 | `feedbackLog` | `RoomFeedbackLog` | `feedback.db`, opened on first use off the main thread. |
 | `themeSettings` | `ThemeSettings` | The "Material You colours" flag as a hot `StateFlow`, so overlay windows theme their first frame. |
 
@@ -72,8 +74,8 @@ One lazy binding per interface, all real implementations:
 - If the passphrase is lost for good, both DBs are wiped and a new one is created (no crash loop).
   A transient Keystore failure throws `DatabaseKeyUnavailableException` and wipes nothing; the
   panel shows it as `Failure.StorageLocked` ("encrypted storage is locked, try again").
-- Settings, the encrypted API key and the cost counters are Preferences DataStores. No backups
-  (`allowBackup="false"`).
+- Settings, provider profiles, their encrypted secrets, the legacy encrypted API key and the cost
+  counters are Preferences DataStores. No backups (`allowBackup="false"`).
 
 ## Purges
 
@@ -88,9 +90,47 @@ One lazy binding per interface, all real implementations:
 
 - Only `ReplyInserter` acts on another app, and only by setting text (`InvariantsTest`).
 - The only network use is in `llm/`, and the generator refuses a non-https endpoint
-  (`Failure.InsecureEndpoint`) before the cost check.
+  (`Failure.InsecureEndpoint`) before the cost check, for both API formats.
+- API keys and extra header values are secrets: encrypted at rest, never shown after saving, never
+  logged. Header names may be logged. `toString` of profile configs, drafts and requests hides them.
 - Only a tap (button, Regenerate, Retry) leads to an LLM call; passive capture never calls it.
 - Logs carry event names, counts and class names only: no chat text, prompts or key.
+
+## Provider profiles (`settings/ProviderProfiles.kt`, `llm/`, `ui/settings/profiles/`)
+
+- A profile is name, `ApiFormat`, base URL, model, optional max tokens, temperature and extra
+  header names. The key and header values sit in `ProfileSecretStore`, encrypted with the same
+  Keystore key as the old API key; each blob's associated data names its profile id and kind.
+- **Migration.** On the first read or write, if no profile list exists, the legacy
+  `ReplylySettings.endpoint`/`model` and the legacy key become one active OpenAI-format profile
+  ("OpenRouter", or "Custom" for another endpoint). It writes only if the list is still absent, so
+  it runs once. The legacy fields and key are left in place (unused) for a downgrade. If encrypting
+  the copied key fails, nothing is written and the next read tries again; the Settings collector
+  catches storage errors and shows fixed text.
+- **URLs** (`llm/ProviderUrls`): the base URL includes the version path. OpenAI format appends
+  `/chat/completions`; Anthropic format appends `/messages`, adding `/v1` first unless the LAST
+  path segment is a version (`^v\d+[a-z0-9]*$`, any case). A pasted full endpoint is not doubled.
+- **Editing a profile**: changing the host or format with a saved key and no new key typed is a
+  validation error on the key (the key never follows a host change); Save clears the profile's
+  last test result; "Remove key" is staged until Save.
+- **OpenAI format** (`ChatCompletionsClient`): `Authorization: Bearer`, `response_format`
+  json_object. Only an openrouter.ai host gets `reasoning: {effort: low}` and the attribution
+  headers. `api.openai.com` gets `max_completion_tokens` and `reasoning_effort: low`; other hosts
+  `max_tokens`. A 400 naming either token field retries once with the other, remembered per
+  URL+model (in the client). Temperature only if the profile sets one.
+- **Anthropic format** (`AnthropicMessagesClient`): native Messages API, `x-api-key`,
+  `anthropic-version: 2026-10-21`, top-level `system`, `max_tokens` always set, no temperature.
+  JSON via `output_config.format` (a JSON schema of the suggestions contract); `effort: low` only
+  on api.anthropic.com. `stop_reason` `max_tokens` or `model_context_window_exceeded` maps to the "cut off" failure, `refusal` to a
+  fixed bad-output reason. Usage = input (+ cache) and output tokens.
+- Both formats share `LlmHttp` (fixed error wording per status, 529 "overloaded") and the JSON-mode
+  fallback: a 400/422 naming the JSON fields retries once without them, remembered per URL+model.
+- Extra headers are applied after the format's own headers and may override e.g.
+  `anthropic-version`, but never `Authorization`, `x-api-key`, `Content-Type`, `Content-Length`,
+  `Host` or `Accept-Encoding`.
+- **Test connection** (`ConnectionTester`) uses the same checks, one tiny prompt with
+  `max_tokens` 16 and no JSON mode; it counts 1 request and records its tokens. The UI shows
+  "OK · N ms" or the panel's `toPanelError` wording.
 
 ## Other decisions
 

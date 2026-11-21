@@ -57,6 +57,6 @@ fun onboardingChecker(context: Context): OnboardingChecker {
         probe = AndroidSetupProbe(context.applicationContext, graph.accessibilityHostHolder),
         manualSteps = PrefsManualStepStore(context.applicationContext),
         apiKeyStore = graph.apiKeyStore,
-        settingsRepository = graph.settingsRepository,
+        profiles = graph.profileRepository,
     )
 }

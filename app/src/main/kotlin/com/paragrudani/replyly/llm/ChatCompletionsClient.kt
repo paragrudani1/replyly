@@ -1,7 +1,5 @@
 package com.paragrudani.replyly.llm
 
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -10,94 +8,103 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.put
-import okhttp3.Call
-import okhttp3.Callback
 import okhttp3.HttpUrl
-import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.Response
-import java.io.IOException
-import java.io.InterruptedIOException
-import java.net.ConnectException
-import java.net.UnknownHostException
-import java.net.UnknownServiceException
-import javax.net.ssl.SSLException
-import kotlin.coroutines.resumeWithException
+import java.util.concurrent.ConcurrentHashMap
 
-/** Result of one chat-completions call. Error bodies stay inside: they may quote the prompt. */
-internal sealed interface CallOutcome {
-    data class Ok(
-        /** `null` when the reply had no text content. */
-        val content: String?,
-        val usage: TokenUsage,
-        val model: String?,
-        /** `"stop"`, `"length"` (hit `max_tokens`)... `null` if absent. */
-        val finishReason: String? = null,
-    ) : CallOutcome
-
-    data class Failed(
-        val failure: SuggestionResult.Failure,
-        /** True when the provider said it does not support `response_format`. */
-        val rejectedJsonMode: Boolean = false,
-    ) : CallOutcome
-}
-
-/** One OpenAI-compatible `POST {endpoint}/chat/completions`, non-streaming. */
+/**
+ * One OpenAI-compatible `POST {baseUrl}/chat/completions`, non-streaming, `Authorization: Bearer`.
+ * OpenRouter-only extras (`reasoning: {effort: low}` and the attribution headers) go only to an
+ * openrouter.ai host.
+ *
+ * Token limit field: `api.openai.com` gets `max_completion_tokens` (its reasoning models reject
+ * `max_tokens`) plus `reasoning_effort: "low"`; every other host gets `max_tokens`. If a 400 names
+ * either field, the call is retried once with the other one, and that choice is remembered per
+ * URL and model for the rest of the process.
+ */
 internal class ChatCompletionsClient(
     private val http: OkHttpClient,
-) {
-    suspend fun complete(
-        url: HttpUrl,
-        apiKey: String,
-        model: String,
-        prompt: ChatPrompt,
-        maxTokens: Int,
-        jsonMode: Boolean,
-    ): CallOutcome {
+) : LlmClient {
+    /** `url|model` -> true for `max_completion_tokens`, false for `max_tokens`. Learned from 400s. */
+    private val tokenField = ConcurrentHashMap<String, Boolean>()
+
+    override suspend fun complete(request: CompletionRequest): CallOutcome {
+        val key = "${request.url}|${request.model}"
+        val useCompletion = tokenField[key] ?: isOpenAi(request.url)
+        val first = send(request, useCompletion)
+        if (first !is Sent.TokenFieldRejected) return first.outcome
+        val retry = send(request, !useCompletion)
+        if (retry !is Sent.TokenFieldRejected) tokenField[key] = !useCompletion
+        return retry.outcome
+    }
+
+    private sealed interface Sent {
+        val outcome: CallOutcome
+
+        data class Done(
+            override val outcome: CallOutcome,
+        ) : Sent
+
+        data class TokenFieldRejected(
+            override val outcome: CallOutcome,
+        ) : Sent
+    }
+
+    private suspend fun send(
+        request: CompletionRequest,
+        useCompletionTokens: Boolean,
+    ): Sent {
+        val openRouter = isOpenRouter(request.url)
         val body =
             buildJsonObject {
-                put("model", model)
+                put("model", request.model)
                 put(
                     "messages",
                     buildJsonArray {
-                        add(message("system", prompt.system))
-                        add(message("user", prompt.user))
+                        add(message("system", request.prompt.system))
+                        add(message("user", request.prompt.user))
                     },
                 )
-                put("max_tokens", maxTokens)
-                if (jsonMode) put("response_format", buildJsonObject { put("type", "json_object") })
+                put(if (useCompletionTokens) "max_completion_tokens" else "max_tokens", request.maxTokens)
+                request.temperature?.let { put("temperature", it) }
+                if (request.jsonMode) put("response_format", buildJsonObject { put("type", "json_object") })
                 // Keeps reasoning models from spending max_tokens on thinking. OpenRouter-only field.
-                if (isOpenRouter(url)) put("reasoning", buildJsonObject { put("effort", "low") })
+                if (openRouter) put("reasoning", buildJsonObject { put("effort", "low") })
+                if (isOpenAi(request.url)) put("reasoning_effort", "low")
             }
-        val (code, text) =
-            try {
-                val request =
-                    Request
-                        .Builder()
-                        .url(url)
-                        .header("Authorization", "Bearer $apiKey")
-                        .header("HTTP-Referer", OpenAiReplyGenerator.APP_REFERER)
-                        .header("X-Title", OpenAiReplyGenerator.APP_TITLE)
-                        .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
-                        .build()
-                http.newCall(request).await()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: InterruptedIOException) {
-                // OkHttp's call/read/connect timeouts. Coroutine cancellation is not an IOException.
-                return CallOutcome.Failed(SuggestionResult.Failure.Timeout)
-            } catch (e: IOException) {
-                return CallOutcome.Failed(SuggestionResult.Failure.Network(networkMessage(e)))
-            } catch (e: Exception) {
-                // e.g. IllegalArgumentException from a header value. Class name only: the message may hold the key.
-                return CallOutcome.Failed(
-                    SuggestionResult.Failure.Network("Could not send the request (${e.javaClass.simpleName})."),
-                )
+        val headers =
+            buildMap {
+                put("Authorization", "Bearer ${request.apiKey}")
+                if (openRouter) {
+                    put("HTTP-Referer", LlmReplyGenerator.APP_REFERER)
+                    put("X-Title", LlmReplyGenerator.APP_TITLE)
+                }
             }
-        return if (code in 200..299) parseSuccess(text) else httpFailure(code, text, jsonMode)
+        return when (val reply = LlmHttp.post(http, request.url, headers, request.extraHeaders, body.toString())) {
+            is HttpReply.Failed -> {
+                Sent.Done(CallOutcome.Failed(reply.failure))
+            }
+
+            is HttpReply.Body -> {
+                when {
+                    reply.code in 200..299 -> Sent.Done(parseSuccess(reply.text))
+
+                    rejectsTokenField(
+                        reply.code,
+                        reply.text,
+                    ) -> Sent.TokenFieldRejected(httpFailure(reply.code, reply.text, false))
+
+                    else -> Sent.Done(httpFailure(reply.code, reply.text, request.jsonMode))
+                }
+            }
+        }
     }
+
+    /** Covers both "use max_completion_tokens instead" and "unrecognized argument: max_completion_tokens". */
+    private fun rejectsTokenField(
+        code: Int,
+        text: String,
+    ): Boolean = code == 400 && text.lowercase().let { "max_tokens" in it || "max_completion_tokens" in it }
 
     private fun message(
         role: String,
@@ -114,7 +121,7 @@ internal class ChatCompletionsClient(
         // OpenRouter can answer 200 with an error object (e.g. the upstream provider failed).
         (root["error"] as? JsonObject)?.let { error ->
             val code = (error["code"] as? JsonPrimitive)?.intOrNull?.takeIf { it in 400..599 } ?: 502
-            return CallOutcome.Failed(SuggestionResult.Failure.Http(code, safeDetail(code)))
+            return CallOutcome.Failed(SuggestionResult.Failure.Http(code, LlmHttp.safeDetail(code)))
         }
         val usage = root["usage"] as? JsonObject
         val tokens =
@@ -164,68 +171,15 @@ internal class ChatCompletionsClient(
         val rejectedJsonMode =
             jsonMode && (code == 400 || code == 422) &&
                 ("response_format" in lower || "json_object" in lower || "json mode" in lower)
-        return CallOutcome.Failed(SuggestionResult.Failure.Http(code, safeDetail(code)), rejectedJsonMode)
+        return CallOutcome.Failed(SuggestionResult.Failure.Http(code, LlmHttp.safeDetail(code)), rejectedJsonMode)
     }
 
     companion object {
-        private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         private val json = Json { ignoreUnknownKeys = true }
 
-        private fun isOpenRouter(url: HttpUrl) = url.host == "openrouter.ai" || url.host.endsWith(".openrouter.ai")
+        fun isOpenRouter(url: HttpUrl) = url.host == "openrouter.ai" || url.host.endsWith(".openrouter.ai")
 
-        /**
-         * Fixed wording per status. The provider's own error text is never shown: it can quote
-         * the prompt (chat text).
-         */
-        fun safeDetail(code: Int): String? =
-            when {
-                code == 400 -> "Request rejected. Check the model id in Settings."
-                code == 401 -> "API key rejected. Check the key in Settings."
-                code == 402 -> "Out of credits on the API account."
-                code == 403 -> "Access denied for this key or model."
-                code == 404 -> "Model or endpoint not found. Check Settings."
-                code == 408 -> "The provider timed out. Try again."
-                code == 413 -> "Prompt too large for this model."
-                code == 429 -> "Rate limited. Wait a moment and try again."
-                code in 500..599 -> "The provider had an error. Try again."
-                else -> null
-            }
-
-        /** Exception class only; messages can contain hosts or addresses. */
-        fun networkMessage(e: IOException): String =
-            when (e) {
-                is UnknownHostException -> "No internet connection, or the endpoint host is unknown."
-                is ConnectException -> "Could not connect to the endpoint."
-                is SSLException -> "Secure connection to the endpoint failed."
-                is UnknownServiceException -> "The endpoint must use https."
-                else -> "Network error (${e.javaClass.simpleName})."
-            }
+        /** OpenAI's own API (not Azure or other compatible servers). */
+        fun isOpenAi(url: HttpUrl) = url.host == "api.openai.com"
     }
 }
-
-/** Runs the call on OkHttp's dispatcher and reads the body there; cancelling the coroutine cancels the call. */
-private suspend fun Call.await(): Pair<Int, String> =
-    suspendCancellableCoroutine { continuation ->
-        continuation.invokeOnCancellation { cancel() }
-        enqueue(
-            object : Callback {
-                override fun onFailure(
-                    call: Call,
-                    e: IOException,
-                ) {
-                    continuation.resumeWithException(e)
-                }
-
-                override fun onResponse(
-                    call: Call,
-                    response: Response,
-                ) {
-                    val result = runCatching { response.use { it.code to it.body.string() } }
-                    result.fold(
-                        onSuccess = { continuation.resumeWith(Result.success(it)) },
-                        onFailure = { continuation.resumeWithException(it) },
-                    )
-                }
-            },
-        )
-    }

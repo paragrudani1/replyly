@@ -17,44 +17,21 @@ class SettingsValidatorTest {
     }
 
     @Test
-    fun `values are trimmed and the endpoint loses its trailing slash`() {
-        val draft =
-            valid.copy(
-                endpoint = "  https://openrouter.ai/api/v1/ ",
-                model = " google/gemini-3.8-flash ",
-                historyMessageCount = " 25 ",
-                aboutMe = "  Short replies.  ",
-            )
+    fun `values are trimmed`() {
+        val draft = valid.copy(historyMessageCount = " 25 ", aboutMe = "  Short replies.  ")
         val settings = (SettingsValidator.validate(draft) as DraftValidation.Valid).apply(ReplylySettings())
-        assertThat(settings.endpoint).isEqualTo("https://openrouter.ai/api/v1")
-        assertThat(settings.model).isEqualTo("google/gemini-3.8-flash")
         assertThat(settings.historyMessageCount).isEqualTo(25)
         assertThat(settings.aboutMe).isEqualTo("Short replies.")
     }
 
     @Test
-    fun `the endpoint must be an https url`() {
-        assertThat(errorsOf(valid.copy(endpoint = "http://openrouter.ai/api/v1"))).containsKey(SettingsField.Endpoint)
-        assertThat(errorsOf(valid.copy(endpoint = "openrouter.ai"))).containsKey(SettingsField.Endpoint)
-        assertThat(errorsOf(valid.copy(endpoint = "https://"))).containsKey(SettingsField.Endpoint)
-        assertThat(errorsOf(valid.copy(endpoint = "https://open router.ai"))).containsKey(SettingsField.Endpoint)
-        assertThat(errorsOf(valid.copy(endpoint = ""))).containsKey(SettingsField.Endpoint)
-    }
-
-    @Test
-    fun `the shortlist models and free-text ids are accepted, blanks and spaces are not`() {
-        listOf(
-            "anthropic/claude-haiku-5.5",
-            "google/gemini-3.8-flash",
-            "~openai/gpt-mini-latest",
-            "meta-llama/llama-5:free",
-        ).forEach {
-            assertThat(
-                SettingsValidator.validate(valid.copy(model = it)),
-            ).isInstanceOf(DraftValidation.Valid::class.java)
-        }
-        assertThat(errorsOf(valid.copy(model = " "))).containsKey(SettingsField.Model)
-        assertThat(errorsOf(valid.copy(model = "claude haiku"))).containsKey(SettingsField.Model)
+    fun `the hidden legacy endpoint and model are neither validated nor written`() {
+        // They live in provider profiles now; a bad stored value must not block Save.
+        val stored = ReplylySettings(endpoint = "http://old.example", model = "")
+        val draft = SettingsDraft.from(stored).copy(endpoint = "x", model = "has space")
+        val settings = (SettingsValidator.validate(draft) as DraftValidation.Valid).apply(stored)
+        assertThat(settings.endpoint).isEqualTo("http://old.example")
+        assertThat(settings.model).isEmpty()
     }
 
     @Test
@@ -80,8 +57,8 @@ class SettingsValidatorTest {
 
     @Test
     fun `all errors are reported at once`() {
-        assertThat(errorsOf(valid.copy(endpoint = "x", model = "", retentionDays = "-1")).keys)
-            .containsExactly(SettingsField.Endpoint, SettingsField.Model, SettingsField.RetentionDays)
+        assertThat(errorsOf(valid.copy(historyMessageCount = "0", retentionDays = "-1")).keys)
+            .containsExactly(SettingsField.HistoryMessageCount, SettingsField.RetentionDays)
     }
 
     @Test
