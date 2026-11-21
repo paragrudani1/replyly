@@ -3,4 +3,8 @@
   <string name="app_name">Replyly</string>
   <string name="accessibility_service_label">Replyly</string>
   <string name="accessibility_service_description">Replyly reads the open chat in your messaging apps to suggest replies when you tap its button. It only inserts text you choose and never sends a message.</string>
+  <!-- Ticket #1: overlay -->
+  <string name="overlay_button_description">Suggest replies</string>
+  <string name="overlay_notice_off_here">Replyly is off here</string>
+  <string name="overlay_notice_no_chat">Replyly can\'t read a chat here</string>
 </resources>

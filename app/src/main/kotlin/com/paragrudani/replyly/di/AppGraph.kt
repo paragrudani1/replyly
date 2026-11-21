@@ -15,6 +15,7 @@ import com.paragrudani.replyly.llm.ReplyGenerator
 import com.paragrudani.replyly.llm.StubReplyGenerator
 import com.paragrudani.replyly.llm.StubSuggestionRequestAssembler
 import com.paragrudani.replyly.llm.SuggestionRequestAssembler
+import com.paragrudani.replyly.overlay.OverlayComponent
 import com.paragrudani.replyly.panel.PlaceholderReplyPanel
 import com.paragrudani.replyly.panel.ReplyPanel
 import com.paragrudani.replyly.parser.ChatParserRegistry
@@ -53,7 +54,7 @@ class AppGraph(
     val accessibilityHostHolder: AccessibilityHostHolder = AccessibilityHostHolder()
 
     // Ticket #1: overlay and button.
-    val overlayComponent: AccessibilityComponent by lazy { NoOpAccessibilityComponent }
+    val overlayComponent: AccessibilityComponent by lazy { OverlayComponent.create(this) }
 
     // Ticket #1
     val replyInserter: ReplyInserter by lazy { AccessibilityReplyInserter.create(accessibilityHostHolder) }
