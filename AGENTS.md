@@ -1,7 +1,7 @@
 # Replyly: agent guide
 
 Personal sideloaded Android app (Kotlin, Compose, single `:app` module). Product: [docs/SPEC.md](docs/SPEC.md).
-Before touching code, read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the data flow, the shared contracts, and the **ownership map** of which ticket owns which files.
+Before touching code, read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the data flow, the AppGraph bindings, storage and purge rules.
 
 ## Hard invariants
 
