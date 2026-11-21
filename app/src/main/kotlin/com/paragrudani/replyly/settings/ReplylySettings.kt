@@ -19,6 +19,11 @@ data class ReplylySettings(
     val blockedPackages: Set<String> = emptySet(),
     val dailyRequestLimit: Int = 200,
     val retentionDays: Int = 60,
+    /**
+     * Spec 6 latency fallback: 3 concurrent single-suggestion calls (agree / decline / ask)
+     * instead of one call for 3. Counts as 1 request against the daily limit.
+     */
+    val useParallelCalls: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_ENDPOINT = "https://openrouter.ai/api/v1"
