@@ -100,9 +100,19 @@ private fun SettingsRouteContent(
     // The feedback log is an inner screen of this destination, so ReplylyNavHost stays untouched.
     var showFeedbackLog by rememberSaveable { mutableStateOf(false) }
     if (showFeedbackLog) {
-        BackHandler { showFeedbackLog = false }
+        val closeFeedbackLog = {
+            vm.dismissStorageError() // already shown on the log screen; do not repeat it as a snackbar
+            showFeedbackLog = false
+        }
+        BackHandler(onBack = closeFeedbackLog)
         val entries by vm.feedbackEntries.collectAsStateWithLifecycle(initialValue = emptyList())
-        FeedbackLogScreen(entries = entries, onClear = vm::clearFeedbackLog, onBack = { showFeedbackLog = false })
+        val state by vm.state.collectAsStateWithLifecycle()
+        FeedbackLogScreen(
+            entries = entries,
+            error = state.storageError,
+            onClear = vm::clearFeedbackLog,
+            onBack = closeFeedbackLog,
+        )
     } else {
         SettingsScreen(vm, onOpenOnboarding, onOpenDebug, onOpenFeedbackLog = { showFeedbackLog = true })
     }
@@ -122,6 +132,12 @@ fun SettingsScreen(
         LaunchedEffect(message) {
             snackbarHostState.showSnackbar(message)
             vm.dismissSaveError()
+        }
+    }
+    state.storageError?.let { message ->
+        LaunchedEffect(message) {
+            snackbarHostState.showSnackbar(message)
+            vm.dismissStorageError()
         }
     }
     Scaffold(

@@ -3,10 +3,13 @@ package com.paragrudani.replyly.ui.settings
 import com.google.common.truth.Truth.assertThat
 import com.paragrudani.replyly.cost.CostGuard
 import com.paragrudani.replyly.cost.InMemoryCostGuard
+import com.paragrudani.replyly.feedback.FeedbackEntry
+import com.paragrudani.replyly.feedback.FeedbackLog
 import com.paragrudani.replyly.feedback.InMemoryFeedbackLog
 import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.llm.TokenUsage
 import com.paragrudani.replyly.parser.ChatKey
+import com.paragrudani.replyly.security.DatabaseKeyUnavailableException
 import com.paragrudani.replyly.settings.InMemoryApiKeyStore
 import com.paragrudani.replyly.settings.InMemorySettingsRepository
 import com.paragrudani.replyly.settings.ReplylySettings
@@ -15,7 +18,9 @@ import com.paragrudani.replyly.settings.current
 import com.paragrudani.replyly.testing.MutableClock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -25,6 +30,7 @@ import org.junit.Before
 import org.junit.Test
 import java.io.IOException
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDateTime
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -276,5 +282,79 @@ class SettingsViewModelTest {
 
             vm.clearFeedbackLog()
             assertThat(vm.feedbackEntries.first()).isEmpty()
+        }
+
+    /** A feedback log whose encrypted DB cannot be opened: the Keystore is locked, or the disk failed. */
+    private class LockedFeedbackLog(
+        delegate: FeedbackLog,
+        private val failure: () -> Exception = { DatabaseKeyUnavailableException(IllegalStateException("locked")) },
+    ) : FeedbackLog by delegate {
+        var locked = true
+
+        override fun observeRecent(limit: Int): Flow<List<FeedbackEntry>> =
+            flow {
+                if (locked) throw failure()
+                emit(emptyList())
+            }
+
+        override suspend fun purgeOlderThan(cutoff: Instant): Int = if (locked) throw failure() else 0
+
+        override suspend fun clear(): Int = if (locked) throw failure() else 0
+    }
+
+    @Test
+    fun `a locked feedback DB on open shows the fixed message instead of crashing`() =
+        runTest {
+            val vm = SettingsViewModel(settings, apiKeys, cost, LockedFeedbackLog(feedback), clock)
+
+            assertThat(vm.state.value.storageError).isEqualTo("Secure storage is locked. Try again.")
+            assertThat(vm.state.value.storageError).isEqualTo(SettingsViewModel.STORAGE_LOCKED)
+            vm.dismissStorageError()
+            assertThat(vm.state.value.storageError).isNull()
+        }
+
+    @Test
+    fun `a locked feedback DB shows an empty log with the fixed message`() =
+        runTest {
+            val vm = SettingsViewModel(settings, apiKeys, cost, LockedFeedbackLog(feedback), clock)
+            vm.dismissStorageError()
+
+            assertThat(vm.feedbackEntries.first()).isEmpty()
+            assertThat(vm.state.value.storageError).isEqualTo(SettingsViewModel.STORAGE_LOCKED)
+        }
+
+    @Test
+    fun `clearing a locked feedback log shows the fixed message, and works once unlocked`() =
+        runTest {
+            val locked = LockedFeedbackLog(feedback)
+            val vm = SettingsViewModel(settings, apiKeys, cost, locked, clock)
+            vm.dismissStorageError()
+
+            vm.clearFeedbackLog()
+            assertThat(vm.state.value.storageError).isEqualTo(SettingsViewModel.STORAGE_LOCKED)
+
+            vm.dismissStorageError()
+            locked.locked = false
+            vm.clearFeedbackLog()
+            assertThat(vm.state.value.storageError).isNull()
+        }
+
+    @Test
+    fun `other storage failures show the same fixed message and never the exception text`() =
+        runTest {
+            val failures =
+                listOf<() -> Exception>(
+                    { IOException("disk I/O error at /data/secret/feedback.db") },
+                    { IllegalStateException("file is not a database: chat text here") },
+                    { RuntimeException(DatabaseKeyUnavailableException(IllegalStateException("wrapped"))) },
+                )
+            for (failure in failures) {
+                val vm = SettingsViewModel(settings, apiKeys, cost, LockedFeedbackLog(feedback, failure), clock)
+                assertThat(vm.state.value.storageError).isEqualTo(SettingsViewModel.STORAGE_LOCKED)
+                vm.dismissStorageError()
+                assertThat(vm.feedbackEntries.first()).isEmpty()
+                assertThat(vm.state.value.storageError).isEqualTo(SettingsViewModel.STORAGE_LOCKED)
+                assertThat(vm.state.value.toString()).doesNotContain("secret")
+            }
         }
 }

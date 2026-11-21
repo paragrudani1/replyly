@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.IOException
@@ -35,6 +36,8 @@ data class SettingsUiState(
     val usage: CostStatus = CostStatus(0, ReplylySettings().dailyRequestLimit, 0, 0),
     /** A settings or blocklist write failed (disk full, I/O error). Shown once, then dismissed. */
     val saveError: String? = null,
+    /** Reading, purging or clearing the encrypted feedback log failed. Shown once, then dismissed. */
+    val storageError: String? = null,
 ) {
     val showApiKeyField: Boolean get() = !apiKeySaved || replacingApiKey
 
@@ -43,7 +46,7 @@ data class SettingsUiState(
     // Keeps a half-typed key out of any log or crash report that prints the state.
     override fun toString(): String =
         "SettingsUiState(draft=$draft, errors=$errors, apiKeySaved=$apiKeySaved, replacingApiKey=$replacingApiKey, " +
-            "apiKeyInput=<${apiKeyInput.length} chars>, apiKeyError=$apiKeyError, usage=$usage, saveError=$saveError)"
+            "apiKeyInput=<${apiKeyInput.length} chars>, apiKeyError=$apiKeyError, usage=$usage, saveError=$saveError, storageError=$storageError)"
 }
 
 class SettingsViewModel(
@@ -56,7 +59,16 @@ class SettingsViewModel(
     private val mutableState = MutableStateFlow(SettingsUiState())
     val state: StateFlow<SettingsUiState> = mutableState.asStateFlow()
 
-    val feedbackEntries: Flow<List<FeedbackEntry>> = feedbackLog.observeRecent(FEEDBACK_VIEWER_LIMIT)
+    /**
+     * Newest entries first. If the encrypted DB cannot be read (Keystore locked, disk error), emits
+     * an empty list and shows [STORAGE_LOCKED]; collecting again (reopening the log) retries.
+     */
+    val feedbackEntries: Flow<List<FeedbackEntry>> =
+        feedbackLog.observeRecent(FEEDBACK_VIEWER_LIMIT).catch { e ->
+            if (e is CancellationException) throw e
+            showStorageError()
+            emit(emptyList())
+        }
 
     init {
         viewModelScope.launch {
@@ -88,7 +100,7 @@ class SettingsViewModel(
         viewModelScope.launch { costGuard.status.collect { usage -> mutableState.update { it.copy(usage = usage) } } }
         viewModelScope.launch {
             val retention = settingsRepository.current().retentionDays.toLong()
-            feedbackLog.purgeOlderThan(clock.instant().minus(Duration.ofDays(retention)))
+            guardedFeedback { feedbackLog.purgeOlderThan(clock.instant().minus(Duration.ofDays(retention))) }
         }
     }
 
@@ -207,11 +219,31 @@ class SettingsViewModel(
         }
 
     fun clearFeedbackLog() {
-        viewModelScope.launch { feedbackLog.clear() }
+        viewModelScope.launch { guardedFeedback { feedbackLog.clear() } }
+    }
+
+    fun dismissStorageError() = mutableState.update { it.copy(storageError = null) }
+
+    private fun showStorageError() = mutableState.update { it.copy(storageError = STORAGE_LOCKED) }
+
+    /**
+     * Runs a feedback DB call. Any failure (usually [com.paragrudani.replyly.security.DatabaseKeyUnavailableException],
+     * possibly wrapped by Room) shows [STORAGE_LOCKED] instead of crashing. The exception text may
+     * hold paths or chat text, so it is not shown or logged.
+     */
+    private suspend fun guardedFeedback(block: suspend () -> Unit) {
+        try {
+            block()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            showStorageError()
+        }
     }
 
     companion object {
         const val FEEDBACK_VIEWER_LIMIT = 200
         const val SAVE_ERROR = "Could not save settings"
+        const val STORAGE_LOCKED = "Secure storage is locked. Try again."
     }
 }
