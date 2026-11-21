@@ -1,7 +1,6 @@
 package com.paragrudani.replyly.panel
 
 import android.content.Context
-import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -149,11 +148,9 @@ private class DisposingPanelState(
     override fun onAbandoned() = state.dispose()
 }
 
-/** Opens Replyly's own settings from the overlay (no Activity here, so a new task). */
+/** Opens Replyly on its settings screen from the overlay (no Activity here, so a new task). */
 fun openReplylySettings(context: Context) {
-    context.startActivity(
-        Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-    )
+    context.startActivity(MainActivity.settingsIntent(context))
 }
 
 internal class PanelActions(
