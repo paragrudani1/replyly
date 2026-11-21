@@ -666,8 +666,8 @@ text if any.
 Requests today goes up by exactly 1 and tokens by a few. **Send:** the text and the usage numbers
 before and after.
 
-12.3 **Do:** "Add profile" → preset "OpenAI" → paste an OpenAI key → model: a chat model from your
-OpenAI account → Save. Tap "Test connection" on the new row. **See:** the editor's hint says
+12.3 **Do:** "Add profile" → preset "OpenAI" → paste an OpenAI key → model: a current reasoning
+model from your OpenAI account (one that needs `max_completion_tokens`) → Save. Tap "Test connection" on the new row. **See:** the editor's hint says
 "Requests go to https://api.openai.com/v1/chat/completions"; the test shows "OK · N ms". **Send:**
 the test text, or the error text.
 
@@ -714,4 +714,19 @@ profile left, "Delete profile" is disabled. **Send:** pass/fail.
 12.13 **Do:** select a profile without a key (add one and skip the key), then open Setup steps.
 **See:** step 5 (API key and model) is not done. Select a profile with a key and open Setup
 steps again: step 5 is done.
+**Send:** pass/fail.
+
+12.14 **Do:** edit any profile → "Add header" twice, so the last header value field is at the
+bottom of the editor. Tap that bottom value field so the keyboard opens. Then rotate the phone to
+landscape and back. Then press Back (gesture or button). **See:** the editor's top bar sits below
+the status bar, never under it; with the keyboard up the focused field stays visible above the
+keyboard, with no large empty gap between them; after rotating, the typed text is still there.
+Back first closes the keyboard; a second Back closes the editor without saving (edits are
+dropped). **Send:** a screenshot with the keyboard up, one after rotating, and say what each Back
+did.
+
+12.15 **Do:** edit the OpenRouter profile (which has a saved key), tap the "OpenAI" preset, set a
+model, and tap Save without typing a key. **See:** the key field opens with "Enter the key for
+this provider" and nothing is saved. Tap Cancel. Then edit it again, tap "Remove" next to the
+saved key, then Cancel, and edit again. **See:** "API key: saved ••••••••" is still there.
 **Send:** pass/fail.

@@ -104,23 +104,30 @@ One lazy binding per interface, all real implementations:
 - **Migration.** On the first read or write, if no profile list exists, the legacy
   `ReplylySettings.endpoint`/`model` and the legacy key become one active OpenAI-format profile
   ("OpenRouter", or "Custom" for another endpoint). It writes only if the list is still absent, so
-  it runs once. The legacy fields and key are left in place (unused) for a downgrade.
+  it runs once. The legacy fields and key are left in place (unused) for a downgrade. If encrypting
+  the copied key fails, nothing is written and the next read tries again; the Settings collector
+  catches storage errors and shows fixed text.
 - **URLs** (`llm/ProviderUrls`): the base URL includes the version path. OpenAI format appends
-  `/chat/completions`; Anthropic format appends `/messages`, adding `/v1` first if the URL has no
-  `vN` segment. A pasted full endpoint is not doubled.
+  `/chat/completions`; Anthropic format appends `/messages`, adding `/v1` first unless the LAST
+  path segment is a version (`^v\d+[a-z0-9]*$`, any case). A pasted full endpoint is not doubled.
+- **Editing a profile**: changing the host or format with a saved key and no new key typed is a
+  validation error on the key (the key never follows a host change); Save clears the profile's
+  last test result; "Remove key" is staged until Save.
 - **OpenAI format** (`ChatCompletionsClient`): `Authorization: Bearer`, `response_format`
   json_object. Only an openrouter.ai host gets `reasoning: {effort: low}` and the attribution
-  headers. Temperature only if the profile sets one.
+  headers. `api.openai.com` gets `max_completion_tokens` and `reasoning_effort: low`; other hosts
+  `max_tokens`. A 400 naming either token field retries once with the other, remembered per
+  URL+model (in the client). Temperature only if the profile sets one.
 - **Anthropic format** (`AnthropicMessagesClient`): native Messages API, `x-api-key`,
   `anthropic-version: 2026-10-21`, top-level `system`, `max_tokens` always set, no temperature.
   JSON via `output_config.format` (a JSON schema of the suggestions contract); `effort: low` only
-  on api.anthropic.com. `stop_reason` `max_tokens` maps to the "cut off" failure, `refusal` to a
+  on api.anthropic.com. `stop_reason` `max_tokens` or `model_context_window_exceeded` maps to the "cut off" failure, `refusal` to a
   fixed bad-output reason. Usage = input (+ cache) and output tokens.
 - Both formats share `LlmHttp` (fixed error wording per status, 529 "overloaded") and the JSON-mode
   fallback: a 400/422 naming the JSON fields retries once without them, remembered per URL+model.
 - Extra headers are applied after the format's own headers and may override e.g.
-  `anthropic-version`, but never `Authorization`, `x-api-key`, `Content-Type`, `Content-Length`
-  or `Host`.
+  `anthropic-version`, but never `Authorization`, `x-api-key`, `Content-Type`, `Content-Length`,
+  `Host` or `Accept-Encoding`.
 - **Test connection** (`ConnectionTester`) uses the same checks, one tiny prompt with
   `max_tokens` 16 and no JSON mode; it counts 1 request and records its tokens. The UI shows
   "OK · N ms" or the panel's `toPanelError` wording.
