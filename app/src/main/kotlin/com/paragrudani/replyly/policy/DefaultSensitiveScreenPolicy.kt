@@ -39,16 +39,23 @@ class DefaultSensitiveScreenPolicy(
     companion object {
         private const val TAG = "ReplylyPolicy"
 
-        /** Keeps the latest settings in memory, so [evaluate] never waits for disk. */
+        /**
+         * Keeps the latest settings in memory, so [evaluate] never waits for disk. If they fail to
+         * load, every app stays blocked and [onUnavailable] runs once, so the user knows why.
+         */
         fun create(
             repository: SettingsRepository,
             scope: CoroutineScope,
+            log: (String) -> Unit = { Log.e(TAG, it) },
+            onUnavailable: () -> Unit = {},
         ): DefaultSensitiveScreenPolicy {
             val latest: StateFlow<ReplylySettings?> =
                 repository.settings
                     .map<ReplylySettings, ReplylySettings?> { it }
-                    .catch { e -> Log.e(TAG, "settings unavailable: ${e::class.simpleName}") }
-                    .stateIn(scope, SharingStarted.Eagerly, null)
+                    .catch { e ->
+                        log("settings unavailable: ${e::class.simpleName}")
+                        onUnavailable()
+                    }.stateIn(scope, SharingStarted.Eagerly, null)
             return DefaultSensitiveScreenPolicy(settings = { latest.value })
         }
     }

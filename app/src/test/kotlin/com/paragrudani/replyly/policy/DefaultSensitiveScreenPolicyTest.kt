@@ -7,9 +7,13 @@ import com.paragrudani.replyly.screen.ScreenNode
 import com.paragrudani.replyly.screen.ScreenSnapshot
 import com.paragrudani.replyly.settings.InMemorySettingsRepository
 import com.paragrudani.replyly.settings.ReplylySettings
+import com.paragrudani.replyly.settings.SettingsRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
+import java.io.IOException
 import java.time.Instant
 
 class DefaultSensitiveScreenPolicyTest {
@@ -97,6 +101,12 @@ class DefaultSensitiveScreenPolicyTest {
                 "in.org.npci.upiapp", // BHIM
                 "com.dreamplug.androidapp", // CRED
                 "in.amazon.mShop.android.shopping", // Amazon Pay lives in the Amazon app
+                "com.samsung.android.samsungpass", // Samsung Pass
+                "com.x8bit.bitwarden", // Bitwarden
+                "com.google.android.apps.authenticator2", // Google Authenticator
+                "com.azure.authenticator", // Microsoft Authenticator
+                "com.msf.angelmobile", // Angel One
+                "com.fedmobile", // FedMobile
             )
 
         for (pkg in packages) {
@@ -140,6 +150,22 @@ class DefaultSensitiveScreenPolicyTest {
             repository.update { it.copy(blockedPackages = setOf("com.slack")) }
 
             assertThat(live.evaluate(ScreenContext("com.slack"))).isEqualTo(blocked(BlockReason.BLOCKLISTED_APP))
+        }
+
+    @Test
+    fun `settings that fail to load keep every app blocked and report it once`() =
+        runTest(UnconfinedTestDispatcher()) {
+            val broken =
+                object : SettingsRepository {
+                    override val settings: Flow<ReplylySettings> = flow { throw IOException("disk") }
+
+                    override suspend fun update(transform: (ReplylySettings) -> ReplylySettings) = Unit
+                }
+            var reports = 0
+            val live = DefaultSensitiveScreenPolicy.create(broken, backgroundScope, log = {}) { reports++ }
+
+            assertThat(live.evaluate(ScreenContext("com.slack"))).isEqualTo(blocked(BlockReason.BLOCKLISTED_APP))
+            assertThat(reports).isEqualTo(1)
         }
 
     private companion object {

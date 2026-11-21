@@ -1,7 +1,7 @@
 package com.paragrudani.replyly.policy
 
 /**
- * Banking, UPI, wallet and broker apps that Replyly never reads (spec 4), on top of the user's own
+ * Banking, UPI, wallet, broker, password and authenticator apps that Replyly never reads (spec 4), on top of the user's own
  * blocklist. To add one: open the app, take a debug dump (hidden debug screen), copy its
  * `packageName` here. Exact package names only, no prefixes.
  */
@@ -43,5 +43,13 @@ object SensitiveApps {
             "com.nextbillion.groww", // Groww
             "com.zerodha.kite3", // Zerodha Kite
             "com.paytmmoney", // Paytm Money
+            "com.msf.angelmobile", // Angel One
+            // More banks
+            "com.fedmobile", // FedMobile (Federal Bank)
+            // Passwords and two-factor codes
+            "com.samsung.android.samsungpass", // Samsung Pass
+            "com.x8bit.bitwarden", // Bitwarden
+            "com.google.android.apps.authenticator2", // Google Authenticator
+            "com.azure.authenticator", // Microsoft Authenticator
         )
 }

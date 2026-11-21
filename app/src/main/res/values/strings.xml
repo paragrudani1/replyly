@@ -7,4 +7,5 @@
   <string name="overlay_button_description">Suggest replies</string>
   <string name="overlay_notice_off_here">Replyly is off here</string>
   <string name="overlay_notice_no_chat">Replyly can\'t read a chat here</string>
+  <string name="settings_unavailable_paused">Replyly couldn\'t load settings and is paused</string>
 </resources>
