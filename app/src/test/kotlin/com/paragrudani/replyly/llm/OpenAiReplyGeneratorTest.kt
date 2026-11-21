@@ -62,7 +62,13 @@ class OpenAiReplyGeneratorTest {
     fun tearDown() = server.close()
 
     private fun generator(timeouts: LlmTimeouts = LlmTimeouts()) =
-        OpenAiReplyGenerator(settings, keys, costGuard, OpenAiReplyGenerator.defaultHttpClient(timeouts))
+        OpenAiReplyGenerator(
+            settings,
+            keys,
+            costGuard,
+            OpenAiReplyGenerator.defaultHttpClient(timeouts),
+            requireHttps = false, // MockWebServer speaks cleartext.
+        )
 
     private fun generate(timeouts: LlmTimeouts = LlmTimeouts()) = runBlocking { generator(timeouts).generate(request) }
 
@@ -155,12 +161,35 @@ class OpenAiReplyGeneratorTest {
     }
 
     @Test
+    fun `a cleartext endpoint is refused before any request or cost check`() {
+        val result =
+            runBlocking {
+                OpenAiReplyGenerator(
+                    settings,
+                    keys,
+                    costGuard,
+                    OpenAiReplyGenerator.defaultHttpClient(),
+                ).generate(request)
+            }
+
+        assertThat(result).isEqualTo(SuggestionResult.Failure.InsecureEndpoint)
+        assertThat(server.requestCount).isEqualTo(0)
+        assertThat(costGuard.status.value.requestsToday).isEqualTo(0)
+    }
+
+    @Test
     fun `daily limit reached means no call`() {
         val guard = InMemoryCostGuard(dailyRequestLimit = 1)
         runBlocking { guard.tryAcquire() }
         val result =
             runBlocking {
-                OpenAiReplyGenerator(settings, keys, guard, OpenAiReplyGenerator.defaultHttpClient()).generate(request)
+                OpenAiReplyGenerator(
+                    settings,
+                    keys,
+                    guard,
+                    OpenAiReplyGenerator.defaultHttpClient(),
+                    requireHttps = false,
+                ).generate(request)
             }
         assertThat(result).isEqualTo(SuggestionResult.Failure.LimitReached(dailyLimit = 1))
         assertThat(server.requestCount).isEqualTo(0)

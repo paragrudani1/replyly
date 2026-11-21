@@ -10,7 +10,7 @@ import android.util.Log
 
 /**
  * System screens for each step, best first. Samsung screens are unverified on One UI (see
- * docs/device-checklist/ticket-7.md), so every list ends with a screen that always exists.
+ * docs/DEVICE_CHECKLIST.md section 1), so every list ends with a screen that always exists.
  */
 object SetupIntents {
     private const val TAG = "ReplylyOnboarding"

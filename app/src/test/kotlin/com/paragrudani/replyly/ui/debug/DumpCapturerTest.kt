@@ -7,9 +7,11 @@ import com.paragrudani.replyly.parser.ChatParserRegistry
 import com.paragrudani.replyly.parser.ParsedChat
 import com.paragrudani.replyly.parser.Parsers
 import com.paragrudani.replyly.policy.BlockReason
-import com.paragrudani.replyly.policy.MinimalSensitiveScreenPolicy
+import com.paragrudani.replyly.policy.DefaultSensitiveScreenPolicy
 import com.paragrudani.replyly.policy.SensitiveScreenPolicy
 import com.paragrudani.replyly.policy.SensitivityVerdict
+import com.paragrudani.replyly.screen.Bounds
+import com.paragrudani.replyly.screen.ScreenNode
 import com.paragrudani.replyly.screen.ScreenSnapshot
 import com.paragrudani.replyly.service.AccessibilityHost
 import com.paragrudani.replyly.settings.ReplylySettings
@@ -38,7 +40,9 @@ class DumpCapturerTest {
 
         override val service: AccessibilityService get() = error("not used")
 
-        override fun captureActiveWindow(): ScreenSnapshot? {
+        override fun captureActiveWindow(): ScreenSnapshot? = error("the dump must use the checked capture")
+
+        override suspend fun captureActiveWindowChecked(): ScreenSnapshot? {
             captures++
             return screen
         }
@@ -47,17 +51,17 @@ class DumpCapturerTest {
     private val store by lazy { DebugDumpStore(folder.root) }
     private val hosts = MutableStateFlow<AccessibilityHost?>(null)
 
+    /** The real policy, with [settings] already loaded. */
     private fun TestScope.capturer(
-        policy: SensitiveScreenPolicy = MinimalSensitiveScreenPolicy,
         registry: ChatParserRegistry = Parsers.registry(),
         settings: ReplylySettings = ReplylySettings(),
+        policy: SensitiveScreenPolicy = DefaultSensitiveScreenPolicy(settings = { settings }),
     ) = DumpCapturer(
         hosts = hosts,
         store = store,
         policy = policy,
         registry = registry,
         ownPackage = "com.paragrudani.replyly",
-        settings = { settings },
         workDispatcher = StandardTestDispatcher(testScheduler),
     )
 
@@ -147,7 +151,7 @@ class DumpCapturerTest {
                     }
                 }
 
-            assertThat(capturer(blockChat).capture(0.seconds))
+            assertThat(capturer(policy = blockChat).capture(0.seconds))
                 .isEqualTo(DumpCapturer.Outcome.Blocked(BlockReason.BLOCKLISTED_CHAT))
             assertThat(store.list()).isEmpty()
         }
@@ -179,7 +183,18 @@ class DumpCapturerTest {
         }
 
     @Test
-    fun `a blocklisted chat is never saved, even before the real policy lands`() =
+    fun `a secure window is never saved`() =
+        runTest {
+            // What the checked capture returns for a FLAG_SECURE window (or one it could not check).
+            hosts.value = FakeHost(whatsapp.copy(root = ScreenNode(bounds = Bounds.EMPTY), secureWindow = true))
+
+            assertThat(capturer().capture(0.seconds))
+                .isEqualTo(DumpCapturer.Outcome.Blocked(BlockReason.SECURE_WINDOW))
+            assertThat(store.list()).isEmpty()
+        }
+
+    @Test
+    fun `a blocklisted chat is never saved`() =
         runTest {
             hosts.value = FakeHost(whatsapp)
             val settings = ReplylySettings(blockedChatKeys = setOf("com.whatsapp:Asha Patel"))

@@ -3,6 +3,7 @@ package com.paragrudani.replyly.settings
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -33,6 +34,7 @@ class DataStoreSettingsRepository(
             blockedPackages = this[BLOCKED_PACKAGES] ?: defaults.blockedPackages,
             dailyRequestLimit = this[DAILY_LIMIT] ?: defaults.dailyRequestLimit,
             retentionDays = this[RETENTION_DAYS] ?: defaults.retentionDays,
+            useParallelCalls = this[PARALLEL_CALLS] ?: defaults.useParallelCalls,
         )
     }
 
@@ -45,6 +47,7 @@ class DataStoreSettingsRepository(
         this[BLOCKED_PACKAGES] = settings.blockedPackages
         this[DAILY_LIMIT] = settings.dailyRequestLimit
         this[RETENTION_DAYS] = settings.retentionDays
+        this[PARALLEL_CALLS] = settings.useParallelCalls
     }
 
     private companion object {
@@ -56,5 +59,6 @@ class DataStoreSettingsRepository(
         val BLOCKED_PACKAGES = stringSetPreferencesKey("blocked_packages")
         val DAILY_LIMIT = intPreferencesKey("daily_request_limit")
         val RETENTION_DAYS = intPreferencesKey("retention_days")
+        val PARALLEL_CALLS = booleanPreferencesKey("use_parallel_calls")
     }
 }

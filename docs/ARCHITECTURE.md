@@ -1,81 +1,106 @@
 # Replyly architecture
 
-What the app does: [SPEC.md](SPEC.md). This file is the map of the code and who owns which part of it.
+What the app does: [SPEC.md](SPEC.md). This file maps the code as it is now.
 All code lives in the single `:app` module, package `com.paragrudani.replyly`.
 
 ## Data flow
 
 ```
-                       ReplylyAccessibilityService  (service/, skeleton: forwards events only)
-                         │ onEvent(...) to each AccessibilityComponent from AppGraph
+                       ReplylyAccessibilityService  (service/: forwards callbacks only)
+                         │ onConnected / onEvent to AppGraph.accessibilityComponents()
              ┌───────────┴─────────────────────────────┐
-     overlayComponent (#1)                     captureComponent (#3)
-     input focused + keyboard open             screen changed, wait ~1 s
+     OverlayComponent (overlay/)               PassiveCaptureComponent (history/capture/)
+     input focused + keyboard open             WhatsApp/Telegram screen changed:
+     → shows the button                        1 s quiet, at most 3 s into a busy screen
+     user taps the button                              │
              │                                         │
-             └──► host.captureActiveWindow(): ScreenSnapshot   (screen/)
+             ▼                                         ▼
+     host.captureWindowChecked(chat window)    host.captureActiveWindowChecked()
+             └──────────► FLAG_SECURE probe first (fails closed): a secure window comes back
+                          unread, with secureWindow = true
                           │
-                  SensitiveScreenPolicy.evaluate  ── Blocked ──► stop, read nothing more
+                  SensitiveScreenPolicy.evaluate ── Blocked ──► stop, read nothing more
                           │ Allowed
-                  ChatParserRegistry.parse ──► ParsedChat      (parser/, #2)
+                  ChatParserRegistry.parse ──► ParsedChat      (parser/)
                           │                            │
-                          │                    HistoryRepository.merge (history/, #3)
-                          │                    FeedbackLog.attachFinalMessage (#3 calls it)
-     user taps the button │
+                          │                    HistoryRepository merge (history/)
+                          │                    FeedbackLog.attachFinalMessage
              ▼
-     ReplyPanel.Content(PanelRequest(chat))   (panel/, #5; hosted in #1's overlay window)
+     ReplyPanel.Content(PanelRequest(chat))   (panel/, in the overlay's modal window)
              │ on open, and on Regenerate only
-             ├─► SuggestionRequestAssembler.assemble(chat, instruction)   (llm/, #4)
-             │     reads HistoryRepository, ContactNoteStore, SettingsRepository
-             ├─► ReplyGenerator.generate(request) ──► SuggestionResult    (llm/, #4)
-             │     checks ApiKeyStore, CostGuard.tryAcquire, then recordUsage (cost/, #6)
-             ├─► FeedbackLog.record(...)                                 (feedback/, #6)
+             ├─► SuggestionRequestAssembler.assemble   merges the chat into history first, then
+             │     reads history, contact note, settings, app label
+             ├─► ReplyGenerator.generate ──► SuggestionResult
+             │     API key, https endpoint, CostGuard.tryAcquire, call(s), recordUsage
+             ├─► FeedbackLog.record
              │ user taps a card
-             └─► ReplyInserter.insert(text) (#1, ACTION_SET_TEXT) + FeedbackLog.markInserted
+             └─► ReplyInserter.insert(text) (ACTION_SET_TEXT on the remembered input) + markInserted
                      the user edits and sends the message themselves
 ```
 
-## Contracts (skeleton, shared by everyone)
+The debug dump (`ui/debug/DumpCapturer`) reads the same way: checked capture, then the policy
+(package, screen, then chat once parsed), then it stores the tree.
 
-| Package | Contract | Notes |
+## Bindings (`di/AppGraph.kt`)
+
+One lazy binding per interface, all real implementations:
+
+| Binding | Implementation | Notes |
 |---|---|---|
-| `screen/` | `ScreenSnapshot`, `ScreenNode`, `Bounds`, `ScreenSnapshotJson`, `AccessibilityNodeMapper` | Debug-dump format = fixture format. Change it only by adding fields with defaults. |
-| `parser/` | `ChatKey`, `ChatMessage`, `ParsedChat`, `ChatParser`, `ChatParserRegistry`, `TargetApps` | `ChatKey.encoded` = `"<package>:<title>"`, used in blocklists and DB rows. |
-| `history/` | `HistoryRepository`, `StoredMessage`, `ContactNoteStore` | Lists are oldest first. |
-| `settings/` | `ReplylySettings` (spec defaults), `SettingsRepository`, `ApiKeyStore` | The key is never part of `ReplylySettings`. |
-| `llm/` | `SuggestionRequest`, `Suggestion`, `TokenUsage`, `SuggestionResult` (+ typed `Failure`s), `ReplyGenerator`, `SuggestionRequestAssembler` | |
-| `cost/` | `CostGuard`, `CostStatus` | |
-| `feedback/` | `FeedbackLog`, `FeedbackEntry` | |
-| `policy/` | `SensitiveScreenPolicy`, `ScreenContext`, `SensitivityVerdict`, `BlockReason` | Both #1 and #3 ask it before reading. |
-| `security/` | `DatabaseKeyProvider` | One SQLCipher passphrase for every encrypted DB. |
-| `service/` | `ReplylyAccessibilityService`, `AccessibilityComponent`, `AccessibilityHost`, `AccessibilityHostHolder` | Add behaviour in a component, never in the service. |
-| `insert/` | `ReplyInserter`, `InsertResult` | Can only set text. Nothing in the app can click or send. |
-| `panel/` | `ReplyPanel`, `PanelRequest` | `@Composable Content(request, onClose)`. |
-| `di/` | `AppGraph` | One lazy binding per interface; each points at a stub until its ticket lands. |
+| `overlayComponent` | `OverlayComponent` | Button and panel windows, tap flow. |
+| `captureComponent` | `PassiveCaptureComponent` | Also runs both purges on connect. |
+| `replyInserter` | `AccessibilityReplyInserter` | Can only set text. |
+| `sensitiveScreenPolicy` | `DefaultSensitiveScreenPolicy` | Order: secure window, blocklisted app, banking app, password field, blocklisted chat. Blocks everything until settings load. |
+| `chatParserRegistry` | `Parsers.registry()` | WhatsApp, Telegram, generic fallback. |
+| `databaseKeyProvider` | `KeystoreDatabaseKeyProvider` | One SQLCipher passphrase, wrapped by a Keystore key. |
+| `historyRepository`, `contactNoteStore` | `RoomHistoryRepository`, `RoomContactNoteStore` | Share `history.db`. |
+| `suggestionRequestAssembler` | `HistorySuggestionRequestAssembler` | App labels via `PackageManager` (launcher apps are visible through `<queries>`). |
+| `replyGenerator` | `OpenAiReplyGenerator` | OpenAI-compatible chat completions; optional 3 parallel calls. |
+| `replyPanel` | `ComposeReplyPanel` | |
+| `settingsRepository`, `apiKeyStore`, `costGuard` | DataStore-backed (`settings`, `api_key` AES-GCM, `cost`) | |
+| `feedbackLog` | `RoomFeedbackLog` | `feedback.db`, opened on first use off the main thread. |
 
-Every stub is named for what it is (`InMemory…`, `Stub…`, `Placeholder…`, `Unimplemented…`, `Minimal…`) and lives next to its interface. A ticket may delete its own stubs once AppGraph no longer uses them.
+`InMemory…` classes next to the interfaces are test fakes. Add behaviour to the service as a new
+`AccessibilityComponent`, never in the service itself.
 
-## Ownership map
+## Storage
 
-A ticket edits its own files freely. Outside them it makes only the listed one-line edits.
+- **Two encrypted Room DBs, one key.** `history.db` (messages, contact notes) and `feedback.db`
+  (feedback log) both open with SQLCipher and the passphrase from `DatabaseKeyProvider`. They open
+  lazily, so no Keystore work runs on the main thread or at service connect.
+- If the passphrase is lost for good, both DBs are wiped and a new one is created (no crash loop).
+  A transient Keystore failure throws `DatabaseKeyUnavailableException` and wipes nothing; the
+  panel shows it as `Failure.StorageLocked` ("encrypted storage is locked, try again").
+- Settings, the encrypted API key and the cost counters are Preferences DataStores. No backups
+  (`allowBackup="false"`).
 
-| Ticket | Owns (create anything inside) | One-line edits elsewhere |
-|---|---|---|
-| #1 Overlay and button | `overlay/`, `insert/` impls, `policy/` impl | AppGraph: `overlayComponent`, `replyInserter`, `sensitiveScreenPolicy` |
-| #2 Parser and fixtures | `parser/whatsapp/`, `parser/telegram/`, `parser/generic/`, `parser/Parsers.kt`, `ui/debug/`, `src/test/resources/fixtures/<app>/`, `src/test/.../parser/` | none (AppGraph already calls `Parsers.registry()`) |
-| #3 Encrypted history | `history/db/`, `history/capture/`, `history/` impls, `security/` impl, `app/schemas/` | AppGraph: `captureComponent`, `databaseKeyProvider`, `historyRepository`, `contactNoteStore` |
-| #4 LLM client and prompt | `llm/` impls (client, prompt builder, output parser, assembler) | AppGraph: `replyGenerator`, `suggestionRequestAssembler` |
-| #5 Panel UI | `panel/` impls | AppGraph: `replyPanel` |
-| #6 Settings, logs, cost guard | `settings/` impls, `cost/` impls, `feedback/` impls, `ui/settings/` | AppGraph: `settingsRepository`, `apiKeyStore`, `costGuard`, `feedbackLog` (the last one only after #3 has merged) |
-| #7 Onboarding | `onboarding/` (checks), `ui/onboarding/` | `ReplylyNavHost.kt`: `startDestination` only |
+## Purges
 
-Shared files with no owner: `gradle/libs.versions.toml`, `app/build.gradle.kts`, `AndroidManifest.xml`, the contract files in the table above, `ReplylyNavHost.kt`, `InvariantsTest.kt`. Every dependency the tickets should need is already declared. If a ticket truly needs to change a shared file, keep the change additive (a new field with a default, a new method with a default body, a new catalog entry) and call it out in the PR description.
+`retentionDays` from settings, no WorkManager:
 
-## Decisions baked into the contracts
+| Data | When |
+|---|---|
+| History | On service connect, then at most once a day after a passive capture. |
+| Feedback log | On service connect (`FeedbackLog.purgeExpired`), at most once a day on `record`, and when Settings opens. |
 
-- **Two encrypted DB files, one key.** #3 owns `history` (messages + contact notes); #6 owns `feedback` (feedback log). Both open with SQLCipher using `DatabaseKeyProvider` (#3). This keeps #3 and #6 out of each other's Room schema. Until #3 merges, the key provider throws, so #6 keeps AppGraph on `InMemoryFeedbackLog` and tests its DB with a fake key provider.
-- **The generator owns the cost check.** `ReplyGenerator` returns `Failure.NoApiKey` / `Failure.LimitReached` itself, so the panel only renders results.
-- **The assembler merges first.** `SuggestionRequestAssembler.assemble` merges the freshly parsed chat into history before reading it, so the prompt includes what is on screen even if passive capture has not run yet.
-- **Purges.** #3 purges history and #6 purges the feedback log, each with `retentionDays` from settings, on service connect and at most once a day (no WorkManager).
-- **Delete one chat's history** is a panel action (#5), calling `HistoryRepository.deleteChat`.
-- **Hidden debug screen:** long-press the title on the settings screen (#6 keeps that gesture when building the real screen).
-- **Accessibility config** (`res/xml/accessibility_service_config.xml`): all packages, view ids, interactive windows, not-important views included, events: window state/content/windows changed, view focused, view text changed. Components filter by package.
+## Safety rules in code
+
+- Only `ReplyInserter` acts on another app, and only by setting text (`InvariantsTest`).
+- The only network use is in `llm/`, and the generator refuses a non-https endpoint
+  (`Failure.InsecureEndpoint`) before the cost check.
+- Only a tap (button, Regenerate, Retry) leads to an LLM call; passive capture never calls it.
+- Logs carry event names, counts and class names only: no chat text, prompts or key.
+
+## Other decisions
+
+- The generator owns the cost check: it returns `NoApiKey` / `LimitReached` itself, so the panel
+  only renders results. Panel errors are fixed wording (`panel/PanelErrors.kt`).
+- The panel is a full-screen focusable modal over the chat (dimmed backdrop, tap or Back to close),
+  `ADJUST_RESIZE` with IME padding. See the KDoc of `ComposeReplyPanel`.
+- The panel's "Open settings" starts `MainActivity.settingsIntent`, which opens the Settings route.
+- Deleting one chat's history is a panel action. The hidden debug screen opens with a long-press on
+  the settings title.
+- Accessibility config (`res/xml/accessibility_service_config.xml`): all packages, view ids,
+  interactive windows, not-important views, `canTakeScreenshot` (for the FLAG_SECURE probe).
+  Components filter by package.
+- Device checks that only the S23 can confirm: [DEVICE_CHECKLIST.md](DEVICE_CHECKLIST.md).

@@ -32,10 +32,14 @@ import java.time.format.FormatStyle
 
 private val dateFormat: DateTimeFormatter = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
 
-/** Read-only view of the local feedback log, newest first. */
+/**
+ * Read-only view of the local feedback log, newest first. [error] is a fixed message shown when the
+ * encrypted log could not be read (for example [SettingsViewModel.STORAGE_LOCKED]).
+ */
 @Composable
 fun FeedbackLogScreen(
     entries: List<FeedbackEntry>,
+    error: String?,
     onClear: () -> Unit,
     onBack: () -> Unit,
 ) {
@@ -54,7 +58,9 @@ fun FeedbackLogScreen(
                     TextButton(onClick = { confirmClear = true }, enabled = entries.isNotEmpty()) { Text("Clear log") }
                 }
             }
-            if (entries.isEmpty()) {
+            if (error != null) {
+                item { Text(error, color = MaterialTheme.colorScheme.error) }
+            } else if (entries.isEmpty()) {
                 item { Text("No entries yet. Each set of suggestions you ask for is logged here, on this phone only.") }
             }
             items(entries, key = { it.id }) { FeedbackEntryCard(it) }

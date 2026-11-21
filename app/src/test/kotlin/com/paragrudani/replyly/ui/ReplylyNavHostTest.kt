@@ -59,4 +59,23 @@ class ReplylyNavHostTest {
         nav.popBackStack()
         assertThat(nav.currentDestination?.route).isEqualTo(onboarding)
     }
+
+    @Test
+    fun `open settings from the panel closes screens above settings`() {
+        start(SettingsRoute)
+        nav.navigate(OnboardingRoute)
+
+        nav.showSettings()
+
+        assertThat(stack()).containsExactly(settings)
+    }
+
+    @Test
+    fun `open settings before onboarding is finished puts settings on top`() {
+        start(OnboardingRoute)
+
+        nav.showSettings()
+
+        assertThat(stack()).containsExactly(onboarding, settings).inOrder()
+    }
 }

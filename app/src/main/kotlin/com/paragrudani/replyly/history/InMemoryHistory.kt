@@ -8,7 +8,7 @@ import kotlinx.coroutines.flow.map
 import java.time.Clock
 import java.time.Instant
 
-/** Stub until ticket #3. Not persisted, not encrypted, and it appends without any dedup. */
+/** In-memory fake for tests (AppGraph binds the real one). Not persisted, not encrypted, and it appends without any dedup. */
 class InMemoryHistoryRepository(
     private val clock: Clock,
 ) : HistoryRepository {
@@ -51,7 +51,7 @@ class InMemoryHistoryRepository(
         }
 }
 
-/** Stub until ticket #3. Not persisted. */
+/** In-memory fake for tests (AppGraph binds the real one). Not persisted. */
 class InMemoryContactNoteStore : ContactNoteStore {
     private val notes = MutableStateFlow<Map<ChatKey, String>>(emptyMap())
 

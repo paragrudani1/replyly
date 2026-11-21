@@ -6,7 +6,6 @@ import com.paragrudani.replyly.policy.ScreenContext
 import com.paragrudani.replyly.policy.SensitiveScreenPolicy
 import com.paragrudani.replyly.policy.SensitivityVerdict
 import com.paragrudani.replyly.service.AccessibilityHost
-import com.paragrudani.replyly.settings.ReplylySettings
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -18,9 +17,11 @@ import kotlin.time.Duration.Companion.seconds
 /**
  * The delayed tree dump: Replyly cannot see WhatsApp while it is on top itself, so it counts down,
  * the user switches to the chat, then it reads whatever window is active through the accessibility
- * host and stores it. It only reads; it never acts on the other app. Screens the sensitive-screen
- * policy blocks (password fields, blocklisted chats...) are not stored, nor are apps or chats on the
- * settings blocklists.
+ * host and stores it. It only reads; it never acts on the other app. The read checks FLAG_SECURE
+ * first (`captureActiveWindowChecked`, fails closed). Screens the sensitive-screen policy blocks
+ * (secure windows, blocklisted apps and chats, banking apps, password fields) are not stored. The
+ * policy checks the app blocklist from the package alone, so a blocklisted app stays refused even
+ * when the parser fails.
  */
 class DumpCapturer(
     private val hosts: StateFlow<AccessibilityHost?>,
@@ -28,11 +29,6 @@ class DumpCapturer(
     private val policy: SensitiveScreenPolicy,
     private val registry: ChatParserRegistry,
     private val ownPackage: String,
-    /**
-     * Read before saving: its app and chat blocklists are applied here too, so a dump honours them
-     * whatever the policy implementation does, and even when no chat could be parsed.
-     */
-    private val settings: suspend () -> ReplylySettings = { ReplylySettings() },
     private val workDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     sealed interface Outcome {
@@ -67,21 +63,14 @@ class DumpCapturer(
             left--
         }
         val host = hosts.value ?: return Outcome.ServiceOff
-        val current = settings()
         return withContext(workDispatcher) {
-            val snapshot = host.captureActiveWindow() ?: return@withContext Outcome.NoWindow
+            val snapshot = host.captureActiveWindowChecked() ?: return@withContext Outcome.NoWindow
             if (snapshot.packageName == ownPackage) return@withContext Outcome.StillOnReplyly
-            if (snapshot.packageName in current.blockedPackages) {
-                return@withContext Outcome.Blocked(BlockReason.BLOCKLISTED_APP)
-            }
             blocked(ScreenContext(snapshot.packageName, snapshot))?.let { return@withContext it }
             // A parser crash is exactly what a dump is for: keep the dump (the app checks above still
             // hold), and report that the chat blocklist could not be checked.
             val chat = runCatching { registry.parse(snapshot) }.getOrNull()
             if (chat != null) {
-                if (chat.chatKey.encoded in current.blockedChatKeys) {
-                    return@withContext Outcome.Blocked(BlockReason.BLOCKLISTED_CHAT)
-                }
                 blocked(ScreenContext(snapshot.packageName, snapshot, chat.chatKey))?.let { return@withContext it }
             }
             Outcome.Saved(store.save(snapshot), chatKeyChecked = chat != null)

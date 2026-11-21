@@ -6,13 +6,15 @@ import com.paragrudani.replyly.history.HistoryRepository
 import com.paragrudani.replyly.parser.ChatMessage
 import com.paragrudani.replyly.parser.ParsedChat
 import com.paragrudani.replyly.parser.TargetApps
+import com.paragrudani.replyly.security.DatabaseKeyUnavailableException
 import com.paragrudani.replyly.settings.SettingsRepository
 import com.paragrudani.replyly.settings.current
 
 /**
  * Builds the [SuggestionRequest] (spec 6). Merges the on-screen chat into history first, then
  * reads the last N messages, the contact note, About me and the style examples. Generic apps
- * have no history: they use the visible messages only.
+ * have no history: they use the visible messages only. If the encrypted DB's key is unavailable
+ * for a moment, it throws [SuggestionFailureException] with [SuggestionResult.Failure.StorageLocked].
  */
 class HistorySuggestionRequestAssembler(
     private val history: HistoryRepository,
@@ -22,6 +24,19 @@ class HistorySuggestionRequestAssembler(
     private val appLabelOf: (String) -> String = { it },
 ) : SuggestionRequestAssembler {
     override suspend fun assemble(
+        chat: ParsedChat,
+        instruction: String?,
+    ): SuggestionRequest =
+        try {
+            build(chat, instruction)
+        } catch (e: Exception) {
+            if (e.causes().any { it is DatabaseKeyUnavailableException }) {
+                throw SuggestionFailureException(SuggestionResult.Failure.StorageLocked)
+            }
+            throw e
+        }
+
+    private suspend fun build(
         chat: ParsedChat,
         instruction: String?,
     ): SuggestionRequest {
@@ -83,6 +98,10 @@ class HistorySuggestionRequestAssembler(
             )
     }
 }
+
+private fun Throwable.causes(): Sequence<Throwable> = generateSequence(this) { it.cause }.take(MAX_CAUSE_DEPTH)
+
+private const val MAX_CAUSE_DEPTH = 8
 
 /** The installed app's launcher label, or the package name if it cannot be read. */
 fun packageManagerAppLabel(packageManager: PackageManager): (String) -> String =

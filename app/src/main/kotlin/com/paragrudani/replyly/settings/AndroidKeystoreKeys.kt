@@ -9,7 +9,7 @@ import javax.crypto.SecretKey
 /**
  * Non-exportable AES-256-GCM keys in the Android Keystore. The key stays in the Keystore across
  * app updates signed with the same certificate; uninstalling the app deletes it.
- * Device-only: Robolectric has no AndroidKeyStore provider (see docs/device-checklist/ticket-6.md).
+ * Device-only: Robolectric has no AndroidKeyStore provider (see docs/DEVICE_CHECKLIST.md, steps 2.3 and 10.10).
  */
 object AndroidKeystoreKeys {
     const val API_KEY_ALIAS = "replyly_api_key_v1"

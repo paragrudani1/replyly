@@ -1,7 +1,6 @@
 package com.paragrudani.replyly.panel
 
 import android.content.Context
-import android.content.Intent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -54,29 +53,32 @@ import kotlin.time.Duration.Companion.milliseconds
  * The suggestions panel (ticket #5), built to run inside ticket #1's accessibility overlay
  * window, where there is no Activity.
  *
- * ## What the host (#1) must provide
+ * ## How the host (#1) provides it
  *
- * - A `ComposeView` added with `WindowManager.addView`, using the accessibility service as context.
- * - On that view (or its root), before it is attached: `setViewTreeLifecycleOwner`,
- *   `setViewTreeSavedStateRegistryOwner` and `setViewTreeViewModelStoreOwner`. One small owner object
- *   implementing all three is enough (`SavedStateRegistryController.create(owner).performRestore(null)`).
- *   Move its lifecycle to RESUMED while the panel is shown, and to DESTROYED (plus
- *   `disposeComposition()`) when the panel is removed. Compose throws without the lifecycle and
- *   saved-state owners; the panel itself never calls `viewModel()`.
- * - Window type `TYPE_ACCESSIBILITY_OVERLAY` with `FLAG_NOT_TOUCH_MODAL` (touches outside the
- *   panel still reach the chat app). While the panel is shown the window must **not** have
- *   `FLAG_NOT_FOCUSABLE` or `FLAG_ALT_FOCUSABLE_IM`, otherwise the instruction field and the note
- *   editor can never get the keyboard. Suggested `softInputMode`: `SOFT_INPUT_ADJUST_PAN`
- *   (confirm on the S23, see `docs/device-checklist/ticket-5.md`).
+ * `overlay/OverlayWindows.kt` hosts it; keep these properties if that changes:
+ *
+ * - A `ComposeView` added with `WindowManager.addView`, using the accessibility service as context,
+ *   with `setViewTreeLifecycleOwner`, `setViewTreeSavedStateRegistryOwner` and
+ *   `setViewTreeViewModelStoreOwner` set on its root before it is attached (`OverlayViewOwners`).
+ *   The lifecycle is RESUMED while the panel is shown, DESTROYED (plus `disposeComposition()`) when
+ *   it is removed. Compose throws without the lifecycle and saved-state owners; the panel itself
+ *   never calls `viewModel()`.
+ * - A full-screen, **focusable modal** window: `TYPE_ACCESSIBILITY_OVERLAY`, MATCH_PARENT both ways,
+ *   without `FLAG_NOT_TOUCH_MODAL`, `FLAG_NOT_FOCUSABLE` or `FLAG_ALT_FOCUSABLE_IM`, so the
+ *   instruction field and the note editor get the keyboard. Touches do not pass through to the chat
+ *   app: a dimmed backdrop covers it, and tapping the backdrop closes the panel.
+ * - `SOFT_INPUT_ADJUST_RESIZE`, and the panel's sheet is padded by the IME and navigation-bar insets
+ *   (`WindowInsets.ime.union(WindowInsets.navigationBars)`), so it sits right above Gboard. Not
+ *   ADJUST_PAN, which shifts the whole window up instead of moving only the sheet.
  * - When the user types into the panel, the chat app's input field loses input focus. The
- *   inserter must therefore write into the input node remembered when the button was tapped,
- *   and the overlay must not hide the panel just because the chat field lost focus.
+ *   inserter therefore writes into the input node remembered when the button was tapped, and the
+ *   overlay does not hide the panel because the chat field lost focus.
  * - One composition per panel open. Opening the panel = composing [Content]; that composition
  *   makes the LLM call. Disposing and composing it again (for example on a re-layout) makes a
- *   new call, so keep the same `ComposeView` and composition while the panel stays open.
- * - The panel has no back handling (an overlay has no `OnBackPressedDispatcherOwner`); the host
- *   may call the same `onClose` on KEYCODE_BACK. It applies its own theme and caps its height at
- *   [maxHeight]; the host only places it above the keyboard.
+ *   new call, so the host keeps the same `ComposeView` and composition while the panel stays open.
+ * - The panel has no back handling (an overlay has no `OnBackPressedDispatcherOwner`); the host's
+ *   root view calls the same `onClose` on KEYCODE_BACK. The panel applies its own theme and caps its
+ *   height at [maxHeight]; the host only places it at the bottom, above the keyboard.
  *
  * The panel uses no Dialog, Popup, `LocalActivity`, Activity ViewModelStore or activity result
  * launcher: those need an Activity window token. Its state lives in [ReplyPanelState], created
@@ -149,11 +151,9 @@ private class DisposingPanelState(
     override fun onAbandoned() = state.dispose()
 }
 
-/** Opens Replyly's own settings from the overlay (no Activity here, so a new task). */
+/** Opens Replyly on its settings screen from the overlay (no Activity here, so a new task). */
 fun openReplylySettings(context: Context) {
-    context.startActivity(
-        Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-    )
+    context.startActivity(MainActivity.settingsIntent(context))
 }
 
 internal class PanelActions(

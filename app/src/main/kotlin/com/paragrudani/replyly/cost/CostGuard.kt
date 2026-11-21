@@ -31,7 +31,7 @@ interface CostGuard {
     fun refresh() {}
 }
 
-/** Stub until ticket #6. Not persisted, never resets. */
+/** In-memory fake for tests (AppGraph binds the real one). Not persisted, never resets. */
 class InMemoryCostGuard(
     dailyRequestLimit: Int = 200,
 ) : CostGuard {

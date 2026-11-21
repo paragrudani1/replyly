@@ -43,6 +43,7 @@ class DataStoreSettingsRepositoryTest {
                     blockedPackages = setOf("com.google.android.apps.messaging"),
                     dailyRequestLimit = 50,
                     retentionDays = 30,
+                    useParallelCalls = true,
                 )
             DataStoreSettingsRepository(stores.open("settings")).update { changed }
 

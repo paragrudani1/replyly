@@ -6,6 +6,19 @@
   <!-- Onboarding (ticket #7) asks for "Unrestricted" battery. -->
   <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
+  <!--
+    Package visibility (Android 11+): without this, PackageManager cannot see other apps, so the
+    prompt would name a generic chat app by its package instead of its label. Every app you chat in
+    has a launcher icon, so asking for launcher apps is enough; QUERY_ALL_PACKAGES would also expose
+    services and libraries Replyly never needs.
+  -->
+  <queries>
+    <intent>
+      <action android:name="android.intent.action.MAIN" />
+      <category android:name="android.intent.category.LAUNCHER" />
+    </intent>
+  </queries>
+
   <application
     android:name=".ReplylyApp"
     android:allowBackup="false"

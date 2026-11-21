@@ -56,6 +56,12 @@ interface FeedbackLog {
 
     suspend fun purgeOlderThan(cutoff: Instant): Int
 
+    /**
+     * Deletes entries older than the `retentionDays` setting. Passive capture calls it when the
+     * accessibility service connects. @return how many were deleted.
+     */
+    suspend fun purgeExpired(): Int = 0
+
     /** Deletes every entry ("Clear log" in settings). @return how many were deleted. */
     suspend fun clear(): Int = purgeOlderThan(Instant.ofEpochMilli(Long.MAX_VALUE))
 }
@@ -63,7 +69,7 @@ interface FeedbackLog {
 /** A message sent later than this after the suggestion is not treated as its final version. */
 val FINAL_MESSAGE_WINDOW: Duration = Duration.ofHours(6)
 
-/** Stub until ticket #6. Not persisted. */
+/** In-memory fake for tests (AppGraph binds the real one). Not persisted. */
 class InMemoryFeedbackLog(
     private val clock: Clock,
 ) : FeedbackLog {

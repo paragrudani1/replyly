@@ -52,6 +52,14 @@ internal fun Failure.toPanelError(): PanelError =
             httpError(code, detail)
         }
 
+        Failure.InsecureEndpoint -> {
+            PanelError("Endpoint is not https", Failure.InsecureEndpoint.MESSAGE, ErrorAction.OpenSettings)
+        }
+
+        Failure.StorageLocked -> {
+            PanelError("Secure storage is locked", Failure.StorageLocked.MESSAGE, ErrorAction.Retry)
+        }
+
         is Failure.BadOutput -> {
             if (cutOff) {
                 PanelError(
@@ -100,7 +108,7 @@ private fun httpError(
         }
     }
 
-/** The assembler threw (e.g. the history DB key is temporarily unavailable). */
+/** The assembler threw something it did not explain (an I/O error, a bug). */
 internal val HISTORY_READ_ERROR =
     PanelError(
         "Could not read this chat's history",

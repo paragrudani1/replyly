@@ -14,6 +14,7 @@ data class SettingsDraft(
     val dailyRequestLimit: String,
     val blockedPackages: Set<String>,
     val blockedChatKeys: Set<String>,
+    val useParallelCalls: Boolean = false,
 ) {
     companion object {
         fun from(settings: ReplylySettings) =
@@ -26,6 +27,7 @@ data class SettingsDraft(
                 dailyRequestLimit = settings.dailyRequestLimit.toString(),
                 blockedPackages = settings.blockedPackages,
                 blockedChatKeys = settings.blockedChatKeys,
+                useParallelCalls = settings.useParallelCalls,
             )
     }
 }
@@ -97,6 +99,7 @@ object SettingsValidator {
                 aboutMe = aboutMe,
                 retentionDays = retention!!,
                 dailyRequestLimit = limit!!,
+                useParallelCalls = draft.useParallelCalls,
                 // Blocklists are saved on their own the moment they change; Save keeps the stored ones.
             )
         }

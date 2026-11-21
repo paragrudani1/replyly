@@ -5,6 +5,7 @@ import com.paragrudani.replyly.insert.InsertResult
 import com.paragrudani.replyly.insert.ReplyInserter
 import com.paragrudani.replyly.llm.ReplyGenerator
 import com.paragrudani.replyly.llm.Suggestion
+import com.paragrudani.replyly.llm.SuggestionFailureException
 import com.paragrudani.replyly.llm.SuggestionRequest
 import com.paragrudani.replyly.llm.SuggestionResult
 import com.paragrudani.replyly.parser.ParsedChat
@@ -434,6 +435,12 @@ class ReplyPanelStateTest {
                                 "It resets tomorrow, or raise the limit in Settings.",
                             ErrorAction.OpenSettings,
                         ),
+                    SuggestionResult.Failure.InsecureEndpoint to
+                        PanelError(
+                            "Endpoint is not https",
+                            "The API endpoint must start with https://. Fix it in Settings.",
+                            ErrorAction.OpenSettings,
+                        ),
                     SuggestionResult.Failure.Timeout to
                         PanelError(
                             "The model took too long",
@@ -533,6 +540,27 @@ class ReplyPanelStateTest {
                         PanelError(
                             "Could not read this chat's history",
                             "Try again. If it keeps failing, close and reopen the panel.",
+                            ErrorAction.Retry,
+                        ),
+                    ),
+                )
+        }
+
+    @Test
+    fun `a locked storage key shows its own fixed, retryable error`() =
+        runTest {
+            assembler.failWith = SuggestionFailureException(SuggestionResult.Failure.StorageLocked)
+            val panel = panel()
+
+            panel.start()
+            advanceUntilIdle()
+
+            assertThat(panel.state.value.suggestions)
+                .isEqualTo(
+                    SuggestionsUi.Error(
+                        PanelError(
+                            "Secure storage is locked",
+                            "Replyly's encrypted storage is locked right now. Try again in a moment.",
                             ErrorAction.Retry,
                         ),
                     ),

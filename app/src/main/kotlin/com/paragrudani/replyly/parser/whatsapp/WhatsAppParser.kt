@@ -162,7 +162,7 @@ class WhatsAppParser : ExplainingChatParser {
 
 /**
  * WhatsApp view ids (entry names; the package part differs between WhatsApp and Business).
- * Public knowledge, unverified on the S23: see docs/device-checklist/ticket-2.md.
+ * Public knowledge, unverified on the S23: see docs/DEVICE_CHECKLIST.md steps 6.7-6.16.
  */
 object WhatsAppIds {
     const val TITLE = "conversation_contact_name"

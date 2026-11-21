@@ -174,6 +174,44 @@ class RoomFeedbackLogTest {
         }
 
     @Test
+    fun `opens the DB on first use, and retries an open that failed`() =
+        runBlocking<Unit> {
+            var opens = 0
+            val lazyLog =
+                RoomFeedbackLog(
+                    openDatabase = {
+                        opens++
+                        if (opens == 1) throw IOException("keystore busy")
+                        db
+                    },
+                    clock = clock,
+                    retentionDays = retentionDays,
+                )
+            assertThat(opens).isEqualTo(0)
+
+            assertThat(runCatching { lazyLog.record(chat, "m", "p", three) }.isFailure).isTrue()
+            lazyLog.record(chat, "m", "p", three)
+            lazyLog.record(chat, "m", "p2", three)
+
+            assertThat(opens).isEqualTo(2)
+            assertThat(lazyLog.observeRecent(10).first()).hasSize(2)
+        }
+
+    @Test
+    fun `purgeExpired purges past retentionDays even right after a purge`() =
+        runBlocking<Unit> {
+            retentionDays.value = 30
+            log.record(chat, "m", "day 0", three)
+            clock.advance(Duration.ofDays(31))
+            log.record(chat, "m", "day 31", three) // the daily purge runs here
+            retentionDays.value = 1
+            clock.advance(Duration.ofDays(2))
+
+            assertThat(log.purgeExpired()).isEqualTo(1)
+            assertThat(log.observeRecent(10).first()).isEmpty()
+        }
+
+    @Test
     fun `purges entries older than the cutoff`() =
         runBlocking<Unit> {
             log.record(chat, "m", "old", three)

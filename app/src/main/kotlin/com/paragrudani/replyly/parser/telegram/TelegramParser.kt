@@ -17,7 +17,7 @@ import com.paragrudani.replyly.screen.ScreenSnapshot
 /**
  * Telegram draws each message as one custom full-width cell with no view ids, so cell bounds say
  * nothing about the side. The cell's accessibility description does (format unverified, see
- * docs/device-checklist/ticket-2.md):
+ * docs/DEVICE_CHECKLIST.md steps 6.17-6.21):
  *
  * ```
  * [Sender name]            (groups, incoming only; maybe left out of a follow-up cell)
