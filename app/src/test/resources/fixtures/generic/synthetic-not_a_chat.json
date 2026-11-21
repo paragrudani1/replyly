@@ -1,0 +1,35 @@
+{
+  "formatVersion": 1,
+  "packageName": "com.example.news",
+  "capturedAt": "2026-11-21T10:15:30Z",
+  "screenWidth": 1080,
+  "screenHeight": 2340,
+  "root": {
+    "className": "android.widget.FrameLayout",
+    "bounds": "[0,0][1080,2340]",
+    "children": [
+      {
+        "className": "android.widget.TextView",
+        "text": "Top stories",
+        "bounds": "[40,140][600,230]"
+      },
+      {
+        "className": "androidx.recyclerview.widget.RecyclerView",
+        "bounds": "[0,257][1080,2214]",
+        "scrollable": true,
+        "children": [
+          {
+            "className": "android.widget.TextView",
+            "text": "Monsoon arrives early this year",
+            "bounds": "[40,300][1040,420]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "Markets close higher",
+            "bounds": "[40,440][1040,560]"
+          }
+        ]
+      }
+    ]
+  }
+}

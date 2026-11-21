@@ -1,0 +1,143 @@
+{
+  "formatVersion": 1,
+  "packageName": "org.telegram.messenger",
+  "capturedAt": "2026-11-21T10:15:30Z",
+  "screenWidth": 1080,
+  "screenHeight": 2340,
+  "root": {
+    "className": "android.widget.FrameLayout",
+    "bounds": "[0,0][1080,2340]",
+    "children": [
+      {
+        "className": "android.widget.FrameLayout",
+        "bounds": "[0,110][1080,257]",
+        "children": [
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Go back",
+            "bounds": "[0,120][110,247]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.FrameLayout",
+            "bounds": "[110,115][850,252]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.view.View",
+                "bounds": "[130,130][240,240]"
+              },
+              {
+                "className": "android.view.View",
+                "text": "Weekend Trek",
+                "bounds": "[260,130][850,190]"
+              },
+              {
+                "className": "android.view.View",
+                "text": "5 members, 2 online",
+                "bounds": "[260,192][850,240]"
+              }
+            ]
+          },
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "More options",
+            "bounds": "[960,130][1070,240]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "androidx.recyclerview.widget.RecyclerView",
+        "bounds": "[0,257][1080,2060]",
+        "scrollable": true,
+        "children": [
+          {
+            "className": "android.view.View",
+            "text": "Today",
+            "bounds": "[0,262][1080,352]"
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "Asha\nGood morning all ☀️\nReceived today at 8:02 AM",
+            "bounds": "[0,352][1080,580]",
+            "clickable": true
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "Asha\nTrek is on for Sunday?\nReceived today at 8:03 AM",
+            "bounds": "[0,580][1080,808]",
+            "clickable": true
+          },
+          {
+            "className": "android.view.View",
+            "text": "Asha added Meera",
+            "bounds": "[0,808][1080,898]"
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "Meera\nHi everyone!\nThanks for adding me\nReceived today at 8:10 AM",
+            "bounds": "[0,898][1080,1182]",
+            "clickable": true
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "Welcome Meera! 🎉\nSent today at 8:12 AM, Read",
+            "bounds": "[0,1182][1080,1354]",
+            "clickable": true
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "Ravi\nForwarded from Trek Club\nTrek checklist: water, shoes, cap\nReceived today at 8:20 AM",
+            "bounds": "[0,1354][1080,1638]",
+            "clickable": true
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "Ravi\nok\nReceived today at 8:21 AM",
+            "bounds": "[0,1638][1080,1866]",
+            "clickable": true
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "ok\nSent today at 8:22 AM, Unread",
+            "bounds": "[0,1866][1080,2038]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "android.widget.FrameLayout",
+        "bounds": "[0,2060][1080,2214]",
+        "children": [
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Emoji, stickers, and GIFs",
+            "bounds": "[10,2085][120,2190]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.EditText",
+            "hint": "Message",
+            "bounds": "[130,2075][820,2195]",
+            "editable": true,
+            "focused": true,
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Attach media",
+            "bounds": "[830,2085][940,2190]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Record voice message",
+            "bounds": "[950,2085][1070,2190]",
+            "clickable": true
+          }
+        ]
+      }
+    ]
+  }
+}

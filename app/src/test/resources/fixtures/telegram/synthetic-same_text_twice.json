@@ -1,0 +1,126 @@
+{
+  "formatVersion": 1,
+  "packageName": "org.telegram.messenger",
+  "capturedAt": "2026-11-21T10:15:30Z",
+  "screenWidth": 1080,
+  "screenHeight": 2340,
+  "root": {
+    "className": "android.widget.FrameLayout",
+    "bounds": "[0,0][1080,2340]",
+    "children": [
+      {
+        "className": "android.widget.FrameLayout",
+        "bounds": "[0,110][1080,257]",
+        "children": [
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Go back",
+            "bounds": "[0,120][110,247]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.FrameLayout",
+            "bounds": "[110,115][850,252]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.view.View",
+                "bounds": "[130,130][240,240]"
+              },
+              {
+                "className": "android.view.View",
+                "text": "Dad",
+                "bounds": "[260,130][850,190]"
+              },
+              {
+                "className": "android.view.View",
+                "text": "last seen recently",
+                "bounds": "[260,192][850,240]"
+              }
+            ]
+          },
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "More options",
+            "bounds": "[960,130][1070,240]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "androidx.recyclerview.widget.RecyclerView",
+        "bounds": "[0,257][1080,2060]",
+        "scrollable": true,
+        "children": [
+          {
+            "className": "android.view.View",
+            "text": "Today",
+            "bounds": "[0,262][1080,352]"
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "Reached?\nReceived today at 9:00 PM",
+            "bounds": "[0,352][1080,524]",
+            "clickable": true
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "ok\nSent today at 9:02 PM, Read",
+            "bounds": "[0,524][1080,696]",
+            "clickable": true
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "ok\nSent today at 9:02 PM, Read",
+            "bounds": "[0,696][1080,868]",
+            "clickable": true
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "ok\nReceived today at 9:03 PM",
+            "bounds": "[0,868][1080,1040]",
+            "clickable": true
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "contentDescription": "ok\nReceived today at 9:03 PM",
+            "bounds": "[0,1040][1080,1212]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "android.widget.FrameLayout",
+        "bounds": "[0,2060][1080,2214]",
+        "children": [
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Emoji, stickers, and GIFs",
+            "bounds": "[10,2085][120,2190]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.EditText",
+            "hint": "Message",
+            "bounds": "[130,2075][820,2195]",
+            "editable": true,
+            "focused": true,
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Attach media",
+            "bounds": "[830,2085][940,2190]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Record voice message",
+            "bounds": "[950,2085][1070,2190]",
+            "clickable": true
+          }
+        ]
+      }
+    ]
+  }
+}
