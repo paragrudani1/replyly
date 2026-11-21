@@ -38,3 +38,4 @@ One line per decision, with the date and the reason. Newest at the bottom. Longe
 - 2026-11-21 (#6 fixes): `CostGuard.refresh()` (default no-op) recomputes usage on screen resume; save errors show as a one-shot snackbar. Reason: deep sleep pauses timers; blocklist edits happen without the Save bar.
 - 2026-11-21 (#7): "Restricted settings" counts as done once the accessibility service is enabled; the accessibility step needs enabled AND connected; "Sleeping apps" is a persisted manual confirmation. Reason: no API reads restricted settings or Samsung's sleeping list; an enabled-but-killed service does nothing.
 - 2026-11-21 (#7): App opens on onboarding until all steps are done, then Settings; "Skip for now" is allowed. Reason: step 5 is done in Settings; personal app.
+- 2026-11-21 (#1 brief): Inserting a suggestion replaces the input field's current content, cursor at end. Reason: ACTION_SET_TEXT sets the whole field; the user edits afterwards.
