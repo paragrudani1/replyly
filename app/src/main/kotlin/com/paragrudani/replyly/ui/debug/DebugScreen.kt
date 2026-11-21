@@ -73,7 +73,11 @@ fun DebugScreen(onBack: () -> Unit) {
         action: suspend (fileName: String, json: String) -> Unit,
     ) {
         scope.launch {
-            val json = vm.exportText(name)
+            val json = runCatching { vm.exportText(name) }.getOrNull()
+            if (json == null) {
+                vm.report("Could not read $name.")
+                return@launch
+            }
             val fileName = if (ui.scramble) name.replace(".json", "-scrambled.json") else name
             action(fileName, json)
         }

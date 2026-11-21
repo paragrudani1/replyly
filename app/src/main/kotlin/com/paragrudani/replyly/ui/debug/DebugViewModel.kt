@@ -76,9 +76,14 @@ class DebugViewModel(
         if (state.value.countdown != null) return
         state.update { it.copy(countdown = CAPTURE_DELAY_SECONDS, status = null) }
         graph.appScope.launch {
-            val outcome =
-                capturer.capture(CAPTURE_DELAY_SECONDS.seconds) { left -> state.update { it.copy(countdown = left) } }
-            val message = describe(outcome)
+            // Never let a failure escape into the app scope (it would crash the app). Class name
+            // only: exception messages can contain chat text.
+            val message =
+                runCatching {
+                    capturer.capture(
+                        CAPTURE_DELAY_SECONDS.seconds,
+                    ) { left -> state.update { it.copy(countdown = left) } }
+                }.fold(::describe) { "capture failed (${it::class.simpleName})." }
             state.update { it.copy(countdown = null, status = message) }
             withContext(Dispatchers.Main) { Toast.makeText(graph.app, "Replyly: $message", Toast.LENGTH_LONG).show() }
             refresh()
