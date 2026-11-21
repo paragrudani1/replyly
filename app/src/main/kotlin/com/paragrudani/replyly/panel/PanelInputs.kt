@@ -58,9 +58,10 @@ import com.paragrudani.replyly.ui.theme.Spacing
  *
  * A chip tap toggles that chip and regenerates once; chips and the typed text combine as
  * [combineInstruction] describes. The field stops at [instructionRoom] (smaller with chips on) and
- * shows a counter near that limit, so typed text is never cut silently. While a call or an insert runs, and after an insert, the chips and
- * Regenerate are disabled (the state also ignores those taps). Done on the keyboard only hides it: a model call needs a tap on
- * Regenerate or a chip (AGENTS.md rule 4).
+ * shows a counter near that limit, so typed text is never cut silently. While a call or an insert
+ * runs, and after an insert, the chips and Regenerate are disabled (the state also ignores those
+ * taps). Done on the keyboard only hides it: a model call needs a tap on Regenerate or a chip
+ * (AGENTS.md rule 4).
  */
 @Composable
 internal fun InstructionArea(
