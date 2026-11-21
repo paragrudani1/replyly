@@ -1,0 +1,392 @@
+{
+  "formatVersion": 1,
+  "packageName": "com.whatsapp",
+  "capturedAt": "2026-11-21T10:15:30Z",
+  "screenWidth": 1080,
+  "screenHeight": 2340,
+  "root": {
+    "className": "android.widget.FrameLayout",
+    "bounds": "[0,0][1080,2340]",
+    "children": [
+      {
+        "className": "android.view.ViewGroup",
+        "viewId": "com.whatsapp:id/toolbar",
+        "bounds": "[0,110][1080,257]",
+        "children": [
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Navigate up",
+            "bounds": "[0,120][100,247]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageView",
+            "viewId": "com.whatsapp:id/conversation_contact_photo",
+            "bounds": "[100,128][210,240]"
+          },
+          {
+            "className": "android.widget.LinearLayout",
+            "viewId": "com.whatsapp:id/conversation_contact",
+            "bounds": "[220,120][700,247]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.TextView",
+                "viewId": "com.whatsapp:id/conversation_contact_name",
+                "text": "Rohan Bhai",
+                "bounds": "[220,128][700,190]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "viewId": "com.whatsapp:id/conversation_contact_status",
+                "text": "typing…",
+                "bounds": "[220,190][700,240]"
+              }
+            ]
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Video call",
+            "bounds": "[730,130][840,240]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Voice call",
+            "bounds": "[850,130][960,240]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "More options",
+            "bounds": "[970,130][1080,240]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "android.widget.ListView",
+        "viewId": "android:id/list",
+        "bounds": "[0,257][1080,2052]",
+        "scrollable": true,
+        "children": [
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,600][1080,686]",
+            "children": [
+              {
+                "className": "android.widget.TextView",
+                "viewId": "com.whatsapp:id/conversation_row_date_divider",
+                "text": "TODAY",
+                "bounds": "[460,608][620,678]"
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,686][1080,784]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.LinearLayout",
+                "viewId": "com.whatsapp:id/main_layout",
+                "bounds": "[40,692][860,776]",
+                "clickable": true,
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "viewId": "com.whatsapp:id/message_text",
+                    "text": "Bhai kal ka plan kya hai? 😅",
+                    "bounds": "[70,710][728,766]"
+                  },
+                  {
+                    "className": "android.widget.LinearLayout",
+                    "viewId": "com.whatsapp:id/date_wrapper",
+                    "bounds": "[530,722][840,762]",
+                    "children": [
+                      {
+                        "className": "android.widget.TextView",
+                        "viewId": "com.whatsapp:id/date",
+                        "text": "11:40 am",
+                        "bounds": "[680,722][830,762]"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,784][1080,978]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.LinearLayout",
+                "viewId": "com.whatsapp:id/main_layout",
+                "bounds": "[220,790][1040,970]",
+                "clickable": true,
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "viewId": "com.whatsapp:id/message_text",
+                    "text": "Kal 6:30 tak aa jaunga, tension mat le",
+                    "bounds": "[250,808][1010,920]"
+                  },
+                  {
+                    "className": "android.widget.LinearLayout",
+                    "viewId": "com.whatsapp:id/date_wrapper",
+                    "bounds": "[650,920][1020,960]",
+                    "children": [
+                      {
+                        "className": "android.widget.TextView",
+                        "viewId": "com.whatsapp:id/date",
+                        "text": "11:42 am",
+                        "bounds": "[800,920][950,960]"
+                      },
+                      {
+                        "className": "android.widget.ImageView",
+                        "viewId": "com.whatsapp:id/status",
+                        "contentDescription": "Read",
+                        "bounds": "[955,920][1005,960]"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,978][1080,1116]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.LinearLayout",
+                "viewId": "com.whatsapp:id/main_layout",
+                "bounds": "[40,984][664,1108]",
+                "clickable": true,
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "viewId": "com.whatsapp:id/message_text",
+                    "text": "Acha theek hai 👍",
+                    "bounds": "[70,1002][464,1058]"
+                  },
+                  {
+                    "className": "android.widget.LinearLayout",
+                    "viewId": "com.whatsapp:id/date_wrapper",
+                    "bounds": "[334,1058][644,1098]",
+                    "children": [
+                      {
+                        "className": "android.widget.TextView",
+                        "viewId": "com.whatsapp:id/edited_label",
+                        "text": "Edited",
+                        "bounds": "[334,1058][474,1098]"
+                      },
+                      {
+                        "className": "android.widget.TextView",
+                        "viewId": "com.whatsapp:id/date",
+                        "text": "11:43 am",
+                        "bounds": "[484,1058][634,1098]"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,1116][1080,1310]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.LinearLayout",
+                "viewId": "com.whatsapp:id/main_layout",
+                "bounds": "[40,1122][860,1302]",
+                "clickable": true,
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "viewId": "com.whatsapp:id/message_text",
+                    "text": "Aur haan, Mummy ne bola ghar pe khana khake jana",
+                    "bounds": "[70,1140][830,1252]"
+                  },
+                  {
+                    "className": "android.widget.LinearLayout",
+                    "viewId": "com.whatsapp:id/date_wrapper",
+                    "bounds": "[530,1252][840,1292]",
+                    "children": [
+                      {
+                        "className": "android.widget.TextView",
+                        "viewId": "com.whatsapp:id/date",
+                        "text": "11:43 am",
+                        "bounds": "[680,1252][830,1292]"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,1310][1080,1408]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.LinearLayout",
+                "viewId": "com.whatsapp:id/main_layout",
+                "bounds": "[308,1316][1040,1400]",
+                "clickable": true,
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "viewId": "com.whatsapp:id/message_text",
+                    "text": "Haan haan pakka 🙏🏽",
+                    "bounds": "[338,1334][780,1390]"
+                  },
+                  {
+                    "className": "android.widget.LinearLayout",
+                    "viewId": "com.whatsapp:id/date_wrapper",
+                    "bounds": "[650,1346][1020,1386]",
+                    "children": [
+                      {
+                        "className": "android.widget.TextView",
+                        "viewId": "com.whatsapp:id/date",
+                        "text": "11:45 am",
+                        "bounds": "[800,1346][950,1386]"
+                      },
+                      {
+                        "className": "android.widget.ImageView",
+                        "viewId": "com.whatsapp:id/status",
+                        "contentDescription": "Read",
+                        "bounds": "[955,1346][1005,1386]"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,1408][1080,1506]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.LinearLayout",
+                "viewId": "com.whatsapp:id/main_layout",
+                "bounds": "[40,1414][664,1498]",
+                "clickable": true,
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "viewId": "com.whatsapp:id/message_text",
+                    "text": "Kem cho? Majama?",
+                    "bounds": "[70,1432][464,1488]"
+                  },
+                  {
+                    "className": "android.widget.LinearLayout",
+                    "viewId": "com.whatsapp:id/date_wrapper",
+                    "bounds": "[334,1444][644,1484]",
+                    "children": [
+                      {
+                        "className": "android.widget.TextView",
+                        "viewId": "com.whatsapp:id/date",
+                        "text": "11:50 am",
+                        "bounds": "[484,1444][634,1484]"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,1506][1080,1604]",
+            "clickable": true,
+            "children": [
+              {
+                "className": "android.widget.LinearLayout",
+                "viewId": "com.whatsapp:id/main_layout",
+                "bounds": "[332,1512][1040,1596]",
+                "clickable": true,
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "viewId": "com.whatsapp:id/message_text",
+                    "text": "Majama! Tame kaho",
+                    "bounds": "[362,1530][780,1586]"
+                  },
+                  {
+                    "className": "android.widget.LinearLayout",
+                    "viewId": "com.whatsapp:id/date_wrapper",
+                    "bounds": "[650,1542][1020,1582]",
+                    "children": [
+                      {
+                        "className": "android.widget.TextView",
+                        "viewId": "com.whatsapp:id/date",
+                        "text": "11:51 am",
+                        "bounds": "[800,1542][950,1582]"
+                      },
+                      {
+                        "className": "android.widget.ImageView",
+                        "viewId": "com.whatsapp:id/status",
+                        "contentDescription": "Delivered",
+                        "bounds": "[955,1542][1005,1582]"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "className": "android.widget.LinearLayout",
+        "viewId": "com.whatsapp:id/input_layout",
+        "bounds": "[0,2052][1080,2214]",
+        "children": [
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Emoji",
+            "bounds": "[30,2085][130,2185]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.EditText",
+            "viewId": "com.whatsapp:id/entry",
+            "hint": "Message",
+            "bounds": "[140,2075][760,2190]",
+            "editable": true,
+            "focused": true,
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Attach",
+            "bounds": "[770,2085][860,2185]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Camera",
+            "bounds": "[870,2085][960,2185]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "viewId": "com.whatsapp:id/voice_note_btn",
+            "contentDescription": "Voice message",
+            "bounds": "[970,2075][1070,2190]",
+            "clickable": true
+          }
+        ]
+      }
+    ]
+  }
+}
