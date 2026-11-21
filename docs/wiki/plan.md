@@ -33,3 +33,4 @@
 - Merge order planned: #8, #9, #10, #11, #12, #13, #14, ticket 3, then a wiring PR (follow-ups listed above) and a `docs/DEVICE_CHECKLIST.md` consolidation.
 - Integration dry-run (local `integration-dryrun`, rerere enabled) started to pre-resolve conflicts.
 - Blocked: GitHub Actions created 0 runs for any PR; waiting on Parag to enable Actions.
+- 2026-11-21: Integration dry-run (`integration-dryrun@5c80d34`, worktree t3-d82fbab1…) merged tickets 4, 6, 7, 2, 5, 1 onto skeleton: only 2 small conflicts (`app/build.gradle.kts` test deps; AppGraph imports), rerere recorded, gate 386 tests green. Extra wiring items found: `useParallelCalls` not persisted or shown in Settings; `DumpCapturer` must use the checked capture and drop its duplicate blocklist checks; delete stubs nobody binds; feedback purge also on service connect; panel "Open settings" should open the Settings route directly; `<queries>` for app labels.
