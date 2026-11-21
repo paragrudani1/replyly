@@ -20,6 +20,10 @@ object ReplylyDataStores {
     const val API_KEY = "api_key"
     const val COST = "cost"
 
+    // Issue #18: provider profiles (no secrets) and their encrypted keys and header values.
+    const val PROFILES = "profiles"
+    const val PROFILE_SECRETS = "profile_secrets"
+
     fun create(
         context: Context,
         name: String,
