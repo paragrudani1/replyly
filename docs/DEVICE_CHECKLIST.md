@@ -684,9 +684,27 @@ animation), Back returns to Settings. **Send:** a screenshot if it opens on the 
 11.35 **Do:** turn on TalkBack and open "Setup steps". Swipe through the checklist. **See:**
 TalkBack reads "Set up", the title as a heading, then each step as one item, e.g. "Battery:
 done", "Sleeping apps: not confirmed", then its instruction and buttons. While TalkBack is on,
-complete one step and come back: TalkBack announces the new state ("Battery: done"). Swipe to the
+complete one step and come back: TalkBack announces the new state once ("Battery: done"), not
+the "N of 5 done" counter as well. Swipe to the
 page dots: "Page 3 of 3". **Send:** anything read twice, skipped, or read as "unlabelled".
 
 11.36 **Do:** with "Remove animations" on (11.8), page through the welcome flow and complete a
 step. **See:** pages change at once and the tick appears at once, nothing half-drawn.
 **Send:** a screenshot of anything stuck half-way.
+
+11.37 **Do:** clear Replyly's data (Settings > Apps > Replyly > Storage > Clear data) with at
+least one step not done, open Replyly, and on the first page tap "Skip", then "Skip for now" at
+the bottom of the checklist. On Settings, tap "Setup steps". **See:** it opens straight on "Set
+up your phone" (page 3), not on "Replies in your style". Press Back once. **See:** you are back
+on Settings, without passing through the privacy or first page. Repeat from the checklist's step
+5 button ("Open settings") > "Setup steps": same result. **Send:** a screen recording of the
+pages Back passes through if it is not straight to Settings.
+
+11.38 **Do:** turn on auto-rotate. In the welcome flow go to "Your privacy" and rotate the phone
+to landscape and back; then do the same on "Set up your phone", once from first run and once
+from Settings > "Setup steps". Then turn on Developer options > "Don't keep activities", and for
+each of those screens press Home, reopen Replyly from recents, and rotate again. **See:** every
+time it stays on the same page, ticks already shown do not replay, and Back from the checklist
+still goes where it did before (Settings when opened from "Setup steps", the privacy page on
+first run). Turn "Don't keep activities" off afterwards. **Send:** which screen jumped page or
+where Back went instead.
