@@ -21,3 +21,4 @@
 
 ## GitHub (2026-11-21)
 - Repo https://github.com/paragrudani1/replyly created; issues #1–#7 = tickets 1–7; PR #8 = skeleton.
+- From #5 (`ticket-5-panel@3f2517b`, based on `ticket-4-llm@21fdca5`): #1's overlay must keep the panel window focusable (no FLAG_NOT_FOCUSABLE / FLAG_ALT_FOCUSABLE_IM), insert into the input node remembered at the button tap, NOT hide the panel when the chat input loses focus while the panel is open, and compose the panel once per open (recomposing re-calls the LLM). Check these in the #1 review. Height cap 340 dp and ADJUST_PAN are guesses for the device checklist.
