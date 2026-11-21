@@ -20,6 +20,9 @@ object ReplylyDataStores {
     const val API_KEY = "api_key"
     const val COST = "cost"
 
+    /** Polish #3: where the user dragged the floating button, per app (not secret). */
+    const val BUTTON_POSITIONS = "button_positions"
+
     fun create(
         context: Context,
         name: String,

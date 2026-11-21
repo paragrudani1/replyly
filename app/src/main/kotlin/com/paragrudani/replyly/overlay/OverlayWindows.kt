@@ -10,6 +10,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.Toast
+import androidx.annotation.VisibleForTesting
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.platform.ViewCompositionStrategy
 import com.paragrudani.replyly.R
@@ -22,7 +23,8 @@ import com.paragrudani.replyly.ui.theme.ReplylyTheme
 /**
  * The two overlay windows (TYPE_ACCESSIBILITY_OVERLAY, no extra permission needed):
  *
- * - the button: small, never focusable, so the chat's input keeps focus and the keyboard stays;
+ * - the button: small, never focusable, so the chat's input keeps focus and the keyboard stays.
+ *   It scales and fades in and out, and the user can drag it up and down within its [ButtonSlot];
  * - the panel: full screen and focusable, so its instruction field can take the keyboard. When it
  *   is removed, window focus returns to the chat app, whose input field never lost view focus.
  *
@@ -35,9 +37,19 @@ class OverlayWindows(
     private val buttonSizePx: Int,
     private val onButtonTap: () -> Unit,
     private val onPanelDismiss: () -> Unit,
+    /** The user dragged (or moved with TalkBack) the button to window top [y]. */
+    private val onButtonMoved: (y: Int) -> Unit = {},
+    /** How far one TalkBack "Move up/down" goes. */
+    private val moveStepPx: Int = buttonSizePx,
 ) : OverlayUi {
     private val windowManager = context.getSystemService(WindowManager::class.java)
-    private var button: View? = null
+    private var button: OverlayButtonView? = null
+    private var slot: ButtonSlot? = null
+
+    /** The button playing its hide animation; removed at its end or as soon as a new one shows. */
+    private var leaving: OverlayButtonView? = null
+    private var dragStartY = 0
+    private var dragging = false
     private var buttonBusy = false
     private var panelWindow: PanelWindow? = null
 
@@ -48,36 +60,119 @@ class OverlayWindows(
         val sheet: PanelSheetState,
     )
 
-    override fun showButton(position: ButtonPosition) {
+    private val buttonListener =
+        object : OverlayButtonView.Listener {
+            override fun onTap() = onButtonTap()
+
+            override fun onDragStart() {
+                dragging = true
+                dragStartY = buttonParams()?.y ?: return
+            }
+
+            override fun onDrag(dy: Int) {
+                moveButtonTo(dragStartY + dy)
+            }
+
+            override fun onDragEnd() {
+                dragging = false
+                buttonParams()?.let { onButtonMoved(it.y) }
+            }
+
+            override fun onMoveStep(direction: Int) {
+                val params = buttonParams() ?: return
+                val y = moveButtonTo(params.y + direction * moveStepPx) ?: return
+                onButtonMoved(y)
+            }
+
+            override fun canMoveStep(direction: Int): Boolean {
+                val params = buttonParams() ?: return false
+                val target = params.y + direction * moveStepPx
+                return (slot?.clampY(target) ?: target) != params.y
+            }
+        }
+
+    override fun showButton(slot: ButtonSlot) {
+        this.slot = slot
         val existing = button
         if (existing != null) {
             val params = existing.layoutParams as WindowManager.LayoutParams
-            params.x = position.x
-            params.y = position.y
+            params.x = slot.position.x
+            // Never pull the button from under the finger; the drag clamps to the new range.
+            if (!dragging) params.y = slot.position.y
             windowManager.updateViewLayout(existing, params)
             return
         }
-        val view = createOverlayButton(context, onButtonTap).apply { alpha = buttonAlpha() }
+        leaving?.let(::remove)
+        leaving = null
+        val view = OverlayButtonView(context, buttonListener).apply { setBusy(buttonBusy) }
         val params =
             baseParams(buttonSizePx, buttonSizePx).apply {
                 flags = flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                x = position.x
-                y = position.y
+                x = slot.position.x
+                y = slot.position.y
             }
         windowManager.addView(view, params)
         button = view
+        view.animateIn()
     }
 
     override fun setButtonBusy(busy: Boolean) {
         buttonBusy = busy
-        button?.alpha = buttonAlpha()
+        button?.setBusy(busy)
     }
 
-    private fun buttonAlpha() = if (buttonBusy) BUSY_ALPHA else 1f
-
-    override fun hideButton() {
-        button?.let(::remove)
+    override fun hideButton(immediate: Boolean) {
+        val view = button
         button = null
+        slot = null
+        dragging = false
+        leaving?.let {
+            it.animate().cancel()
+            remove(it)
+        }
+        leaving = null
+        if (view == null) return
+        if (immediate) {
+            view.animate().cancel()
+            remove(view)
+            return
+        }
+        // The fading window must not block touches meant for the chat app underneath.
+        (view.layoutParams as? WindowManager.LayoutParams)?.let { params ->
+            params.flags = params.flags or WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
+            try {
+                windowManager.updateViewLayout(view, params)
+            } catch (e: IllegalArgumentException) {
+                // Not attached any more; the fade below still ends in remove().
+            }
+        }
+        leaving = view
+        view.animateOut {
+            if (leaving === view) leaving = null
+            remove(view)
+        }
+    }
+
+    /** The button window's view while shown (tests). */
+    @VisibleForTesting
+    internal val buttonView: OverlayButtonView? get() = button
+
+    /** The button window playing its hide animation, if any (tests). */
+    @VisibleForTesting
+    internal val leavingView: OverlayButtonView? get() = leaving
+
+    private fun buttonParams() = button?.layoutParams as? WindowManager.LayoutParams
+
+    /** Moves the button window to [y] clamped to the slot; returns the clamped y (`null`: no button). */
+    private fun moveButtonTo(y: Int): Int? {
+        val view = button ?: return null
+        val params = buttonParams() ?: return null
+        val clamped = slot?.clampY(y) ?: y
+        if (params.y != clamped) {
+            params.y = clamped
+            windowManager.updateViewLayout(view, params)
+        }
+        return clamped
     }
 
     override fun openPanel(request: PanelRequest) {
@@ -161,7 +256,6 @@ class OverlayWindows(
 
     private companion object {
         const val MATCH = ViewGroup.LayoutParams.MATCH_PARENT
-        const val BUSY_ALPHA = 0.45f
 
         /** Longer than the sheet's slide-down (250 ms), short enough not to feel stuck. */
         const val CLOSE_FALLBACK_MS = 1_000L
