@@ -223,12 +223,31 @@ class HistoryMergeTest {
     }
 
     @Test
+    fun `editing the second of two identical messages edits that one`() {
+        val history = historyOf(them("c"), me("ok", "6:45 pm"), me("ok", "6:45 pm"))
+
+        val plan = history.merge(listOf(them("c"), me("ok", "6:45 pm"), me("ok!", "6:45 pm")))
+
+        assertThat(history.texts()).containsExactly("c", "ok", "ok!").inOrder()
+        assertThat(plan.inserts).isEmpty()
+    }
+
+    @Test
     fun `an edit of the first visible message is updated in place`() {
         val history = historyOf(them("old text", "6:30 pm"), me("b"), them("c"))
 
         history.merge(listOf(them("new text", "6:30 pm"), me("b"), them("c")))
 
         assertThat(history.texts()).containsExactly("new text", "b", "c").inOrder()
+    }
+
+    @Test
+    fun `an edit read without its time or sender keeps the saved ones`() {
+        val history = historyOf(them("a", sender = "Ravi"), them("old", "6:30 pm", sender = "Ravi"), them("c"))
+
+        history.merge(listOf(them("a", sender = "Ravi"), them("new", time = null, sender = null), them("c")))
+
+        assertThat(history.messages()[1]).isEqualTo(them("new", "6:30 pm", sender = "Ravi"))
     }
 
     @Test

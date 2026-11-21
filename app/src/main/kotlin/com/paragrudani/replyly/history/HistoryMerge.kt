@@ -2,6 +2,7 @@ package com.paragrudani.replyly.history
 
 import com.paragrudani.replyly.parser.ChatMessage
 import java.security.MessageDigest
+import kotlin.math.abs
 
 /** A saved message as the merge sees it: its row id, its ordering key, and its content. */
 data class StoredRow(
@@ -82,8 +83,9 @@ object MessageHash {
  *    while a read whose first message is the saved last one (new messages below) or whose last
  *    message is the saved first one (scrolled up) is accepted.
  * 2. **Align.** A longest common subsequence between the read and the saved rows around that
- *    offset pairs up equal messages. On ties it prefers the latest saved rows, so when "ok", "ok"
- *    is saved and the screen shows "ok", "b", the "ok" pairs with the second one.
+ *    offset pairs up equal messages. Among equally long ones it keeps the pairs closest to the voted
+ *    offset, so when "ok", "ok" is saved and the screen shows "ok", "b", the "ok" pairs with the
+ *    second one (the screen's top), and [c, d, d] read as [c, d, d!] pairs the first two.
  * 3. **Edits.** Between aligned pairs, and before the first or after the last one, a read message
  *    and the saved message in the same slot are taken for an edit when they have the same author
  *    and the same time shown but different text. The saved row keeps its place and gets the new
@@ -105,6 +107,9 @@ object MessageHash {
 object HistoryMerge {
     const val POSITION_STEP: Long = 1L shl 16
 
+    /** Larger than any total diagonal distance, so match count always wins over closeness. */
+    private const val MATCH_WEIGHT: Long = 1L shl 32
+
     fun plan(
         stored: List<StoredRow>,
         read: List<ChatMessage>,
@@ -116,7 +121,16 @@ object HistoryMerge {
         val edits =
             read.indices
                 .filter { alignment.edited[it] }
-                .map { PlannedEdit(stored[alignment.counterpart[it]].id, read[it]) }
+                .map {
+                    val row = stored[alignment.counterpart[it]]
+                    // Keep what the screen did not show (cut-off time, group label above the screen).
+                    val edited =
+                        read[it].copy(
+                            sender = read[it].sender ?: row.message.sender,
+                            timeShown = read[it].timeShown ?: row.message.timeShown,
+                        )
+                    PlannedEdit(row.id, edited)
+                }
 
         // Read messages without a saved counterpart, grouped by the saved index they go before.
         val groups = sortedMapOf<Int, MutableList<ChatMessage>>()
@@ -154,7 +168,7 @@ object HistoryMerge {
 
         val from = maxOf(0, offset - read.size)
         val to = minOf(saved.size, offset + 2 * read.size)
-        val pairs = commonSubsequence(read, saved, from, to)
+        val pairs = commonSubsequence(read, saved, from, to, offset)
         if (pairs.isEmpty()) return Alignment(counterpart, edited, anchored = false)
         pairs.forEach { (i, j) -> counterpart[i] = j }
 
@@ -211,24 +225,28 @@ object HistoryMerge {
 
     /**
      * Step 2: longest common subsequence of [read] and `saved[from until to]`, as (read index,
-     * saved index) pairs. Backtracking skips saved rows whenever that loses nothing, so matches
-     * land on the latest saved rows.
+     * saved index) pairs. Among alignments with the most matches it picks the one closest to the
+     * voted [offset] (smallest total `|j - i - offset|`), which settles which of two equal "ok"s a
+     * read message is.
      */
     private fun commonSubsequence(
         read: List<ChatMessage>,
         saved: List<ChatMessage>,
         from: Int,
         to: Int,
+        offset: Int,
     ): List<Pair<Int, Int>> {
         val width = to - from
-        val lengths = Array(read.size + 1) { IntArray(width + 1) }
+        // score = matches * MATCH_WEIGHT - distance from the offset diagonal; higher is better.
+        val score = Array(read.size + 1) { LongArray(width + 1) }
         for (i in read.indices.reversed()) {
             for (j in (0 until width).reversed()) {
-                lengths[i][j] =
+                val skip = maxOf(score[i + 1][j], score[i][j + 1])
+                score[i][j] =
                     if (sameMessage(read[i], saved[from + j])) {
-                        lengths[i + 1][j + 1] + 1
+                        maxOf(skip, score[i + 1][j + 1] + matchScore(i, from + j, offset))
                     } else {
-                        maxOf(lengths[i + 1][j], lengths[i][j + 1])
+                        skip
                     }
             }
         }
@@ -236,14 +254,17 @@ object HistoryMerge {
         var i = 0
         var j = 0
         while (i < read.size && j < width) {
+            val matches =
+                sameMessage(read[i], saved[from + j]) &&
+                    score[i][j] == score[i + 1][j + 1] + matchScore(i, from + j, offset)
             when {
-                lengths[i][j + 1] == lengths[i][j] -> {
+                matches -> {
+                    pairs += i to from + j
+                    i++
                     j++
                 }
 
-                sameMessage(read[i], saved[from + j]) -> {
-                    pairs += i to from + j
-                    i++
+                score[i][j] == score[i][j + 1] -> {
                     j++
                 }
 
@@ -254,6 +275,12 @@ object HistoryMerge {
         }
         return pairs
     }
+
+    private fun matchScore(
+        i: Int,
+        j: Int,
+        offset: Int,
+    ): Long = MATCH_WEIGHT - abs(j - i - offset)
 
     private fun sameMessage(
         a: ChatMessage,
