@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <!-- Accessibility actions on the floating button (TalkBack: move it without dragging). -->
+  <item name="overlay_action_move_up" type="id" />
+  <item name="overlay_action_move_down" type="id" />
+</resources>

@@ -9,7 +9,8 @@ import kotlinx.coroutines.launch
 
 /** What the controller drives: two overlay windows and a transient notice. */
 interface OverlayUi {
-    fun showButton(position: ButtonPosition)
+    /** Shows the button at [ButtonSlot.position], or moves it there if it is already shown. */
+    fun showButton(slot: ButtonSlot)
 
     fun hideButton()
 
@@ -57,11 +58,13 @@ enum class OverlayEvent {
 class OverlayController(
     private val readFacts: () -> ScreenFacts,
     private val visibility: ButtonVisibility,
-    private val place: (ButtonDecision.Show) -> ButtonPosition,
+    private val place: (ButtonDecision.Show) -> ButtonSlot,
     private val ui: OverlayUi,
     private val tap: suspend (FocusedInput) -> TapOutcome,
     private val rememberTarget: (InputFieldRef) -> Unit,
     private val scope: CoroutineScope,
+    /** Remembers a spot the user dragged the button to, for the app in [ButtonDecision.Show]. */
+    private val rememberPosition: (shown: ButtonDecision.Show, y: Int) -> Unit = { _, _ -> },
     private val settleMillis: Long = 60,
     /** Event names and enum values only, never chat text. */
     private val log: (String) -> Unit = {},
@@ -69,7 +72,7 @@ class OverlayController(
     private var lastDecision: String? = null
 
     private var shown: ButtonDecision.Show? = null
-    private var shownAt: ButtonPosition? = null
+    private var shownAt: ButtonSlot? = null
 
     /** The chat window the open panel belongs to; `null` while the panel is closed. */
     private var panelWindowId: Int? = null
@@ -109,6 +112,19 @@ class OverlayController(
                     ui.setButtonBusy(false)
                 }
             }
+    }
+
+    /**
+     * The user dragged the button (or moved it with TalkBack) so its window top is at [y]. Only
+     * remembers the spot: a drag never counts as a tap (the view tells them apart).
+     */
+    fun onButtonMoved(y: Int) {
+        val current = shown ?: return
+        val at = shownAt ?: return
+        val clamped = at.clampY(y)
+        shownAt = at.copy(position = at.position.copy(y = clamped))
+        log("button moved")
+        rememberPosition(current, clamped)
     }
 
     fun onPanelClosed() {
@@ -174,10 +190,10 @@ class OverlayController(
 
             is ButtonDecision.Show -> {
                 shown = decision
-                val position = place(decision)
-                if (position != shownAt) {
-                    shownAt = position
-                    ui.showButton(position)
+                val slot = place(decision)
+                if (slot != shownAt) {
+                    shownAt = slot
+                    ui.showButton(slot)
                 }
             }
         }

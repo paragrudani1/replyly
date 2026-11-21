@@ -109,8 +109,8 @@ every element.
 
 - **Touch targets: 48 dp.** Material buttons, chips, switches and `IconButton` already comply.
   For anything you make clickable yourself, add `Modifier.minTouchTarget()` **after**
-  `clickable`. The floating button is 44 dp today (`OverlayComponent.BUTTON_DP`): the overlay
-  button PR should make its touch area 48 dp.
+  `clickable`. The floating button is a 44 dp circle (`OverlayComponent.BUTTON_DP`) in a 56 dp touch
+  window (`TOUCH_DP`); the ring leaves room for its shadow, so it uses `Elevation.Sheet`, not `Floating`.
 - **Contrast**: AA for all text (see Colour). Icons and outlines that carry meaning need 3:1.
 - **Font size**: every screenshot test also renders at 130 %; nothing may clip. Don't fix heights
   on text containers; let rows grow.
