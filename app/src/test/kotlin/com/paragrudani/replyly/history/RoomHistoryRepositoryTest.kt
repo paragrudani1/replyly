@@ -119,9 +119,10 @@ class RoomHistoryRepositoryTest {
     @Test
     fun `mergeRead reports the messages that arrived below the saved tail`() =
         runTest {
-            history.merge(chat(them("a"), me("b")))
+            history.merge(chat(them("a"), me("see you at 6")))
 
-            val outcome = history.mergeRead(chat(me("b"), them("c"), me("sent now", "6:50 pm")))
+            // Only one saved message is still on screen: enough for a distinctive text.
+            val outcome = history.mergeRead(chat(me("see you at 6"), them("c"), me("sent now", "6:50 pm")))
 
             assertThat(outcome.inserted).isEqualTo(2)
             assertThat(outcome.newAtEnd).containsExactly(them("c"), me("sent now", "6:50 pm")).inOrder()
@@ -196,14 +197,52 @@ class RoomHistoryRepositoryTest {
     fun `purge deletes messages first seen before the cutoff`() =
         runTest {
             val key = ChatKey("com.whatsapp", "Asha")
-            history.merge(chat(them("old")))
+            history.merge(chat(them("old message")))
             clock.advance(Duration.ofDays(61))
-            history.merge(chat(them("old"), them("new")))
+            history.merge(chat(them("old message"), them("new")))
 
             val purged = history.purgeOlderThan(clock.now - Duration.ofDays(60))
 
             assertThat(purged).isEqualTo(1)
             assertThat(texts(key)).containsExactly("new")
+        }
+
+    @Test
+    fun `a purge that leaves a hole mid-chat marks a gap there`() =
+        runTest {
+            val key = ChatKey("com.whatsapp", "Asha")
+            history.merge(chat(them("m3", "1:03 pm"), them("m4", "1:04 pm")))
+            clock.advance(Duration.ofDays(61))
+            // Scrolled up, then back down: m1, m2, m5 and m6 are first seen now.
+            history.merge(
+                chat(them("m1", "1:01 pm"), them("m2", "1:02 pm"), them("m3", "1:03 pm"), them("m4", "1:04 pm")),
+            )
+            history.merge(
+                chat(them("m3", "1:03 pm"), them("m4", "1:04 pm"), them("m5", "1:05 pm"), them("m6", "1:06 pm")),
+            )
+
+            history.purgeOlderThan(clock.now - Duration.ofDays(60))
+
+            val rows = database.messages().allInChat(key.encoded)
+            assertThat(rows.map { it.text }).containsExactly("m1", "m2", "m5", "m6").inOrder()
+            assertThat(rows.map { it.gapBefore }).containsExactly(false, false, true, false).inOrder()
+        }
+
+    @Test
+    fun `gap markers are stored and move up with older messages`() =
+        runTest {
+            val key = ChatKey("com.whatsapp", "Asha")
+            history.merge(chat(them("a", "1:00 pm"), them("b", "1:01 pm")))
+            history.merge(chat(them("x", "3:01 pm"), them("y", "3:02 pm")))
+            assertThat(database.messages().allInChat(key.encoded).map { it.gapBefore })
+                .containsExactly(false, false, true, false)
+                .inOrder()
+
+            history.merge(chat(them("w", "3:00 pm"), them("x", "3:01 pm"), them("y", "3:02 pm")))
+
+            val rows = database.messages().allInChat(key.encoded)
+            assertThat(rows.map { it.text }).containsExactly("a", "b", "w", "x", "y").inOrder()
+            assertThat(rows.map { it.gapBefore }).containsExactly(false, false, true, false, false).inOrder()
         }
 
     @Test

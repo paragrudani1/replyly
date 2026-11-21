@@ -68,6 +68,7 @@ class RoomHistoryRepository(
                     }
                 if (plan.isNoOp) return@withTransaction MergeOutcome.NONE
                 plan.moves.forEach { dao.move(it.id, it.position) }
+                plan.gapsCleared.forEach { dao.clearGap(it) }
                 plan.edits.forEach { edit ->
                     val m = edit.message
                     dao.edit(edit.id, m.sender, m.text, m.timeShown, MessageHash.of(m))
@@ -80,6 +81,7 @@ class RoomHistoryRepository(
                             chatKey = chatKey,
                             packageName = chat.packageName,
                             position = insert.position,
+                            gapBefore = insert.gapBefore,
                             isMe = m.isMe,
                             sender = m.sender,
                             text = m.text,
@@ -122,9 +124,15 @@ class RoomHistoryRepository(
     }
 
     override suspend fun purgeOlderThan(cutoff: Instant): Int =
-        mergeLock.withLock { handle.get().messages().deleteFirstSeenBefore(cutoff.toEpochMilli()) }
+        mergeLock.withLock {
+            val db = handle.get()
+            db.withTransaction {
+                db.messages().markGapsBeforePurge(cutoff.toEpochMilli())
+                db.messages().deleteFirstSeenBefore(cutoff.toEpochMilli())
+            }
+        }
 
-    private fun MessageEntity.toRow() = StoredRow(id, position, toMessage())
+    private fun MessageEntity.toRow() = StoredRow(id, position, toMessage(), gapBefore)
 
     private fun MessageEntity.toMessage() =
         ChatMessage(sender = sender, text = text, timeShown = timeShown, isMe = isMe)

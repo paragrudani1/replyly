@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
 import com.google.common.truth.Truth.assertThat
 import com.paragrudani.replyly.feedback.InMemoryFeedbackLog
+import com.paragrudani.replyly.history.FakeHistory
 import com.paragrudani.replyly.history.HistoryReadMerger
 import com.paragrudani.replyly.history.HistoryRetention
 import com.paragrudani.replyly.history.InMemoryHistoryRepository
@@ -365,6 +366,72 @@ class PassiveCaptureComponentTest {
                     .single()
                     .finalSentText,
             ).isNull()
+        }
+
+    @Test
+    fun `B1 - after a gap, a scroll-up into older messages does not attach my old reply`() =
+        runTest {
+            // The real merge on an in-memory history.
+            val stored = FakeHistory()
+            mergeResult = { chat ->
+                val plan = stored.merge(chat.messages)
+                MergeOutcome(plan.inserts.size, plan.edits.size, plan.newAtEnd)
+            }
+
+            fun them(
+                text: String,
+                time: String,
+            ) = ChatMessage("Asha", text, time, isMe = false)
+
+            fun me(
+                text: String,
+                time: String,
+            ) = ChatMessage(null, text, time, isMe = true)
+            val capture = component()
+
+            suspend fun captureScreen(vararg messages: ChatMessage) {
+                screenMessages = messages.toList()
+                capture.onEvent(contentChanged(), host)
+                advanceTimeBy(1_001)
+                runCurrent()
+            }
+            captureScreen(
+                them("dinner at 8?", "6:00 pm"),
+                me("sure", "6:01 pm"),
+                them("great", "6:02 pm"),
+                me("see you", "6:03 pm"),
+            )
+            // Next day, at the bottom, no overlap: appended after a gap.
+            captureScreen(
+                them("morning", "9:00 am"),
+                me("hey", "9:01 am"),
+                them("coffee?", "9:02 am"),
+                me("yes", "9:03 am"),
+            )
+            val entry = feedback.record(asha, "model", "prompt", listOf(Suggestion("agree", "yes")))
+            feedback.markInserted(entry, 0)
+
+            // Fling up into yesterday.
+            captureScreen(
+                them("great", "6:02 pm"),
+                me("see you", "6:03 pm"),
+                them("running late", "7:55 pm"),
+                me("no worries", "7:56 pm"),
+            )
+
+            assertThat(merged).hasSize(3)
+            assertThat(
+                feedback
+                    .observeRecent(1)
+                    .first()
+                    .single()
+                    .finalSentText,
+            ).isNull()
+            assertThat(stored.segments())
+                .containsExactly(
+                    listOf("dinner at 8?", "sure", "great", "see you", "running late", "no worries"),
+                    listOf("morning", "hey", "coffee?", "yes"),
+                ).inOrder()
         }
 
     @Test

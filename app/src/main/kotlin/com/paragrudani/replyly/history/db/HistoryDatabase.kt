@@ -27,6 +27,8 @@ data class MessageEntity(
     @ColumnInfo(name = "chat_key") val chatKey: String,
     @ColumnInfo(name = "package_name") val packageName: String,
     val position: Long,
+    /** [com.paragrudani.replyly.history.StoredRow.gapBefore]: messages may be missing right above this row. */
+    @ColumnInfo(name = "gap_before", defaultValue = "0") val gapBefore: Boolean = false,
     @ColumnInfo(name = "is_me") val isMe: Boolean,
     val sender: String?,
     val text: String,
@@ -86,6 +88,25 @@ interface MessageDao {
         timeShown: String?,
         hash: String,
     )
+
+    @Query("UPDATE messages SET gap_before = 0 WHERE id = :id")
+    suspend fun clearGap(id: Long)
+
+    /**
+     * Before a purge: marks a gap on every row that stays while the row right above it in its chat
+     * goes, so the merge never lines up a read across the hole.
+     */
+    @Query(
+        """
+        UPDATE messages SET gap_before = 1
+        WHERE gap_before = 0 AND first_seen_at >= :cutoffMillis AND (
+            SELECT above.first_seen_at FROM messages AS above
+            WHERE above.chat_key = messages.chat_key AND above.position < messages.position
+            ORDER BY above.position DESC LIMIT 1
+        ) < :cutoffMillis
+        """,
+    )
+    suspend fun markGapsBeforePurge(cutoffMillis: Long): Int
 
     @Query("DELETE FROM messages WHERE chat_key = :chatKey")
     suspend fun deleteChat(chatKey: String): Int
