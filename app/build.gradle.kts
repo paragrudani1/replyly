@@ -116,4 +116,5 @@ dependencies {
     testImplementation(libs.okhttp.mockwebserver)
     testImplementation(libs.turbine)
     testImplementation(libs.room.testing)
+    testImplementation(libs.androidx.navigation.testing)
 }
