@@ -96,7 +96,10 @@ fun chatScreen(
     title: String,
     subtitle: String? = null,
     rows: List<ListItem>,
+    /** Top of the message input. Lower it to about 1150 to model an open keyboard. */
+    inputTop: Int = 2075,
 ): ScreenSnapshot {
+    val listBottom = inputTop - 23
     var y = 300
     val listChildren =
         rows.map { item ->
@@ -119,7 +122,7 @@ fun chatScreen(
                 }
             }
         }
-    check(y <= 2052) { "test screen overflows the list" }
+    check(y <= listBottom) { "test screen overflows the list" }
     val header =
         listOfNotNull(
             textView(Bounds(220, 128, 700, 190), title),
@@ -128,7 +131,7 @@ fun chatScreen(
     val list =
         ScreenNode(
             className = "androidx.recyclerview.widget.RecyclerView",
-            bounds = Bounds(0, 257, 1080, 2052),
+            bounds = Bounds(0, 257, 1080, listBottom),
             scrollable = true,
             children = listChildren,
         )
@@ -136,7 +139,7 @@ fun chatScreen(
         ScreenNode(
             className = "android.widget.EditText",
             hint = "Message",
-            bounds = Bounds(140, 2075, 760, 2190),
+            bounds = Bounds(140, inputTop, 760, inputTop + 115),
             editable = true,
             focused = true,
         )

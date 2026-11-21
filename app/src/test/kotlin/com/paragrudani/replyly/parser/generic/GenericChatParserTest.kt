@@ -66,4 +66,19 @@ class GenericChatParserTest {
                 visible("Me too", isMe = true, time = "9:42 AM"),
             ).inOrder()
     }
+
+    @Test
+    fun `the keyboard pushing the input above the middle of the screen still leaves a chat`() {
+        // S23 with Gboard open: about 900 px of keyboard plus the navigation bar under the input.
+        val snapshot =
+            chatScreen(
+                "com.linkedin.android",
+                title = "Asha Patel",
+                rows = listOf(row(bubble(40, 600, "Can we talk tomorrow?", time = "9:41 AM"))),
+                inputTop = 1100,
+            )
+
+        assertThat(parser.parse(snapshot)!!.messages)
+            .containsExactly(visible("Can we talk tomorrow?", isMe = false, time = "9:41 AM"))
+    }
 }

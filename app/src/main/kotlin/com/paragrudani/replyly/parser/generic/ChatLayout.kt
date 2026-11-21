@@ -8,7 +8,10 @@ import kotlin.math.abs
  * scrolling message list above it, and the toolbar above the list.
  */
 class ChatLayout(
-    /** Bottom-most editable field in the lower half of the screen. `null` if there is none. */
+    /**
+     * Bottom-most editable field below the top [INPUT_MIN_TOP] of the screen (an open keyboard
+     * lifts the input to about the middle; search fields sit in the toolbar). `null` if none.
+     */
     val input: TreeNode?,
     /** Largest scrollable node above the input. `null` if there is none. */
     val list: TreeNode?,
@@ -40,7 +43,7 @@ class ChatLayout(
             val screen = tree.screen
             val input =
                 tree.shownNodes
-                    .filter { it.editable && it.bounds.hasArea && it.bounds.top >= screen.height / 2 }
+                    .filter { it.editable && it.bounds.hasArea && it.bounds.top >= screen.height * INPUT_MIN_TOP }
                     .maxByOrNull { it.bounds.top }
             val inputTop = input?.bounds?.top ?: screen.bottom
             val list =
@@ -61,6 +64,9 @@ class ChatLayout(
         }
 
         private const val SLACK = 16
+
+        /** Share of the screen height above which an editable field is a search box, not the message input. */
+        const val INPUT_MIN_TOP = 0.3
     }
 }
 
