@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Onboarding page 2: a shield with a keyhole cut out. One colour; tint it. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+  android:width="24dp"
+  android:height="24dp"
+  android:viewportWidth="24"
+  android:viewportHeight="24">
+  <path
+    android:fillColor="#FFFFFFFF"
+    android:fillType="evenOdd"
+    android:pathData="M12,2L20,5V11C20,16.2 16.6,20.6 12,22C7.4,20.6 4,16.2 4,11V5Z M12,8.2A2.2,2.2 0,0 0,10.9 12.3L10.6,15.6H13.4L13.1,12.3A2.2,2.2 0,0 0,12 8.2Z" />
+</vector>
