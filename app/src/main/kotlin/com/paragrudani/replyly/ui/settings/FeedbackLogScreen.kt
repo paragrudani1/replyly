@@ -1,5 +1,7 @@
 package com.paragrudani.replyly.ui.settings
 
+import android.content.pm.PackageManager
+import android.text.format.DateFormat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,6 +21,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +30,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,28 +39,41 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.paragrudani.replyly.R
 import com.paragrudani.replyly.feedback.FeedbackEntry
 import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.ui.theme.ReplylyTheme
 import com.paragrudani.replyly.ui.theme.Spacing
+import kotlinx.coroutines.delay
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
+import java.util.Locale
 
 /**
  * Read-only timeline of the local feedback log, grouped by day, newest first. Each entry shows
  * the chat, the 3 suggestions (the inserted one highlighted) and the message the user sent.
  * [error] is a fixed message shown when the encrypted log could not be read (for example
- * [SettingsViewModel.STORAGE_LOCKED]).
+ * [SettingsViewModel.STORAGE_LOCKED]), with a "Try again" button that calls [onRetry].
+ *
+ * @param today names "Today" and "Yesterday"; the route passes [rememberToday] so it rolls over
+ *   at midnight while the log is open.
+ * @param use24Hour the phone's 24-hour clock setting.
+ * @param appLabel the app name for a package id (falls back to the id).
  */
 @Composable
 fun FeedbackLogScreen(
@@ -63,12 +81,15 @@ fun FeedbackLogScreen(
     error: String?,
     onClear: () -> Unit,
     onBack: () -> Unit,
+    onRetry: () -> Unit = {},
     zone: ZoneId = ZoneId.systemDefault(),
     today: LocalDate = LocalDate.now(zone),
+    use24Hour: Boolean = DateFormat.is24HourFormat(LocalContext.current),
+    appLabel: (String) -> String = rememberAppLabel(),
 ) {
     var confirmClear by rememberSaveable { mutableStateOf(false) }
     val days = remember(entries, zone, today) { groupFeedbackByDay(entries, zone, today) }
-    val time = remember { DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT) }
+    val time = remember(use24Hour) { feedbackTimeFormatter(use24Hour) }
     Scaffold { padding ->
         LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
@@ -92,13 +113,15 @@ fun FeedbackLogScreen(
             }
             if (error != null) {
                 item {
-                    Text(
-                        error,
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodyLarge,
+                    EmptyState(
+                        illustration = R.drawable.ill_empty_log,
+                        // The snackbar text ends in "Try again."; here the button says it.
+                        title = if (error == SettingsViewModel.STORAGE_LOCKED) "Secure storage is locked" else error,
+                        body = "Unlock your phone, then tap Try again.",
+                        action = { Button(onClick = onRetry) { Text("Try again") } },
                         modifier =
                             Modifier
-                                .padding(Spacing.S)
+                                .padding(top = Spacing.XXXL, start = Spacing.L, end = Spacing.L)
                                 .semantics { liveRegion = LiveRegionMode.Polite },
                     )
                 }
@@ -129,7 +152,12 @@ fun FeedbackLogScreen(
                     )
                 }
                 items(day.entries, key = { it.id }) { entry ->
-                    TimelineItem(entry, time.format(entry.createdAt.atZone(zone)), last = entry == day.entries.last())
+                    TimelineItem(
+                        entry,
+                        time.format(entry.createdAt.atZone(zone)),
+                        appLabel(entry.chatKey.packageName),
+                        last = entry == day.entries.last(),
+                    )
                 }
             }
         }
@@ -155,6 +183,7 @@ fun FeedbackLogScreen(
 private fun TimelineItem(
     entry: FeedbackEntry,
     time: String,
+    app: String,
     last: Boolean,
 ) {
     Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min), horizontalArrangement = Arrangement.spacedBy(Spacing.M)) {
@@ -170,7 +199,7 @@ private fun TimelineItem(
                 )
             }
         }
-        Box(Modifier.weight(1f).padding(bottom = Spacing.M)) { FeedbackEntryCard(entry, time) }
+        Box(Modifier.weight(1f).padding(bottom = Spacing.M)) { FeedbackEntryCard(entry, time, app) }
     }
 }
 
@@ -178,6 +207,7 @@ private fun TimelineItem(
 private fun FeedbackEntryCard(
     entry: FeedbackEntry,
     time: String,
+    app: String,
 ) {
     var showPrompt by rememberSaveable(entry.id) { mutableStateOf(false) }
     Surface(
@@ -200,7 +230,7 @@ private fun FeedbackEntryCard(
                     )
                 }
                 Text(
-                    "${entry.chatKey.packageName} · ${entry.model}",
+                    "$app · ${entry.model}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -238,7 +268,8 @@ private fun SuggestionLine(
         shape = MaterialTheme.shapes.small,
         modifier =
             Modifier.fillMaxWidth().semantics(mergeDescendants = true) {
-                stateDescription = if (inserted) "Inserted" else "Not inserted"
+                // Only the inserted one is announced; "Not inserted" on every other line is noise.
+                if (inserted) stateDescription = "Inserted"
             },
     ) {
         Column(
@@ -264,7 +295,12 @@ private fun SuggestionLine(
                     )
                 }
                 if (inserted) {
-                    Text("Inserted", style = MaterialTheme.typography.labelMedium)
+                    // Read once, through the stateDescription above.
+                    Text(
+                        "Inserted",
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.clearAndSetSemantics {},
+                    )
                 }
             }
             Text(suggestion.text, style = MaterialTheme.typography.bodyMedium)
@@ -304,5 +340,68 @@ private fun SentLine(entry: FeedbackEntry) {
                 modifier = Modifier.padding(horizontal = Spacing.M, vertical = Spacing.S),
             )
         }
+    }
+}
+
+/** "14:05" or "2:05 PM", following the phone's 24-hour setting rather than the locale default. */
+fun feedbackTimeFormatter(
+    use24Hour: Boolean,
+    locale: Locale = Locale.getDefault(),
+): DateTimeFormatter = DateTimeFormatter.ofPattern(if (use24Hour) "HH:mm" else "h:mm a", locale)
+
+/** Time from [now] until just after the next local midnight in [zone] (DST-safe), at least 1 ms. */
+fun durationUntilNextDay(
+    now: Instant,
+    zone: ZoneId,
+): Duration {
+    val nextDay =
+        now
+            .atZone(zone)
+            .toLocalDate()
+            .plusDays(1)
+            .atStartOfDay(zone)
+            .toInstant()
+    return Duration.between(now, nextDay).plusMillis(1).coerceAtLeast(Duration.ofMillis(1))
+}
+
+/**
+ * Today's date in [clock]'s zone, updated just after each midnight and on every resume (a
+ * sleeping phone pauses the timer), so "Today"/"Yesterday" stay right while the log is open.
+ */
+@Composable
+fun rememberToday(clock: Clock): State<LocalDate> {
+    val today = remember(clock) { mutableStateOf(LocalDate.now(clock)) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { today.value = LocalDate.now(clock) }
+    LaunchedEffect(clock) {
+        while (true) {
+            delay(durationUntilNextDay(clock.instant(), clock.zone).toMillis())
+            today.value = LocalDate.now(clock)
+        }
+    }
+    return today
+}
+
+/** The app's name for [packageName] as the launcher shows it, or the package id if it is not visible. */
+fun appLabel(
+    packageManager: PackageManager,
+    packageName: String,
+): String =
+    try {
+        packageManager
+            .getApplicationLabel(packageManager.getApplicationInfo(packageName, 0))
+            .toString()
+            .ifBlank { packageName }
+    } catch (_: PackageManager.NameNotFoundException) {
+        packageName
+    }
+
+/** [appLabel] bound to this context's PackageManager, cached per package for the screen's life. */
+@Composable
+fun rememberAppLabel(): (String) -> String {
+    val packageManager = LocalContext.current.packageManager
+    return remember(packageManager) {
+        val cache = HashMap<String, String>()
+        val lookup: (String) -> String = { pkg -> cache.getOrPut(pkg) { appLabel(packageManager, pkg) } }
+        lookup
     }
 }

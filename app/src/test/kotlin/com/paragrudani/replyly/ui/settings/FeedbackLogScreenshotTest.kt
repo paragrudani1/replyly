@@ -82,28 +82,37 @@ class FeedbackLogScreenshotTest {
             ),
         )
 
-    @Test
-    fun timeline() =
-        shots.screen("feedback/timeline") {
-            FeedbackLogScreen(entries, error = null, onClear = {}, onBack = {}, zone = zone, today = today)
-        }
+    /** Fixed clock style and app names, so the shots do not depend on the host. */
+    @androidx.compose.runtime.Composable
+    private fun Log(
+        entries: List<FeedbackEntry>,
+        error: String? = null,
+        today: LocalDate = this.today,
+    ) = FeedbackLogScreen(
+        entries,
+        error,
+        onClear = {},
+        onBack = {},
+        zone = zone,
+        today = today,
+        use24Hour = false,
+        appLabel = { if (it == "com.whatsapp") "WhatsApp" else it },
+    )
 
     @Test
-    fun empty() =
-        shots.screen("feedback/empty") {
-            FeedbackLogScreen(emptyList(), error = null, onClear = {}, onBack = {}, zone = zone, today = today)
-        }
+    fun timeline() = shots.screen("feedback/timeline") { Log(entries) }
+
+    /** Seen a day later: the 21st reads "Yesterday", the 20th gets a dated header. */
+    @Test
+    fun timelineOlderDays() =
+        shots.screen("feedback/timeline_older") { Log(entries.drop(1), today = today.plusDays(1)) }
+
+    @Test
+    fun empty() = shots.screen("feedback/empty") { Log(emptyList()) }
 
     @Test
     fun storageLocked() =
         shots.screen("feedback/storage_locked", variants = com.paragrudani.replyly.testing.ShotVariant.LIGHT_DARK) {
-            FeedbackLogScreen(
-                emptyList(),
-                SettingsViewModel.STORAGE_LOCKED,
-                onClear = {},
-                onBack = {},
-                zone = zone,
-                today = today,
-            )
+            Log(emptyList(), SettingsViewModel.STORAGE_LOCKED)
         }
 }

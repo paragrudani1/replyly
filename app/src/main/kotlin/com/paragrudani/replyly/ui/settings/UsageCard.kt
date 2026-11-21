@@ -22,7 +22,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.semantics.ProgressBarRangeInfo
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.progressBarRangeInfo
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
@@ -41,7 +40,8 @@ fun CostStatus.dailyProgress(): Float =
 /**
  * Today's requests as a ring against the daily limit, plus this month's tokens. The ring fills
  * with [ReplylyTheme.motion] (it snaps when animations are off) and turns the error colour at
- * the limit. TalkBack reads "Requests today, 120 of 200" as one progress node.
+ * the limit. The card is one TalkBack stop: the texts ("120 of 200 requests today, …") with the
+ * share as its progress; the ring itself is hidden so the numbers are not read twice.
  */
 @Composable
 fun UsageCard(
@@ -53,18 +53,18 @@ fun UsageCard(
     val limit = numbers.format(usage.dailyRequestLimit)
     val progress = usage.dailyProgress()
     Row(
-        modifier = modifier.fillMaxWidth().padding(horizontal = Spacing.L, vertical = Spacing.M),
+        modifier =
+            modifier
+                .fillMaxWidth()
+                .semantics(mergeDescendants = true) { progressBarRangeInfo = ProgressBarRangeInfo(progress, 0f..1f) }
+                .padding(horizontal = Spacing.L, vertical = Spacing.M),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.L),
     ) {
         UsageRing(
             progress = progress,
             atLimit = usage.limitReached,
-            modifier =
-                Modifier.clearAndSetSemantics {
-                    contentDescription = "Requests today, $today of $limit"
-                    progressBarRangeInfo = ProgressBarRangeInfo(progress, 0f..1f)
-                },
+            modifier = Modifier.clearAndSetSemantics {},
         ) {
             Text(
                 "${(progress * 100).toInt()}%",
@@ -73,8 +73,7 @@ fun UsageCard(
             )
         }
         Column(
-            Modifier.weight(1f).semantics(mergeDescendants = true) {
-            },
+            Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(Spacing.XXS),
         ) {
             Text("$today of $limit requests today", style = MaterialTheme.typography.bodyLarge)

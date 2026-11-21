@@ -606,77 +606,278 @@ counters and history are gone (one `NO_SAVED_PASSPHRASE` line, a fresh `capture 
 
 ## 11. Polish
 
-Look and feel from the UI polish pass (issue #17). The parallel polish PRs add their own steps
-here (button animation and drag, panel motion, haptics, onboarding transitions).
+Look and feel from the UI polish pass (issue #17). Steps are numbered by area so the parallel
+polish PRs never collide: `11.A…` foundation (icon, colours, dark mode, animations, font size),
+`11.B…` floating button, `11.C…` panel, `11.D…` onboarding, `11.E…` settings. Each PR adds its
+steps under its own letter; numbers inside a letter only grow.
 
-11.1 **Do:** after installing, look at Replyly on the home screen and in the app drawer.
+### Foundation (polish #0)
+
+11.A1 **Do:** after installing, look at Replyly on the home screen and in the app drawer.
 **See:** an ink-blue icon with a white chat bubble (two blue text lines) and a yellow four-point
 sparkle top right; nothing clipped by the icon shape, the mark roughly centred. **Send:**
 Screenshot of the home screen.
 
-11.2 **Do:** Settings > Wallpaper and style > Color palette: turn on "Themed icons" (or Home screen
+11.A2 **Do:** Settings > Wallpaper and style > Color palette: turn on "Themed icons" (or Home screen
 settings > Themed icons). **See:** the Replyly icon turns into the One UI themed colours with the
 same bubble and sparkle, text lines cut out. **Send:** Screenshot of the home screen.
 
-11.3 **Do:** long-press the Replyly icon, or drag it into a folder. **See:** the round/folder
+11.A3 **Do:** long-press the Replyly icon, or drag it into a folder. **See:** the round/folder
 version still shows the whole mark. **Send:** Screenshot if anything is cut off.
 
-11.4 **Do:** open Replyly settings. **See:** "replyly" with a small yellow sparkle above
+11.A4 **Do:** open Replyly settings. **See:** "replyly" with a small yellow sparkle above
 "Settings"; long-pressing it still opens the debug screen. **Send:** Screenshot.
 
-11.5 **Do:** Settings > Appearance > turn on "Material You colours", go back to the home screen
+11.A5 **Do:** Settings > Appearance > turn on "Material You colours", go back to the home screen
 and return; then open a WhatsApp chat and tap the button. **See:** settings, the floating button
 and the panel switch to your wallpaper colours (buttons, switches, the button fill). Turn it off
-again: everything goes back to ink blue. **Send:** two Screenshots (on and off) of settings and
-of the button over a chat.
+again: everything goes back to ink blue. Also force-stop Replyly with Material You on and open
+it again: a brief flash of ink blue before the wallpaper colours appear is possible (the setting
+loads after the first frame). **Send:** two Screenshots (on and off) of settings and of the
+button over a chat, and say whether the cold-start flash is noticeable.
 
-11.6 **Do:** with "Material You colours" on, change the wallpaper (Settings > Wallpaper and
+11.A6 **Do:** with "Material You colours" on, change the wallpaper (Settings > Wallpaper and
 style) to one with a clearly different colour, then reopen Replyly. **See:** Replyly picks up the
 new palette. **Send:** Screenshot if it keeps the old colours.
 
-11.7 **Do:** turn on dark mode (quick settings), open Replyly settings and a WhatsApp chat with
+11.A7 **Do:** turn on dark mode (quick settings), open Replyly settings and a WhatsApp chat with
 the button and the panel. **See:** dark backgrounds, light text, a light periwinkle button with a
 dark mark; all text readable. **Send:** Screenshots of settings, button and panel.
 
-11.8 **Do:** Settings > Accessibility > Visibility enhancements > turn on "Remove animations"
+11.A8 **Do:** Settings > Accessibility > Visibility enhancements > turn on "Remove animations"
 (on some One UI versions: Advanced settings > Remove animations). Use the button and panel.
 **See:** everything still works, things appear without animating. Turn it off afterwards.
 **Send:** anything that looks stuck half-way.
 
-11.9 **Do:** Settings > Display > Font size and style: set the font size two steps larger; open
+11.A9 **Do:** Settings > Display > Font size and style: set the font size two steps larger; open
 settings, onboarding and the panel. **See:** no text cut off or overlapping. **Send:** Screenshots
 of anything clipped.
 
+### Floating button (polish #3)
+
+Use WhatsApp and Telegram with Gboard (or Samsung Keyboard).
+
+11.B1 **Do:** open a WhatsApp chat and tap the message field so the keyboard opens; close the
+keyboard (Back) and open it again a few times. **See:** the button grows and fades in (about a
+sixth of a second) and shrinks and fades out when the keyboard closes; smooth, no flicker, no
+jump to another spot, never left half-visible. **Send:** a screen recording if it stutters or
+blinks.
+
+11.B2 **Do:** with the keyboard open, look at the button against the keyboard and the input bar.
+**See:** a round ink-blue button (light periwinkle in dark mode) with the bubble + sparkle mark,
+about 8 dp above the keyboard top, on the right, not over the send button; its shadow is soft and
+not cut off in a square. **Send:** a screenshot.
+
+11.B3 **Do:** press and hold the button for a second without moving, then let go. **See:** it
+shrinks a little while held; on release one short, light tick (the same as tapping a navigation
+key, `VIRTUAL_KEY`; not a long buzz) and the panel opens as before. Turn off Settings > Sounds and vibration > System
+vibration > Touch interactions and repeat: no tick. **Send:** what the haptic feels like if it is
+missing, long or strong.
+
+11.B4 **Do:** put a finger on the button and drag it slowly up to the top of the screen, then down
+onto the keyboard. **See:** it follows the finger smoothly, grows slightly while dragged, stops
+just below the status bar at the top and, at the bottom, at its usual spot above the message bar
+(never over the status bar, the send button or the keys), and stays where you let go. One very
+short, crisp tick when the drag starts (a "segment tick", lighter than the tap in 11.B3); none
+while it moves. **Send:** a screen recording, and what the drag tick feels like if it is missing
+or the same as the tap.
+
+11.B5 **Do:** drag the button a few centimetres up and release; also try a tiny wiggle and a
+sideways slide before releasing. **See:** no panel opens after any drag (a drag is never a tap),
+and the button does not dim. A plain tap still opens the panel, and only once per tap. **Send:**
+which gesture opened the panel by mistake.
+
+11.B6 **Do:** in WhatsApp, drag the button to the middle of the chat. Close the keyboard, open it
+again; go Home, come back. **See:** the button returns to the same height above the keyboard
+each time. Then open Telegram (or another chat app): there it sits at the default spot (or where
+you put it in that app). Switch back to WhatsApp: still your spot. Restart the phone (or
+force-stop Replyly and turn it back on in Accessibility): the WhatsApp spot is remembered.
+**Send:** which app lost its spot.
+
+11.B7 **Do:** in WhatsApp with the button dragged up, switch to a taller keyboard layout (Gboard
+emoji or number row, or one-handed mode). **See:** the button keeps the same gap above the
+keyboard and moves with it. **Send:** a screenshot if it ends up over the keys.
+
+11.B8 **Do:** tap the button and watch it while the chat is being read. **See:** it dims until
+the panel opens (or the "can't read a chat" notice appears), then is back to full colour when the
+panel closes. **Send:** a screenshot if it stays dim.
+
+11.B9 **Do:** turn on TalkBack, open a chat with the keyboard, and swipe to the button. **See:**
+TalkBack says "Replyly: suggest replies, button". Swipe up then right (or use the TalkBack menu >
+Actions): "Move up" and "Move down" are listed and each moves the button about one button
+height; at the highest spot only "Move down" is listed, at the lowest only "Move up"; double-tap
+still opens the panel. **Send:** what TalkBack reads, if different.
+
+11.B10 **Do:** turn on "Remove animations" (see 11.A8) and repeat 11.B1 and 11.B4. **See:** the
+button appears and disappears at once, dragging still works. **Send:** anything stuck half-way.
+
+11.B11 **Do:** with the keyboard open in WhatsApp, drag the button as high as it goes and look
+closely at the top edge next to the camera punch-hole. **See:** the whole button and its shadow
+sit below the status bar (clock, icons) and below the punch-hole, with a small gap; nothing is
+cut off. Repeat in Telegram. **Send:** a screenshot of the button at its highest point.
+
+11.B12 **Do:** turn auto-rotate on, open a WhatsApp chat in landscape and tap the message field.
+**See:** the button shows above the keyboard on the right, fully on screen, even though there is
+little room; dragging moves it only a little or not at all, and it never covers the keys or the
+send button. Rotate back to portrait: the button is back at your portrait spot (if you dragged
+it in landscape, the portrait spot may have changed too; that is a known limit). **Send:** a
+landscape screenshot, and say whether the portrait spot changed when you had not dragged in
+landscape.
+
+11.B13 **Do:** in WhatsApp, start dragging the button upwards and, without lifting the finger,
+make the keyboard taller or shorter (with another finger tap Gboard's emoji key, or swipe the
+suggestion strip so the number row shows). Then keep dragging and let go. **See:** while the
+keyboard changes the button may overlap the keys for a moment; as soon as you move the finger
+again it jumps back inside the new range, and where you let go it sits above the keyboard and
+the message bar. **Send:** a screen recording if it stays over the keys after you let go.
+
+11.B14 **Do:** open a WhatsApp chat with the keyboard and the button showing. Pull down quick
+settings and toggle Dark mode, then close quick settings (keyboard still open). **See:** the
+button switches straight away to the dark look (light periwinkle with a dark mark), and back to
+ink blue when you toggle again, without closing the keyboard. **Send:** a screenshot if the
+button keeps the old colours until the keyboard is closed and opened.
+
+11.B15 **Do:** in WhatsApp, drag the button down as far as it goes (it stops just above the
+message bar). Now type a long message, or several lines with Shift+Enter, so the message bar
+grows to 3–4 lines. Close and reopen the keyboard. **See:** the button is never over the message
+bar or the send button: after the bar grows it sits above the taller bar. Delete the text: it
+goes back to your spot. **Send:** a screenshot if the button covers the bar or the send button.
+
+11.B16 **Do:** with the button showing, press the power button to turn the screen off, then
+turn it on again (lock screen visible, do not unlock yet). **See:** no Replyly button, not even
+a faded one, on the lock screen. Unlock: the button comes back over the chat as usual. **Send:**
+a photo of the lock screen if the button shows there.
+
 ### Settings, feedback timeline and "What's new" (polish item 7 and 9)
 
-11.20 **Do:** install a CI build of Replyly over the one you have (do not uninstall), open
-Replyly. **See:** a "What's new in Replyly" sheet slides up from the bottom with 3 to 4 short
+11.E1 **Do:** install a CI build of Replyly over the one you have (do not uninstall), open
+Replyly's Settings (if onboarding shows first, finish it; the sheet waits for Settings). **See:** a "What's new in Replyly" sheet slides up from the bottom with 3 to 4 short
 points and a "Got it" button. Tap "Got it", close Replyly from Recents and open it again.
 **See:** the sheet does not come back. Settings > About > What's new shows it again on demand.
-**Send:** "11.20 ok", or a Screenshot plus whether it showed 0 times or more than once.
+**Send:** "11.E1 ok", or a Screenshot plus whether it showed 0 times or more than once.
 
-11.21 **Do:** uninstall Replyly, install it fresh and finish onboarding until settings opens.
+11.E2 **Do:** uninstall Replyly, install it fresh and finish onboarding until settings opens.
 **See:** no "What's new" sheet on a fresh install. **Send:** Screenshot if it appears.
 
-11.22 **Do:** in Settings > Appearance, toggle "Material You colours" on and off; then change
+11.E3 **Do:** in Settings > Appearance, toggle "Material You colours" on and off; then change
 "Daily request limit" and tap "Save" in the bar at the bottom. **See (feel):** a light tick on
-each toggle and a short confirm buzz on Save; nothing on other taps. **Send:** "too strong",
+each toggle and a short confirm buzz once Save has stored the change; nothing on other taps. Now
+type 0 as the daily limit and tap Save: "Fix the marked fields" shows and there is no buzz. **Send:** "too strong",
 "too weak" or "none" for each, if not right. (Haptics follow Settings > Sounds and vibration >
 System vibration; if that is off you will feel nothing.)
 
-11.23 **Do:** in Replyly settings, scroll from the top to "About" and back, slowly and with a
+11.E4 **Do:** in Replyly settings, scroll from the top to "About" and back, slowly and with a
 fast fling; then tap into "About me" so the keyboard opens. **See:** smooth scrolling with no
 jumps or stutter; section headers (AI provider, Your style, Privacy, Limits and usage,
 Appearance, About) stay readable; the focused field stays above the keyboard and the Save bar
 sits above the keyboard too. **Send:** a screen recording if anything stutters or hides behind
 the keyboard.
 
-11.24 **Do:** Settings > Limits and usage. **See:** a ring that fills to today's share of the
-daily limit, with the % inside; at the limit it turns red. With "Remove animations" on (11.8)
-the ring appears filled at once. **Send:** Screenshot.
+11.E5 **Do:** Settings > Limits and usage. **See:** a ring that fills to today's share of the
+daily limit, with the % inside; at the limit it turns red. With "Remove animations" on (11.A8)
+the ring appears filled at once. With TalkBack on, the whole card is one item that reads the
+requests, the tokens and the percentage once. **Send:** Screenshot, and what TalkBack reads if it
+stops on the ring separately.
 
-11.25 **Do:** Settings > Privacy > Feedback log after a few suggestions. **See:** entries grouped
-under "Today", "Yesterday" or a date; each shows the chat, the 3 replies with the one you
-inserted on a blue background marked "Inserted", and "You sent" with your final message once it
-was seen. With TalkBack on, each reply reads with "Inserted" or "Not inserted". **Send:**
-Screenshot (blur private chats if you like).
+11.E6 **Do:** Settings > Privacy > Feedback log after a few suggestions. **See:** entries grouped
+under "Today", "Yesterday" or a date; each shows the chat, the app's name (e.g. "WhatsApp", not
+"com.whatsapp") with the model, the time in your phone's 12- or 24-hour style (Settings > General
+management > Date and time > Use 24-hour format: switch it and reopen the log), the 3 replies
+with the one you inserted on a blue background marked "Inserted", and "You sent" with your final
+message once it was seen. With TalkBack on, only the inserted reply says "Inserted"; the others
+read just their text. **Send:** Screenshot (blur private chats if you like), and the app name if
+it shows a package id instead.
+
+11.E7 **Do:** Settings > AI provider > Edit on an OpenRouter profile. **See:** under "Model" a
+list of radio rows (the three shortlist ids and "Other model id"), the current model selected;
+tapping a row selects it. Tap "Other model id": a "Model id" field appears where you can type any
+id; Save keeps it, and reopening the editor shows "Other model id" selected with your id. On an
+Anthropic profile the list has the Haiku id and "Other model id"; on an OpenAI profile there is
+just the field. **Send:** Screenshot of the editor if a row is cut off or the field is missing.
+
+11.E8 **Do:** leave the Feedback log open across midnight (or set the phone's clock to 23:59 with
+automatic time off, open the log, wait two minutes). **See:** entries from before midnight move
+under "Yesterday" without leaving the screen. Turn automatic time back on. **Send:** Screenshot if
+they still say "Today".
+
+## 12. Provider profiles (issue #18)
+
+Endpoint, key and model now live in a provider profile: where sections 8 and 9 say "settings →
+endpoint / API key / model", use Settings → "Provider profiles" → Edit on the selected profile.
+You need an OpenRouter key; for 12.4–12.6 also an OpenAI and an Anthropic key with a little
+credit. Note the Usage card's "Requests today" and tokens before each test.
+
+12.1 **Do:** with a build from before profiles installed and a key saved, install the new APK over
+it and open Settings. **See:** under "Provider profiles" one selected row "OpenRouter",
+"OpenAI-compatible · <your model>", no red "No API key". Tap the button in a WhatsApp chat: 3
+cards, without entering the key again. **Send:** screenshot of the profiles section; error card
+text if any.
+
+12.2 **Do:** tap "Test connection" on the OpenRouter row. **See:** "OK · N ms" within about 3 s;
+Requests today goes up by exactly 1 and tokens by a few. **Send:** the text and the usage numbers
+before and after.
+
+12.3 **Do:** "Add profile" → preset "OpenAI" → paste an OpenAI key → model: a current reasoning
+model from your OpenAI account (one that needs `max_completion_tokens`) → Save. Tap "Test connection" on the new row. **See:** the editor's hint says
+"Requests go to https://api.openai.com/v1/chat/completions"; the test shows "OK · N ms". **Send:**
+the test text, or the error text.
+
+12.4 **Do:** "Add profile" → preset "Anthropic" (base URL `https://api.anthropic.com/v1`, model
+`claude-haiku-5-5`) → paste an Anthropic key → Save → "Test connection". **See:** the hint says
+"Requests go to https://api.anthropic.com/v1/messages"; the test shows "OK · N ms". **Send:** the
+test text, or the error text.
+
+12.5 **Do:** tap the Anthropic row to select it. In a WhatsApp chat tap the button, then
+Regenerate twice. **See:** 3 cards each time within about 2 s, in your language and style, never
+"The reply was cut off" or "Could not read the model's reply". Open Settings → Feedback log.
+**See:** the newest entries show model `claude-haiku-5-5`. **Send:** latency of each try, any
+error card text, pass/fail on style.
+
+12.6 **Do:** select the OpenAI profile and repeat 12.5. Then turn on "3 parallel calls" and repeat
+once with the Anthropic profile. **See:** as 12.5; parallel mode still adds 1 request per tap.
+**Send:** latency per profile, parallel off vs on.
+
+12.7 **Do:** switch back to the OpenRouter row, tap the button. **See:** cards come back; the
+feedback log shows the OpenRouter model again. **Send:** pass/fail.
+
+12.8 **Do:** edit the Anthropic profile, base URL `https://api.anthropic.com` (no `/v1`), Save,
+Test. **See:** the hint still ends in `/v1/messages`; "OK · N ms". **Send:** pass/fail.
+
+12.9 **Do:** on the Anthropic profile: Replace the key with a wrong one (change one character),
+Save, Test. Then restore the key and set model `claude-does-not-exist`, Save, Test. **See:** "API
+key rejected (401). Check the key in Settings." then "The API returned an error (404). Model or
+endpoint not found. Check Settings." Each test adds 1 request. Restore the model. **Send:** the
+exact texts.
+
+12.10 **Do:** edit any profile → "Add header" → name `X-Replyly-Test`, value `abc123` → Save. Edit
+again. **See:** "X-Replyly-Test: value saved", the value is never shown; "API key: saved ••••••••".
+Force-stop Replyly and reopen: still the same. Test connection still OK (most providers ignore
+unknown headers). Remove the header. **Send:** screenshot of the editor.
+
+12.11 **Do:** while running 12.2–12.9, keep
+`adb logcat -v time | grep -i -E "sk-|x-api-key|abc123|authorization"` open. **See:** no lines.
+**Send:** any line it prints (blur the key).
+
+12.12 **Do:** delete a profile that is not selected; then delete the selected one. **See:** a
+confirmation each time; after deleting the selected one another row becomes selected. With one
+profile left, "Delete profile" is disabled. **Send:** pass/fail.
+
+12.13 **Do:** select a profile without a key (add one and skip the key), then open Setup steps.
+**See:** step 5 (API key and model) is not done. Select a profile with a key and open Setup
+steps again: step 5 is done.
+**Send:** pass/fail.
+
+12.14 **Do:** edit any profile → "Add header" twice, so the last header value field is at the
+bottom of the editor. Tap that bottom value field so the keyboard opens. Then rotate the phone to
+landscape and back. Then press Back (gesture or button). **See:** the editor's top bar sits below
+the status bar, never under it; with the keyboard up the focused field stays visible above the
+keyboard, with no large empty gap between them; after rotating, the typed text is still there.
+Back first closes the keyboard; a second Back closes the editor without saving (edits are
+dropped). **Send:** a screenshot with the keyboard up, one after rotating, and say what each Back
+did.
+
+12.15 **Do:** edit the OpenRouter profile (which has a saved key), tap the "OpenAI" preset, set a
+model, and tap Save without typing a key. **See:** the key field opens with "Enter the key for
+this provider" and nothing is saved. Tap Cancel. Then edit it again, tap "Remove" next to the
+saved key, then Cancel, and edit again. **See:** "API key: saved ••••••••" is still there.
+**Send:** pass/fail.

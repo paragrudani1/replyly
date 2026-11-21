@@ -31,15 +31,15 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
@@ -61,10 +61,13 @@ import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import com.paragrudani.replyly.R
 import com.paragrudani.replyly.appGraph
+import com.paragrudani.replyly.ui.settings.profiles.ProviderProfilesSection
 import com.paragrudani.replyly.ui.theme.Elevation
+import com.paragrudani.replyly.ui.theme.HapticEvent
 import com.paragrudani.replyly.ui.theme.MinTouchTarget
 import com.paragrudani.replyly.ui.theme.ReplylyWordmark
 import com.paragrudani.replyly.ui.theme.Spacing
+import com.paragrudani.replyly.ui.theme.rememberReplylyHaptics
 import kotlinx.serialization.Serializable
 
 // Owned by ticket #6; restyled by the polish pass (#17, item 7).
@@ -93,7 +96,6 @@ private fun SettingsRouteContent(
                     initializer {
                         SettingsViewModel(
                             settingsRepository = graph.settingsRepository,
-                            apiKeyStore = graph.apiKeyStore,
                             costGuard = graph.costGuard,
                             feedbackLog = graph.feedbackLog,
                             clock = graph.clock,
@@ -114,15 +116,22 @@ private fun SettingsRouteContent(
             showFeedbackLog = false
         }
         BackHandler(onBack = closeFeedbackLog)
-        val entries by vm.feedbackEntries.collectAsStateWithLifecycle(initialValue = emptyList())
+        // Bumping retry drops the old collection and subscribes again, so "Try again" re-reads the DB.
+        var retry by rememberSaveable { mutableIntStateOf(0) }
+        val entries by key(retry) { vm.feedbackEntries.collectAsStateWithLifecycle(initialValue = emptyList()) }
         val state by vm.state.collectAsStateWithLifecycle()
+        val today by rememberToday(graph.clock)
         FeedbackLogScreen(
             entries = entries,
             error = state.storageError,
             onClear = vm::clearFeedbackLog,
             onBack = closeFeedbackLog,
+            onRetry = {
+                vm.dismissStorageError()
+                retry++
+            },
             zone = graph.clock.zone,
-            today = java.time.LocalDate.now(graph.clock),
+            today = today,
         )
     } else {
         SettingsScreen(
@@ -130,14 +139,17 @@ private fun SettingsRouteContent(
             onOpenOnboarding,
             onOpenDebug,
             onOpenFeedbackLog = { showFeedbackLog = true },
-            onOpenWhatsNew = { showWhatsNew = true },
+            // Issue #18: endpoint, key and model live in provider profiles (ui/settings/profiles/).
+            aiProvider = { SettingsGroupPadding { ProviderProfilesSection() } },
+            onOpenWhatsNew = if (notes.isEmpty()) null else ({ showWhatsNew = true }),
         )
     }
     if (showWhatsNew && notes.isNotEmpty()) {
-        WhatsNewSheet(title = stringResource(R.string.whats_new_title), notes = notes, onDismiss = {
-            showWhatsNew =
-                false
-        })
+        WhatsNewSheet(
+            title = stringResource(R.string.whats_new_title),
+            notes = notes,
+            onDismiss = { showWhatsNew = false },
+        )
     }
 }
 
@@ -146,8 +158,8 @@ private fun SettingsRouteContent(
  * Appearance, About.
  *
  * @param aiProvider the content of the "AI provider" section above the parallel-calls switch.
- *   Null shows [LegacyAiProviderFields] (endpoint, key, model). Provider profiles (#18) pass
- *   their own UI here.
+ *   The route passes the provider profiles; tests pass a fixed-state list.
+ * @param onOpenWhatsNew null hides the "What's new" row (no notes in this build).
  * @param appVersion shown under About; tests pass a fixed value so screenshots do not change
  *   with the CI build number.
  */
@@ -157,14 +169,17 @@ fun SettingsScreen(
     onOpenOnboarding: () -> Unit,
     onOpenDebug: () -> Unit,
     onOpenFeedbackLog: () -> Unit,
-    onOpenWhatsNew: () -> Unit = {},
+    aiProvider: @Composable ColumnScope.() -> Unit,
+    onOpenWhatsNew: (() -> Unit)? = null,
     appVersion: String = rememberAppVersionName(),
     listState: LazyListState = rememberLazyListState(),
-    aiProvider: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refreshUsage() }
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberReplylyHaptics()
+    // Confirm only once the write succeeded (DESIGN.md > Haptics); a rotation does not replay it.
+    val savesBefore = remember { state.savedCount }
+    LaunchedEffect(state.savedCount) { if (state.savedCount > savesBefore) haptics.perform(HapticEvent.Save) }
     val snackbarHostState = remember { SnackbarHostState() }
     state.saveError?.let { message ->
         LaunchedEffect(message) {
@@ -184,10 +199,7 @@ fun SettingsScreen(
             if (state.dirty) {
                 SaveBar(
                     onDiscard = vm::discardChanges,
-                    onSave = {
-                        haptics.performHapticFeedback(HapticFeedbackType.Confirm)
-                        vm.save()
-                    },
+                    onSave = vm::save,
                     hasErrors = state.errors.isNotEmpty(),
                 )
             }
@@ -208,7 +220,7 @@ fun SettingsScreen(
             }
             item(key = "ai") {
                 SettingsSection("AI provider") {
-                    if (aiProvider != null) aiProvider() else LegacyAiProviderFields(state, vm)
+                    aiProvider()
                     SettingsDivider()
                     SettingsSwitchRow(
                         label = "3 parallel calls",
@@ -251,6 +263,7 @@ fun SettingsScreen(
                         title = "Blocked apps",
                         hint = "Replyly never reads these apps. Package name, e.g. com.google.android.apps.messaging",
                         emptyText = "No apps blocked yet",
+                        emptyBody = "Banking apps, password fields and secure screens are always skipped.",
                         placeholder = "com.example.app",
                         entries = draft.blockedPackages,
                         onAdd = vm::addBlockedPackage,
@@ -314,8 +327,10 @@ fun SettingsScreen(
             }
             item(key = "about") {
                 SettingsSection("About") {
-                    SettingsNavRow(title = "What's new", onClick = onOpenWhatsNew, onClickLabel = "Show")
-                    SettingsDivider()
+                    if (onOpenWhatsNew != null) {
+                        SettingsNavRow(title = "What's new", onClick = onOpenWhatsNew, onClickLabel = "Show")
+                        SettingsDivider()
+                    }
                     SettingsNavRow(
                         title = "Setup steps",
                         supporting = "Permissions and the checklist",
@@ -355,6 +370,8 @@ private fun BlocklistBlock(
     title: String,
     hint: String,
     emptyText: String,
+    /** One line under the empty state; null for none. */
+    emptyBody: String? = null,
     placeholder: String,
     entries: Set<String>,
     onAdd: (String) -> String?,
@@ -371,7 +388,7 @@ private fun BlocklistBlock(
             EmptyState(
                 illustration = R.drawable.ill_empty_blocklist,
                 title = emptyText,
-                body = "Banking apps, password fields and secure screens are always skipped.",
+                body = emptyBody,
                 size = 40.dp,
                 compact = true,
                 modifier = Modifier.padding(vertical = Spacing.S),

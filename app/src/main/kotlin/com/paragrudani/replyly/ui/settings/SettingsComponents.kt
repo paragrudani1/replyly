@@ -22,8 +22,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
@@ -34,9 +32,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.paragrudani.replyly.R
+import com.paragrudani.replyly.ui.theme.HapticEvent
 import com.paragrudani.replyly.ui.theme.MinTouchTarget
 import com.paragrudani.replyly.ui.theme.ReplylyTheme
 import com.paragrudani.replyly.ui.theme.Spacing
+import com.paragrudani.replyly.ui.theme.rememberReplylyHaptics
 
 /** A section title above its group: titleMedium in primary, a TalkBack heading. */
 @Composable
@@ -155,18 +155,14 @@ fun SettingsSwitchRow(
     onCheckedChange: (Boolean) -> Unit,
     haptic: Boolean = false,
 ) {
-    val haptics = LocalHapticFeedback.current
+    val haptics = rememberReplylyHaptics()
     Row(
         modifier =
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = MinTouchTarget)
                 .toggleable(value = checked, role = Role.Switch) { value ->
-                    if (haptic) {
-                        haptics.performHapticFeedback(
-                            if (value) HapticFeedbackType.ToggleOn else HapticFeedbackType.ToggleOff,
-                        )
-                    }
+                    if (haptic) haptics.perform(HapticEvent.toggle(value))
                     onCheckedChange(value)
                 }.padding(horizontal = Spacing.L, vertical = Spacing.M),
         verticalAlignment = Alignment.CenterVertically,
@@ -235,15 +231,36 @@ fun ValidatedField(
 fun EmptyState(
     illustration: Int,
     title: String,
-    body: String,
+    body: String?,
     modifier: Modifier = Modifier,
     size: Dp = 96.dp,
     sparkle: Boolean = false,
     /** Smaller type, for an empty state inside a section. */
     compact: Boolean = false,
+    /** A button under the text (for example "Try again"); its own TalkBack stop. */
+    action: (@Composable () -> Unit)? = null,
 ) {
     Column(
-        modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
+        modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Spacing.S),
+    ) {
+        EmptyStateTexts(illustration, title, body, size, sparkle, compact)
+        action?.invoke()
+    }
+}
+
+@Composable
+private fun EmptyStateTexts(
+    illustration: Int,
+    title: String,
+    body: String?,
+    size: Dp,
+    sparkle: Boolean,
+    compact: Boolean,
+) {
+    Column(
+        Modifier.fillMaxWidth().semantics(mergeDescendants = true) {},
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(Spacing.S),
     ) {
@@ -265,11 +282,13 @@ fun EmptyState(
         }
         val type = MaterialTheme.typography
         Text(title, style = if (compact) type.titleSmall else type.titleMedium, textAlign = TextAlign.Center)
-        Text(
-            body,
-            style = if (compact) type.bodySmall else type.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-        )
+        if (body != null) {
+            Text(
+                body,
+                style = if (compact) type.bodySmall else type.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }

@@ -6,6 +6,8 @@ import android.database.ContentObserver
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.view.animation.Interpolator
+import android.view.animation.PathInterpolator
 import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FiniteAnimationSpec
@@ -42,14 +44,42 @@ object MotionDurations {
 
 /** Easing curves (Material 3 "emphasized" family). */
 object MotionEasing {
+    private class Curve(
+        val x1: Float,
+        val y1: Float,
+        val x2: Float,
+        val y2: Float,
+    ) {
+        val easing: Easing = CubicBezierEasing(x1, y1, x2, y2)
+    }
+
+    private val standard = Curve(0.2f, 0f, 0f, 1f)
+    private val enter = Curve(0.05f, 0.7f, 0.1f, 1f)
+    private val exit = Curve(0.3f, 0f, 0.8f, 0.15f)
+
     /** Things that move or resize on screen. */
-    val Standard: Easing = CubicBezierEasing(0.2f, 0f, 0f, 1f)
+    val Standard: Easing = standard.easing
 
     /** Things entering: fast start, gentle stop. */
-    val Enter: Easing = CubicBezierEasing(0.05f, 0.7f, 0.1f, 1f)
+    val Enter: Easing = enter.easing
 
     /** Things leaving: gentle start, fast finish. */
-    val Exit: Easing = CubicBezierEasing(0.3f, 0f, 0.8f, 0.15f)
+    val Exit: Easing = exit.easing
+
+    /**
+     * The same curve as [easing] ([Standard], [Enter] or [Exit]) for View animations
+     * (`animate().setInterpolator(...)`), so View code never copies the control points.
+     */
+    fun viewInterpolator(easing: Easing): Interpolator {
+        val curve =
+            when (easing) {
+                Standard -> standard
+                Enter -> enter
+                Exit -> exit
+                else -> throw IllegalArgumentException("Not a MotionEasing curve")
+            }
+        return PathInterpolator(curve.x1, curve.y1, curve.x2, curve.y2)
+    }
 }
 
 /** Spring defaults: a soft settle with a hint of bounce, never wobbly. */

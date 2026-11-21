@@ -10,7 +10,6 @@ import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.llm.TokenUsage
 import com.paragrudani.replyly.parser.ChatKey
 import com.paragrudani.replyly.security.DatabaseKeyUnavailableException
-import com.paragrudani.replyly.settings.InMemoryApiKeyStore
 import com.paragrudani.replyly.settings.InMemorySettingsRepository
 import com.paragrudani.replyly.settings.ReplylySettings
 import com.paragrudani.replyly.settings.SettingsRepository
@@ -37,7 +36,6 @@ import java.time.LocalDateTime
 class SettingsViewModelTest {
     private val clock = MutableClock.atLocal(LocalDateTime.of(2026, 11, 21, 10, 0))
     private val settings = InMemorySettingsRepository(ReplylySettings(retentionDays = 60))
-    private val apiKeys = InMemoryApiKeyStore()
     private val cost = InMemoryCostGuard(dailyRequestLimit = 200)
     private val feedback = InMemoryFeedbackLog(clock)
 
@@ -45,14 +43,14 @@ class SettingsViewModelTest {
 
     @After fun tearDown() = Dispatchers.resetMain()
 
-    private fun viewModel() = SettingsViewModel(settings, apiKeys, cost, feedback, clock)
+    private fun viewModel() = SettingsViewModel(settings, cost, feedback, clock)
 
     @Test
     fun `the form starts from the stored settings`() =
         runTest {
-            settings.update { it.copy(model = "google/gemini-3.8-flash") }
+            settings.update { it.copy(aboutMe = "Short replies.") }
             val state = viewModel().state.value
-            assertThat(state.draft?.model).isEqualTo("google/gemini-3.8-flash")
+            assertThat(state.draft?.aboutMe).isEqualTo("Short replies.")
             assertThat(state.dirty).isFalse()
         }
 
@@ -60,15 +58,28 @@ class SettingsViewModelTest {
     fun `saving a valid form writes it and clears dirty`() =
         runTest {
             val vm = viewModel()
-            vm.editDraft { it.copy(model = "~openai/gpt-mini-latest", dailyRequestLimit = "50") }
+            vm.editDraft { it.copy(aboutMe = "Short replies.", dailyRequestLimit = "50") }
             assertThat(vm.state.value.dirty).isTrue()
 
             vm.save()
 
-            assertThat(settings.current().model).isEqualTo("~openai/gpt-mini-latest")
+            assertThat(settings.current().aboutMe).isEqualTo("Short replies.")
             assertThat(settings.current().dailyRequestLimit).isEqualTo(50)
             assertThat(vm.state.value.dirty).isFalse()
             assertThat(vm.state.value.errors).isEmpty()
+        }
+
+    @Test
+    fun `savedCount goes up only when Save wrote the settings`() =
+        runTest {
+            val vm = viewModel()
+            assertThat(vm.state.value.savedCount).isEqualTo(0)
+            vm.editDraft { it.copy(dailyRequestLimit = "0") }
+            vm.save()
+            assertThat(vm.state.value.savedCount).isEqualTo(0) // invalid: nothing written
+            vm.editDraft { it.copy(dailyRequestLimit = "50") }
+            vm.save()
+            assertThat(vm.state.value.savedCount).isEqualTo(1)
         }
 
     @Test
@@ -92,76 +103,12 @@ class SettingsViewModelTest {
     fun `an invalid form is not saved and shows the errors`() =
         runTest {
             val vm = viewModel()
-            vm.editDraft { it.copy(endpoint = "http://insecure.test", retentionDays = "0") }
+            vm.editDraft { it.copy(historyMessageCount = "0", retentionDays = "0") }
             vm.save()
 
             assertThat(settings.current()).isEqualTo(ReplylySettings(retentionDays = 60))
-            assertThat(vm.state.value.errors.keys).containsExactly(SettingsField.Endpoint, SettingsField.RetentionDays)
-        }
-
-    @Test
-    fun `the api key is saved, never shown back, and can be cleared`() =
-        runTest {
-            val vm = viewModel()
-            assertThat(vm.state.value.apiKeySaved).isFalse()
-
-            vm.setApiKeyInput("sk-or-v1-0123456789abcdef")
-            vm.saveApiKey()
-
-            assertThat(apiKeys.get()).isEqualTo("sk-or-v1-0123456789abcdef")
-            assertThat(vm.state.value.apiKeySaved).isTrue()
-            assertThat(vm.state.value.apiKeyInput).isEmpty()
-            assertThat(vm.state.value.toString()).doesNotContain("0123456789abcdef")
-
-            vm.clearApiKey()
-            assertThat(apiKeys.get()).isNull()
-            assertThat(vm.state.value.apiKeySaved).isFalse()
-        }
-
-    @Test
-    fun `replacing a saved key keeps the field open until the new key is stored`() =
-        runTest {
-            val vm = viewModel()
-            vm.setApiKeyInput("sk-or-v1-0123456789abcdef")
-            vm.saveApiKey()
-            assertThat(vm.state.value.showApiKeyField).isFalse()
-
-            vm.startReplacingApiKey()
-            assertThat(vm.state.value.showApiKeyField).isTrue()
-            vm.setApiKeyInput("bad key")
-            vm.saveApiKey()
-            assertThat(vm.state.value.showApiKeyField).isTrue()
-            assertThat(vm.state.value.apiKeyError).isNotNull()
-
-            vm.setApiKeyInput("sk-or-v1-fedcba9876543210")
-            vm.saveApiKey()
-            assertThat(vm.state.value.showApiKeyField).isFalse()
-            assertThat(apiKeys.get()).isEqualTo("sk-or-v1-fedcba9876543210")
-        }
-
-    @Test
-    fun `cancelling a replacement keeps the old key`() =
-        runTest {
-            val vm = viewModel()
-            vm.setApiKeyInput("sk-or-v1-0123456789abcdef")
-            vm.saveApiKey()
-            vm.startReplacingApiKey()
-            vm.setApiKeyInput("sk-or-v1-half")
-            vm.cancelReplacingApiKey()
-            assertThat(vm.state.value.showApiKeyField).isFalse()
-            assertThat(vm.state.value.apiKeyInput).isEmpty()
-            assertThat(apiKeys.get()).isEqualTo("sk-or-v1-0123456789abcdef")
-        }
-
-    @Test
-    fun `a bad api key is refused with a message that does not echo it`() =
-        runTest {
-            val vm = viewModel()
-            vm.setApiKeyInput("sk 123")
-            vm.saveApiKey()
-            assertThat(apiKeys.get()).isNull()
-            assertThat(vm.state.value.apiKeyError).isNotNull()
-            assertThat(vm.state.value.apiKeyError).doesNotContain("sk 123")
+            assertThat(vm.state.value.errors.keys)
+                .containsExactly(SettingsField.HistoryMessageCount, SettingsField.RetentionDays)
         }
 
     @Test
@@ -231,11 +178,12 @@ class SettingsViewModelTest {
                         backing.update(transform)
                     }
                 }
-            val vm = SettingsViewModel(failing, apiKeys, cost, feedback, clock)
+            val vm = SettingsViewModel(failing, cost, feedback, clock)
 
             vm.editDraft { it.copy(dailyRequestLimit = "50") }
             vm.save()
             assertThat(vm.state.value.saveError).isEqualTo("Could not save settings")
+            assertThat(vm.state.value.savedCount).isEqualTo(0) // no confirm haptic for a failed write
             assertThat(vm.state.value.dirty).isTrue() // the edit stays so the user can retry
             assertThat(settings.current().dailyRequestLimit).isEqualTo(200)
 
@@ -263,7 +211,7 @@ class SettingsViewModelTest {
                         refreshed++
                     }
                 }
-            SettingsViewModel(settings, apiKeys, guard, feedback, clock).refreshUsage()
+            SettingsViewModel(settings, guard, feedback, clock).refreshUsage()
             assertThat(refreshed).isEqualTo(1)
         }
 
@@ -328,7 +276,7 @@ class SettingsViewModelTest {
     @Test
     fun `a locked feedback DB on open shows the fixed message instead of crashing`() =
         runTest {
-            val vm = SettingsViewModel(settings, apiKeys, cost, LockedFeedbackLog(feedback), clock)
+            val vm = SettingsViewModel(settings, cost, LockedFeedbackLog(feedback), clock)
 
             assertThat(vm.state.value.storageError).isEqualTo("Secure storage is locked. Try again.")
             assertThat(vm.state.value.storageError).isEqualTo(SettingsViewModel.STORAGE_LOCKED)
@@ -339,7 +287,7 @@ class SettingsViewModelTest {
     @Test
     fun `a locked feedback DB shows an empty log with the fixed message`() =
         runTest {
-            val vm = SettingsViewModel(settings, apiKeys, cost, LockedFeedbackLog(feedback), clock)
+            val vm = SettingsViewModel(settings, cost, LockedFeedbackLog(feedback), clock)
             vm.dismissStorageError()
 
             assertThat(vm.feedbackEntries.first()).isEmpty()
@@ -350,7 +298,7 @@ class SettingsViewModelTest {
     fun `clearing a locked feedback log shows the fixed message, and works once unlocked`() =
         runTest {
             val locked = LockedFeedbackLog(feedback)
-            val vm = SettingsViewModel(settings, apiKeys, cost, locked, clock)
+            val vm = SettingsViewModel(settings, cost, locked, clock)
             vm.dismissStorageError()
 
             vm.clearFeedbackLog()
@@ -372,7 +320,7 @@ class SettingsViewModelTest {
                     { RuntimeException(DatabaseKeyUnavailableException(IllegalStateException("wrapped"))) },
                 )
             for (failure in failures) {
-                val vm = SettingsViewModel(settings, apiKeys, cost, LockedFeedbackLog(feedback, failure), clock)
+                val vm = SettingsViewModel(settings, cost, LockedFeedbackLog(feedback, failure), clock)
                 assertThat(vm.state.value.storageError).isEqualTo(SettingsViewModel.STORAGE_LOCKED)
                 vm.dismissStorageError()
                 assertThat(vm.feedbackEntries.first()).isEmpty()
