@@ -1170,8 +1170,11 @@ cards say "aaj" or today, not tomorrow. The day header above the message reads
 `— Yesterday · … —`, with `(approx)` if no date separator was on screen when Replyly read it. Variant:
 have a "kal" message sent before midnight that Replyly has never seen, and open the chat for the
 first time after midnight with the "YESTERDAY" separator on screen. **See:** the header still reads
-`— Yesterday · … —`, with no `(approx)`, and kal resolves to today. **Send:** the day header line,
-the analysis and the cards, for both.
+`— Yesterday · … —`, with no `(approx)`, and kal resolves to today. Second variant: the same, but
+open the chat first after midnight scrolled so that **no** date separator is on screen (the "kal"
+message sent around 11:50 pm). **See:** the header reads `— Yesterday · … (approx) —` (not
+`Today`), and kal resolves to today. **Send:** the day header line, the analysis and the cards, for
+all three.
 
 14.6 **Do:** in a chat, send a short message yourself that is not a question (e.g. "ok done"), then
 right away tap the button. **See:** the panel shows "Nothing to reply to", "Your message is the last
