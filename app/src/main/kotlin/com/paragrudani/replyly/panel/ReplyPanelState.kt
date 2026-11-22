@@ -112,8 +112,9 @@ const val COPIED_VISIBLE_MILLIS = 1_500L
  * [suggestFollowUpsAnyway], each ignored while a call runs, while an insert runs and after the
  * panel finished. Before each call the assembled request is checked with [ReplyTarget.decide]:
  * when there is nothing to reply to, the panel shows [SuggestionsUi.NothingToReply] and makes no
- * call, until the user taps "Suggest follow-ups anyway" (from then on, this panel's generations
- * are follow-ups). The panel's out-and-in card animation only follows [PanelUiState.suggestions]; it
+ * call, until the user taps "Suggest follow-ups anyway", Regenerate, or a chip that leaves an
+ * instruction (from then on, this panel's generations are follow-ups). Each of those is a user
+ * tap and makes one call (invariant 4). The panel's out-and-in card animation only follows [PanelUiState.suggestions]; it
  * never starts or delays a call.
  *
  * The instruction sent is [combineInstruction]: the selected chips' fixed prompts, then the typed
@@ -165,8 +166,15 @@ class ReplyPanelState(
         mutableState.update { it.copy(instruction = text.takeWholeCharacters(instructionRoom(it.chips))) }
     }
 
-    /** Regenerate and Retry: one new call with the current instruction. Ignored while one runs. */
-    fun regenerate() = generate()
+    /**
+     * Regenerate and Retry: one new call with the current instruction. Ignored while one runs. On
+     * the [SuggestionsUi.NothingToReply] state it is an explicit tap for follow-ups, like
+     * [suggestFollowUpsAnyway] (with or without an instruction): one call.
+     */
+    fun regenerate() {
+        if (mutableState.value.suggestions == SuggestionsUi.NothingToReply && canGenerate()) followUpAnyway = true
+        generate()
+    }
 
     /**
      * "Suggest follow-ups anyway" on the [SuggestionsUi.NothingToReply] state: one call for 3
@@ -182,16 +190,23 @@ class ReplyPanelState(
      * A quick-chip tap: toggles [chip] and makes one new call with the combined instruction.
      * Ignored (nothing changes) while a call or an insert runs, or after the panel finished.
      *
+     * On the [SuggestionsUi.NothingToReply] state, a tap that leaves an instruction (a chip or
+     * typed text) asks for follow-ups that follow it, like [suggestFollowUpsAnyway]: one call. A tap
+     * that leaves no instruction only checks again (no call).
+     *
      * A chip takes room from the typed text: if the field holds more than the new
      * [instructionRoom], the field itself is shortened (visible, with the counter at its limit), so
      * what is sent is exactly what the field shows.
      */
     fun toggleChip(chip: QuickInstruction) {
         if (!canGenerate()) return
+        val nothingToReply = mutableState.value.suggestions == SuggestionsUi.NothingToReply
         mutableState.update {
             val chips = if (chip in it.chips) it.chips - chip else it.chips + chip
             it.copy(chips = chips, instruction = it.instruction.takeWholeCharacters(instructionRoom(chips)))
         }
+        val current = mutableState.value
+        if (nothingToReply && combineInstruction(current.instruction, current.chips) != null) followUpAnyway = true
         generate()
     }
 
