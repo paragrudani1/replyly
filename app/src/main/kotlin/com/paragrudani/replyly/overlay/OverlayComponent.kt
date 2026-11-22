@@ -14,6 +14,7 @@ import com.paragrudani.replyly.di.AppGraph
 import com.paragrudani.replyly.insert.InputFieldRef
 import com.paragrudani.replyly.panel.ReplyPanel
 import com.paragrudani.replyly.parser.ChatParserRegistry
+import com.paragrudani.replyly.parser.x.XFields
 import com.paragrudani.replyly.policy.ScreenContext
 import com.paragrudani.replyly.policy.SensitiveScreenPolicy
 import com.paragrudani.replyly.policy.SensitivityVerdict
@@ -77,9 +78,11 @@ class OverlayComponent(
             OverlayController(
                 readFacts = ScreenFactsReader.of(service)::read,
                 visibility =
-                    ButtonVisibility(service.packageName) { pkg ->
-                        policy.evaluate(ScreenContext(pkg)) == SensitivityVerdict.Allowed
-                    },
+                    ButtonVisibility(
+                        service.packageName,
+                        isAppAllowed = { pkg -> policy.evaluate(ScreenContext(pkg)) == SensitivityVerdict.Allowed },
+                        isFieldAllowed = XFields::allowsButton,
+                    ),
                 place = { shown ->
                     val metrics = windowManager.currentWindowMetrics
                     val screen = metrics.bounds

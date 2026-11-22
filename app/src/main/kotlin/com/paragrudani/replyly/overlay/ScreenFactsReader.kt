@@ -43,6 +43,7 @@ class ScreenFactsReader(
             password = node.isPassword,
             viewId = node.viewIdResourceName,
             bounds = rect.toBounds(),
+            hint = node.hintText?.toString(),
         )
     }
 
