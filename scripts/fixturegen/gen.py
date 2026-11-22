@@ -40,11 +40,11 @@ def node(cls, bounds, text=None, vid=None, cd=None, hint=None, children=None, **
     return n
 
 
-def snapshot(pkg, root):
+def snapshot(pkg, root, captured=CAPTURED):
     return {
         "formatVersion": 1,
         "packageName": pkg,
-        "capturedAt": CAPTURED,
+        "capturedAt": captured,
         "screenWidth": W,
         "screenHeight": H,
         "root": root,
@@ -215,7 +215,8 @@ class Wa:
                      vid=self.id("unread_divider_tv"))
         return node("android.view.ViewGroup", b(0, y, 1080, y + 86), children=[child]), y + 86
 
-    def chat(self, title, subtitle, items, start_y, group=False, draft=None, composer_quote=None, fab=None):
+    def chat(self, title, subtitle, items, start_y, group=False, draft=None, composer_quote=None, fab=None,
+             captured=CAPTURED):
         rows = []
         y = start_y
         for it in items:
@@ -243,7 +244,7 @@ class Wa:
                                  node("android.widget.TextView", b(1000, 1770, 1050, 1820), text=fab,
                                       vid=self.id("badge"))]))
         root = node("android.widget.FrameLayout", b(0, 0, W, H), children=kids)
-        return snapshot(self.pkg, root)
+        return snapshot(self.pkg, root, captured)
 
 
 def parse_bounds(s):
@@ -326,6 +327,60 @@ WA_HINGLISH = [
     {"kind": "out", "text": "Majama! Tame kaho", "time": "11:51 am", "status": "Delivered"},
 ]
 
+# Dates (issue #26). Captured Wednesday 2 December 2026, 11:30 in India.
+WA_DATES_CAPTURED = "2026-12-02T06:00:00Z"
+WA_DATES = [
+    # Separator at the very top, in the long form WhatsApp uses for days over a week ago.
+    {"kind": "divider", "text": "21 NOVEMBER 2026"},
+    {"kind": "in", "text": "Did the parcel arrive?", "time": "6:40 pm"},
+    {"kind": "out", "text": "Not yet, tomorrow maybe", "time": "6:45 pm", "status": "Read"},
+    {"kind": "divider", "text": "THURSDAY"},
+    {"kind": "in", "text": "It came! Thanks", "time": "9:05 am"},
+    {"kind": "divider", "text": "YESTERDAY"},
+    {"kind": "out", "text": "Are we still on for Friday dinner?", "time": "8:30 pm", "status": "Read"},
+    # Today's divider inside the first row of the day; a reply that quotes my message.
+    {"kind": "in", "text": "Yes, 8 pm works", "time": "10:12 am", "divider_inside": "TODAY",
+     "quote": ("You", "Are we still on for Friday dinner?")},
+    {"kind": "in", "text": "Book a table for four", "time": "10:13 am"},
+]
+
+# No separator on screen: every message has an unknown date.
+WA_NO_SEPARATOR = [
+    {"kind": "in", "text": "Are you home?", "time": "7:10 pm"},
+    {"kind": "out", "text": "Reaching in 10", "time": "7:12 pm", "status": "Read"},
+    {"kind": "in", "text": "ok, bring milk", "time": "7:13 pm"},
+]
+
+# Midnight rollover: captured at 00:05 on Sunday 22 November 2026 in India (18:35 UTC on the 21st).
+WA_MIDNIGHT_CAPTURED = "2026-11-21T18:35:00Z"
+WA_MIDNIGHT = [
+    {"kind": "in", "text": "Still up?", "time": "11:52 pm"},
+    {"kind": "divider", "text": "YESTERDAY"},
+    {"kind": "out", "text": "Yes, watching the match", "time": "11:58 pm", "status": "Read"},
+    {"kind": "divider", "text": "TODAY"},
+    {"kind": "in", "text": "Happy birthday!! 🎂", "time": "12:01 am"},
+    {"kind": "out", "text": "Thank you 😄", "time": "12:03 am", "status": "Read"},
+]
+
+# Hinglish, with day-first numeric separators (WhatsApp Business, Indian English).
+WA_NUMERIC = [
+    {"kind": "divider", "text": "12/11/2026"},
+    {"kind": "in", "text": "Order ka status kya hai?", "time": "4:10 pm"},
+    {"kind": "out", "text": "Kal tak dispatch ho jayega ji", "time": "4:20 pm", "status": "Read"},
+    {"kind": "divider", "text": "TODAY"},
+    {"kind": "in", "text": "Bhaiya abhi tak nahi aaya 😕", "time": "10:05 am"},
+]
+
+# Hinglish chat on a phone set to Hindi: Hindi separators (Saturday 21 November 2026 in India).
+WA_HINDI = [
+    {"kind": "divider", "text": "बुधवार"},
+    {"kind": "in", "text": "Kal milte hai na?", "time": "8:15 pm"},
+    {"kind": "divider", "text": "कल"},
+    {"kind": "out", "text": "Haan pakka, 7 baje", "time": "6:50 pm", "status": "Read"},
+    {"kind": "divider", "text": "आज"},
+    {"kind": "in", "text": "Main nikal gaya 🚗", "time": "6:58 pm"},
+]
+
 
 def wa_chat_list(pkg):
     rows = []
@@ -381,7 +436,7 @@ def tg_input():
     ])
 
 
-def tg_chat(title, subtitle, cells):
+def tg_chat(title, subtitle, cells, captured=CAPTURED):
     """cells: ("msg", description) or ("action", text). Cells span the full width, like ChatMessageCell."""
     y = 262
     kids = []
@@ -398,7 +453,7 @@ def tg_chat(title, subtitle, cells):
                children=kids)
     fragment = node("android.widget.FrameLayout", b(0, 0, W, H), children=[tg_header(title, subtitle), lst,
                                                                             tg_input()])
-    return snapshot(TG, fragment)
+    return snapshot(TG, fragment, captured)
 
 
 def rx(text, time):
@@ -450,6 +505,31 @@ TG_HINGLISH = [
     ("msg", sx("Haan haan pakka 🙏🏽", "11:45 AM")),
     ("msg", rx("Kem cho? Majama?", "11:50 AM")),
     ("msg", sx("Majama! Tame kaho", "11:51 AM", "Unread")),
+]
+
+
+# Dates (issue #26): every status line names its day; header cells sit between days. Captured on
+# Sunday 22 November 2026, 11:00 in India.
+TG_DATES_CAPTURED = "2026-11-22T05:30:00Z"
+TG_DATES = [
+    ("action", "November 21, 2025"),
+    ("msg", "Happy birthday Rohan!\nReceived 21.11.25 at 6:02 PM"),
+    ("action", "November 19"),
+    ("msg", "Did you get the tickets?\nReceived Nov 19 at 7:40 PM"),
+    ("msg", "Yes, 2 for Saturday\nSent Nov 19 at 7:45 PM, Read"),
+    ("action", "Yesterday"),
+    ("msg", "See you at the gate\nSent yesterday at 9:15 PM, Read"),
+    ("action", "Today"),
+    ("msg", rx("Movie was great 🍿", "10:45 AM")),
+]
+
+# Header cells only: the status lines name no day, so each cell takes the header's date above it.
+TG_HEADERS_ONLY = [
+    ("msg", "Top cell above any header\nReceived at 9:58 PM"),
+    ("action", "Saturday"),
+    ("msg", "Dinner at 9?\nReceived at 8:01 PM"),
+    ("action", "Today"),
+    ("msg", "Done 👍\nSent at 10:40 AM, Read"),
 ]
 
 
@@ -560,6 +640,16 @@ def main(out_dir):
           wa.chat("Dad", "last seen today at 9:01 pm", WA_SAME_TWICE, 900))
     write(out_dir, "whatsapp/synthetic-hinglish.json", wa.chat("Rohan Bhai", "typing…", WA_HINGLISH, 600))
     write(out_dir, "whatsapp/synthetic-chat_list.json", wa_chat_list("com.whatsapp"))
+    write(out_dir, "whatsapp/synthetic-dates.json",
+          wa.chat("Asha Patel", "online", WA_DATES, 262, captured=WA_DATES_CAPTURED))
+    write(out_dir, "whatsapp/synthetic-dates-no_ids.json",
+          bare.chat("Asha Patel", "online", WA_DATES, 262, captured=WA_DATES_CAPTURED))
+    write(out_dir, "whatsapp/synthetic-no_separator.json", wa.chat("Dad", "online", WA_NO_SEPARATOR, 1400))
+    write(out_dir, "whatsapp/synthetic-midnight.json",
+          wa.chat("Meera", "online", WA_MIDNIGHT, 900, captured=WA_MIDNIGHT_CAPTURED))
+    write(out_dir, "whatsapp/synthetic-dates-hindi.json", wa.chat("Rohan Bhai", "ऑनलाइन", WA_HINDI, 900))
+    write(out_dir, "whatsapp_business/synthetic-dates-numeric.json",
+          w4b.chat("Sharma Electronics", "Business account", WA_NUMERIC, 900))
     write(out_dir, "whatsapp_business/synthetic-hinglish.json",
           w4b.chat("Rohan Bhai", None, WA_HINGLISH, 600))
     # Business shares WhatsApp's ids under its own package: same screens, other package.
@@ -573,6 +663,10 @@ def main(out_dir):
           tg_chat("Dad", "last seen recently", TG_SAME_TWICE))
     write(out_dir, "telegram/synthetic-hinglish.json", tg_chat("Rohan Bhai", "typing...", TG_HINGLISH))
     write(out_dir, "telegram/synthetic-geometry_fallback.json", tg_geometry_fallback())
+    write(out_dir, "telegram/synthetic-dates.json",
+          tg_chat("Rohan Bhai", "last seen recently", TG_DATES, TG_DATES_CAPTURED))
+    write(out_dir, "telegram/synthetic-dates-headers_only.json",
+          tg_chat("Asha Patel", "online", TG_HEADERS_ONLY, TG_DATES_CAPTURED))
     write(out_dir, "generic/synthetic-instagram_dm.json", instagram_dm())
     write(out_dir, "generic/synthetic-not_a_chat.json", generic_feed())
 

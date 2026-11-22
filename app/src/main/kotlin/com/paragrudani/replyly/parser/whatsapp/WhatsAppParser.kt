@@ -5,6 +5,7 @@ import com.paragrudani.replyly.parser.ParseReport
 import com.paragrudani.replyly.parser.ParsedChat
 import com.paragrudani.replyly.parser.TargetApps
 import com.paragrudani.replyly.parser.generic.ChatAssembler
+import com.paragrudani.replyly.parser.generic.ChatDates
 import com.paragrudani.replyly.parser.generic.ChatLayout
 import com.paragrudani.replyly.parser.generic.ChatText
 import com.paragrudani.replyly.parser.generic.GeometryReader
@@ -14,9 +15,12 @@ import com.paragrudani.replyly.parser.generic.ScreenTree
 import com.paragrudani.replyly.parser.generic.Side
 import com.paragrudani.replyly.parser.generic.Sides
 import com.paragrudani.replyly.parser.generic.TreeNode
+import com.paragrudani.replyly.parser.generic.overlapsVertically
 import com.paragrudani.replyly.parser.generic.union
 import com.paragrudani.replyly.screen.Bounds
 import com.paragrudani.replyly.screen.ScreenSnapshot
+import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * WhatsApp and WhatsApp Business (same app, same view ids under their own package).
@@ -26,8 +30,15 @@ import com.paragrudani.replyly.screen.ScreenSnapshot
  * Quote previews, date dividers, system notices and banners have other ids, so they never count.
  * A label means incoming and a tick means mine; the other bubbles get their side from geometry
  * (right = me). If no message ids are found, the whole screen goes through [GeometryReader] instead.
+ *
+ * Dates: each date divider (`conversation_row_date_divider`, or a centred date text without an id)
+ * gives its date to every message below it until the next one ([ChatDates]; relative names resolve
+ * against the snapshot's capture day in [zone]). A divider that cannot be read ends the date above
+ * it. An incoming bubble whose reply quote names "You" as its author replies to me.
  */
-class WhatsAppParser : ExplainingChatParser {
+class WhatsAppParser(
+    private val zone: ZoneId = ZoneId.systemDefault(),
+) : ExplainingChatParser {
     override val packages: Set<String> = setOf(TargetApps.WHATSAPP, TargetApps.WHATSAPP_BUSINESS)
 
     override fun explain(snapshot: ScreenSnapshot): ParseReport {
@@ -41,7 +52,8 @@ class WhatsAppParser : ExplainingChatParser {
             val title = idTitle ?: layout.title ?: return ParseReport(null, METHOD_VIEW_IDS, listOf("no chat title"))
             val subtitle = if (idTitle != null) idSubtitle else layout.subtitle
             val area = layout.list?.bounds ?: tree.screen
-            val bubbles = readByIds(messageNodes, area, layout.list)
+            val separators = separators(tree, area, messageNodes, today(snapshot))
+            val bubbles = readByIds(messageNodes, area, layout.list, separators)
             val isGroup = bubbles.any { it.label != null } || ChatText.groupHint(subtitle) == GroupHint.GROUP
             val chat = chat(snapshot, title, isGroup, bubbles)
             val notes =
@@ -49,6 +61,7 @@ class WhatsAppParser : ExplainingChatParser {
                     "title from ${if (idTitle != null) "view id" else "geometry"}",
                     "${messageNodes.size} message ids, ${bubbles.count { it.text == null }} placeholders dropped",
                     "list ${if (layout.list != null) "found" else "not found"}",
+                    ChatAssembler.dateNote(separators.map { it.second }, chat.messages),
                 )
             return ParseReport(chat, METHOD_VIEW_IDS, notes)
         }
@@ -61,16 +74,49 @@ class WhatsAppParser : ExplainingChatParser {
         }
         val title = layout.title ?: return ParseReport(null, METHOD_GEOMETRY, listOf("no chat title"))
         val hint = ChatText.groupHint(layout.subtitle)
-        val result = GeometryReader(GeometryReader.Mode.FULL).read(tree, layout, hint)
+        val result = GeometryReader(GeometryReader.Mode.FULL).read(tree, layout, hint, today(snapshot))
         val isGroup = hint == GroupHint.GROUP || result.labelsFound
+        val chat = chat(snapshot, title, isGroup, result.bubbles)
         val notes =
             listOf(
                 "no message ids: geometry fallback",
                 "list ${if (layout.list != null) "found" else "not found"}",
                 "${result.units} rows, ${result.bubbles.size} bubbles, ${result.skipped} skipped",
+                ChatAssembler.dateNote(result.separators, chat.messages),
             )
-        return ParseReport(chat(snapshot, title, isGroup, result.bubbles), METHOD_GEOMETRY, notes)
+        return ParseReport(chat, METHOD_GEOMETRY, notes)
     }
+
+    private fun today(snapshot: ScreenSnapshot): LocalDate = snapshot.capturedAt.atZone(zone).toLocalDate()
+
+    /**
+     * Date dividers in the list, as (top, date): every node with the divider id (a `null` date when
+     * its text is not a date [ChatDates] reads), and centred date texts without an id.
+     */
+    private fun separators(
+        tree: ScreenTree,
+        area: Bounds,
+        messageNodes: List<TreeNode>,
+        today: LocalDate,
+    ): List<Pair<Int, LocalDate?>> =
+        tree.shownNodes
+            .filter { it.text != null && it.bounds.overlapsVertically(area) && messageNodes.none { m -> m === it } }
+            .mapNotNull { node ->
+                val text = node.text!!
+                when {
+                    node.idName == WhatsAppIds.DATE_DIVIDER -> {
+                        node.bounds.top to ChatDates.resolve(text, today)
+                    }
+
+                    node.idName == null && node.isTextLeaf && Sides.isCentered(node.bounds, area) -> {
+                        ChatDates.resolve(text, today)?.let { node.bounds.top to it }
+                    }
+
+                    else -> {
+                        null
+                    }
+                }
+            }.sortedBy { it.first }
 
     private fun chat(
         snapshot: ScreenSnapshot,
@@ -91,13 +137,16 @@ class WhatsAppParser : ExplainingChatParser {
         val label: String?,
         val tick: Boolean,
         val box: Bounds,
+        val quotesMe: Boolean,
     )
 
     private fun readByIds(
         messageNodes: List<TreeNode>,
         area: Bounds,
         list: TreeNode?,
+        separators: List<Pair<Int, LocalDate?>>,
     ): List<RawBubble> {
+        val dates = ChatAssembler.datesBelow(separators, messageNodes.map { it.bounds.top })
         val raw =
             messageNodes.map { message ->
                 val row = rowOf(message, messageNodes, list)
@@ -115,6 +164,11 @@ class WhatsAppParser : ExplainingChatParser {
                                 it.bounds.bottom <= message.bounds.top + 4
                         }?.text
                 val tick = inRow.any { it.idName == WhatsAppIds.TICK }
+                val quotesMe =
+                    inRow.any {
+                        it.idName == WhatsAppIds.QUOTE_AUTHOR && it.text?.let(ChatText::isMeName) == true &&
+                            it.bounds.bottom <= message.bounds.top + 4
+                    }
                 // The bubble is the widest container of the message that is still narrower than a row.
                 val box =
                     (sequenceOf(message) + message.ancestors().takeWhile { it !== list && row.isAncestorOrSelf(it) })
@@ -122,7 +176,7 @@ class WhatsAppParser : ExplainingChatParser {
                         .lastOrNull()
                         ?.bounds ?: listOfNotNull(message, time).map { it.bounds }.union()
                 val text = message.text?.takeUnless(ChatText::isDeletedPlaceholder)
-                IdBubble(text, time?.text, label, tick, box)
+                IdBubble(text, time?.text, label, tick, box, quotesMe)
             }
         // A sender label only sits on incoming bubbles and a tick only on mine: those decide outright.
         val known =
@@ -134,7 +188,9 @@ class WhatsAppParser : ExplainingChatParser {
                 }
             }
         val sides = Sides.resolve(raw.map { it.box }, raw.map { it.tick }, area, known)
-        return raw.mapIndexed { i, b -> RawBubble(sides[i], b.label, b.text, b.time) }
+        return raw.mapIndexed { i, b ->
+            RawBubble(sides[i], b.label, b.text, b.time, dates[i], repliesToMe = b.quotesMe && sides[i] == Side.LEFT)
+        }
     }
 
     /** The largest ancestor of [message] (below the list) that holds no other message. */
@@ -175,4 +231,10 @@ object WhatsAppIds {
 
     /** Read/delivered ticks: only on my own bubbles. */
     const val TICK = "status"
+
+    /** Date divider ("TODAY", "21 NOVEMBER 2026"), its own row or the top of a message row. */
+    const val DATE_DIVIDER = "conversation_row_date_divider"
+
+    /** Author line of a reply quote inside a bubble: "You" when it quotes me. */
+    const val QUOTE_AUTHOR = "quoted_title"
 }

@@ -4,7 +4,7 @@ package com.paragrudani.replyly.parser.generic
  * Text rules shared by every parser: cleaning, and recognising the screen "chrome" that is not a
  * message (timestamps, date separators, system notices, unread banners, status words).
  *
- * All English: the S23 runs in English. Every phrase here is an unverified assumption, checked by
+ * All English (the S23 runs in English), except date separators, which [ChatDates] also reads in Hindi. Every phrase here is an unverified assumption, checked by
  * docs/DEVICE_CHECKLIST.md section 6.
  */
 object ChatText {
@@ -45,25 +45,16 @@ object ChatText {
     /** The first clock time inside [text], exactly as written there. */
     fun findTime(text: String): String? = timeInside.find(text)?.value
 
-    private const val MONTH =
-        """(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?""" +
-            """|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?"""
-    private const val WEEKDAY = """(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)"""
-    private val datePatterns =
-        listOf(
-            Regex("""^(?:today|yesterday)$"""),
-            Regex("""^$WEEKDAY$"""),
-            Regex("""^(?:$WEEKDAY,? )?\d{1,2} $MONTH(?:,? \d{4})?$"""),
-            Regex("""^(?:$WEEKDAY,? )?$MONTH \d{1,2}(?:,? \d{4})?$"""),
-            Regex("""^\d{1,2}/\d{1,2}/\d{2,4}$"""),
-            Regex("""^\d{4}-\d{2}-\d{2}$"""),
-        )
+    /**
+     * "Today", "YESTERDAY", "Monday", "21 November 2026", "November 21", "21/11/2026", "21.11.26",
+     * Hindi names...: every form [ChatDates] reads.
+     */
+    fun isDateSeparator(text: String): Boolean = ChatDates.parse(text) != null
 
-    /** "Today", "YESTERDAY", "Monday", "21 November 2026", "November 21", "21/11/2026"... */
-    fun isDateSeparator(text: String): Boolean {
-        val s = squash(text).lowercase()
-        return datePatterns.any { it.matches(s) }
-    }
+    private val meNames = setOf("you", "tú", "आप")
+
+    /** How a reply quote names me as its author: "You" (Spanish "Tú", Hindi "आप"). */
+    fun isMeName(text: String): Boolean = squash(text).lowercase() in meNames
 
     private val unread = Regex("""^(?:\d+ )?unread messages?$""")
 

@@ -12,12 +12,21 @@ import com.paragrudani.replyly.screen.ScreenNode
 import com.paragrudani.replyly.screen.ScreenSnapshot
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 /**
  * The trees from the ticket #2 review that broke the first parser version (A to J), plus the
  * ones that held up and must keep holding. Screens are 1080 x 2340, message list [0,257][1080,2052].
  */
 class AdversarialTreesTest {
+    // Every screen is captured on 21 November 2026 (UTC); Telegram cells say "today".
+    private val nov21 = LocalDate.of(2026, 11, 21)
+
+    private fun ChatMessage.on(date: LocalDate) = copy(date = date)
+
+    private fun List<ChatMessage>.on(date: LocalDate) = map { it.on(date) }.toTypedArray()
+
     private fun me(
         text: String,
         time: String?,
@@ -134,7 +143,7 @@ class AdversarialTreesTest {
                 ),
             )
 
-        val chat = WhatsAppParser().explain(s).chatOrFail()
+        val chat = WhatsAppParser(ZoneOffset.UTC).explain(s).chatOrFail()
 
         assertThat(chat.isGroup).isTrue()
         assertThat(chat.messages)
@@ -157,7 +166,7 @@ class AdversarialTreesTest {
                 ),
             )
 
-        val chat = WhatsAppParser().explain(s).chatOrFail()
+        val chat = WhatsAppParser(ZoneOffset.UTC).explain(s).chatOrFail()
 
         assertThat(chat.messages)
             .containsExactly(
@@ -175,7 +184,7 @@ class AdversarialTreesTest {
                 listOf(waRow(300, 150, 1000, "A long message from Asha that fills the bubble", "6:10 pm")),
             )
 
-        val chat = WhatsAppParser().explain(s).chatOrFail()
+        val chat = WhatsAppParser(ZoneOffset.UTC).explain(s).chatOrFail()
 
         assertThat(chat.messages)
             .containsExactly(them("Asha", "A long message from Asha that fills the bubble", "6:10 pm"))
@@ -193,7 +202,7 @@ class AdversarialTreesTest {
                 ),
             )
 
-        val chat = WhatsAppParser().explain(s).chatOrFail()
+        val chat = WhatsAppParser(ZoneOffset.UTC).explain(s).chatOrFail()
 
         assertThat(chat.messages)
             .containsExactly(them("Asha", "hi", "6:10 pm"), me("hello, on my way", "6:11 pm"))
@@ -204,7 +213,10 @@ class AdversarialTreesTest {
     fun `C2 - a missing title id with only a status above the list gives no chat`() {
         val header = listOf(tv(Bounds(220, 190, 700, 240), "online", "$wa:id/conversation_contact_status"))
 
-        val report = WhatsAppParser().explain(screen(wa, header, listOf(waRow(300, 40, 600, "hi", "6:10 pm"))))
+        val report =
+            WhatsAppParser(
+                ZoneOffset.UTC,
+            ).explain(screen(wa, header, listOf(waRow(300, 40, 600, "hi", "6:10 pm"))))
 
         assertThat(report.chat).isNull()
     }
@@ -221,7 +233,7 @@ class AdversarialTreesTest {
             )
         val rows = listOf(bubble(40, 600, "hi", time = "6:10 pm").build(300).single())
 
-        val report = WhatsAppParser().explain(screen(wa, header, rows))
+        val report = WhatsAppParser(ZoneOffset.UTC).explain(screen(wa, header, rows))
         val chat = report.chatOrFail()
 
         assertThat(report.method).isEqualTo(WhatsAppParser.METHOD_GEOMETRY)
@@ -239,7 +251,7 @@ class AdversarialTreesTest {
             )
         val rows = listOf(bubble(40, 600, "hi", time = "6:10 pm").build(300).single())
 
-        val chat = WhatsAppParser().explain(screen(wa, header, rows)).chatOrFail()
+        val chat = WhatsAppParser(ZoneOffset.UTC).explain(screen(wa, header, rows)).chatOrFail()
 
         assertThat(chat.title).isEqualTo("Asha Patel")
     }
@@ -257,7 +269,7 @@ class AdversarialTreesTest {
                 ),
             )
 
-        val chat = WhatsAppParser().explain(s).chatOrFail()
+        val chat = WhatsAppParser(ZoneOffset.UTC).explain(s).chatOrFail()
 
         assertThat(chat.messages)
             .containsExactly(them("Asha", "see you at 6", "6:42 pm"), me("ok", "6:43 pm"))
@@ -279,11 +291,15 @@ class AdversarialTreesTest {
                 ),
             )
 
-        val chat = WhatsAppParser().explain(s).chatOrFail()
+        val chat = WhatsAppParser(ZoneOffset.UTC).explain(s).chatOrFail()
 
         assertThat(chat.messages)
-            .containsExactly(them("Asha", "kal milte", "18:42"), me("👍", "18:43"), them("Asha", "😂", "18:44"))
-            .inOrder()
+            // Below the "Sat, 21 Nov" separator only.
+            .containsExactly(
+                them("Asha", "kal milte", "18:42"),
+                me("👍", "18:43"),
+                them("Asha", "😂", "18:44").on(nov21),
+            ).inOrder()
     }
 
     @Test
@@ -308,7 +324,7 @@ class AdversarialTreesTest {
             )
         val withPreview = s.copy(root = s.root.copy(children = s.root.children + preview))
 
-        val chat = WhatsAppParser().explain(withPreview).chatOrFail()
+        val chat = WhatsAppParser(ZoneOffset.UTC).explain(withPreview).chatOrFail()
 
         assertThat(chat.messages).containsExactly(them("Asha", "are you coming?", "6:10 pm"))
     }
@@ -349,11 +365,11 @@ class AdversarialTreesTest {
                 ),
             )
 
-        val chat = TelegramParser().explain(s).chatOrFail()
+        val chat = TelegramParser(ZoneOffset.UTC).explain(s).chatOrFail()
 
         assertThat(chat.isGroup).isTrue()
         assertThat(chat.messages)
-            .containsExactly(them("Asha", "Good morning", "8:02 AM"), them("Ravi", "ok", "8:03 AM"))
+            .containsExactly(*listOf(them("Asha", "Good morning", "8:02 AM"), them("Ravi", "ok", "8:03 AM")).on(nov21))
             .inOrder()
     }
 
@@ -370,13 +386,15 @@ class AdversarialTreesTest {
                 ),
             )
 
-        val chat = TelegramParser().explain(s).chatOrFail()
+        val chat = TelegramParser(ZoneOffset.UTC).explain(s).chatOrFail()
 
         assertThat(chat.messages)
             .containsExactly(
-                them("Asha", "first", "8:02 AM"),
-                me("second", "8:03 AM"),
-                them("Asha", "third", "8:04 AM"),
+                *listOf(
+                    them("Asha", "first", "8:02 AM"),
+                    me("second", "8:03 AM"),
+                    them("Asha", "third", "8:04 AM"),
+                ).on(nov21),
             ).inOrder()
     }
 
@@ -397,15 +415,17 @@ class AdversarialTreesTest {
                 ),
             )
 
-        val chat = TelegramParser().explain(s).chatOrFail()
+        val chat = TelegramParser(ZoneOffset.UTC).explain(s).chatOrFail()
 
         assertThat(chat.messages)
             .containsExactly(
-                them("Asha", "Good morning", "8:02 AM"),
-                them("Asha", "Bring water\nand snacks", "8:03 AM"),
-                them("rahul_k", "hi", "8:04 AM"),
-                them("rahul_k", "where are we meeting", "8:05 AM"),
-                them("rahul_k", "Route map", "8:06 AM"),
+                *listOf(
+                    them("Asha", "Good morning", "8:02 AM"),
+                    them("Asha", "Bring water\nand snacks", "8:03 AM"),
+                    them("rahul_k", "hi", "8:04 AM"),
+                    them("rahul_k", "where are we meeting", "8:05 AM"),
+                    them("rahul_k", "Route map", "8:06 AM"),
+                ).on(nov21),
             ).inOrder()
     }
 
@@ -423,7 +443,7 @@ class AdversarialTreesTest {
                 ),
             )
 
-        val chat = TelegramParser().explain(s).chatOrFail()
+        val chat = TelegramParser(ZoneOffset.UTC).explain(s).chatOrFail()
 
         // The reply line's format is unknown (device checklist step 20): only sides and times are pinned.
         assertThat(chat.messages.map { it.isMe to it.timeShown })
@@ -437,7 +457,10 @@ class AdversarialTreesTest {
     fun `J - a pinned bar never becomes the title when the title is missing`() {
         val header = tgHeader(null, "online") + tv(Bounds(40, 245, 1000, 255), "Pinned message: my bank OTP is 4421")
 
-        val report = TelegramParser().explain(screen(tg, header, listOf(tgCell(300, "hi\nReceived today at 8:02 AM"))))
+        val report =
+            TelegramParser(
+                ZoneOffset.UTC,
+            ).explain(screen(tg, header, listOf(tgCell(300, "hi\nReceived today at 8:02 AM"))))
 
         assertThat(report.chat).isNull()
     }
@@ -469,8 +492,8 @@ class AdversarialTreesTest {
                 listTop = 0,
             )
 
-        assertThat(TelegramParser().explain(noTitle).chat).isNull()
-        assertThat(TelegramParser().explain(withTitle).chatOrFail().title).isEqualTo("Asha")
+        assertThat(TelegramParser(ZoneOffset.UTC).explain(noTitle).chat).isNull()
+        assertThat(TelegramParser(ZoneOffset.UTC).explain(withTitle).chatOrFail().title).isEqualTo("Asha")
     }
 
     @Test
@@ -483,10 +506,10 @@ class AdversarialTreesTest {
                 listTop = 0,
             )
 
-        val chat = TelegramParser().explain(s).chatOrFail()
+        val chat = TelegramParser(ZoneOffset.UTC).explain(s).chatOrFail()
 
         assertThat(chat.title).isEqualTo("Asha")
         assertThat(chat.isGroup).isFalse()
-        assertThat(chat.messages).containsExactly(them("Asha", "hi", "8:02 AM"))
+        assertThat(chat.messages).containsExactly(them("Asha", "hi", "8:02 AM").on(nov21))
     }
 }
