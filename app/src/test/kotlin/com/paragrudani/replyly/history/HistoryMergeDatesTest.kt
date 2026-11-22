@@ -108,9 +108,12 @@ class HistoryMergeDatesTest {
     }
 
     @Test
-    fun `an edit is only taken on the day the saved message was first seen`() {
-        fun saved(today: LocalDate) =
-            FakeHistory().apply {
+    fun `on a later day only a slot that looks like an edit on its own is taken for one`() {
+        fun reRead(
+            newText: String,
+            today: LocalDate,
+        ) = FakeHistory()
+            .apply {
                 merge(
                     listOf(
                         them("good morning everyone", "9:00 am"),
@@ -122,18 +125,95 @@ class HistoryMergeDatesTest {
                 merge(
                     listOf(
                         them("good morning everyone", "9:00 am"),
-                        me("new text here", "9:05 am"),
+                        me(newText, "9:05 am"),
                         them("see you at the station", "9:10 am"),
                     ),
                     today = today,
                 )
-            }
+            }.texts()
 
-        assertThat(saved(nov20).texts())
+        assertThat(reRead("gm", nov20))
+            .containsExactly("good morning everyone", "gm", "see you at the station")
+            .inOrder()
+        // A day later the undated read may still be from the 20th: a distinctive new text between
+        // two distinctive pairs is an edit.
+        assertThat(reRead("new text here", nov21))
             .containsExactly("good morning everyone", "new text here", "see you at the station")
             .inOrder()
-        // A day later the same times may be a daily habit: both texts are kept.
-        assertThat(saved(nov21).texts()).containsAtLeast("old text here", "new text here")
+        // A short one at the old message's time may be a daily habit ("gm" at 9:05 am): it is
+        // stored as a new message in the slot, and the saved text stays.
+        assertThat(reRead("gm", nov21))
+            .containsExactly("good morning everyone", "old text here", "gm", "see you at the station")
+            .inOrder()
+    }
+
+    /**
+     * PR #27 review round 2, cases D1 to D5: a six-message screen read on [nov20], one message
+     * edited within minutes, then the screen read again. Returns the history's texts.
+     */
+    private fun editReRead(
+        times: List<String> = listOf("9:00 am", "9:02 am", "9:03 am", "9:05 am", "9:06 am", "9:08 am"),
+        reRead: (List<ChatMessage>) -> Pair<List<ChatMessage>, LocalDate>,
+    ): List<String> {
+        val texts =
+            listOf(
+                "good morning everyone",
+                "are we still on for lunch",
+                "yes at the usual place",
+                "great, booking a table",
+                "see you there then",
+                "leaving the office now",
+            )
+        val screen =
+            texts.zip(times).mapIndexed { k, (text, time) -> if (k % 2 == 0) them(text, time) else me(text, time) }
+        val history = FakeHistory()
+        history.merge(screen, today = nov20)
+        val edited = screen.mapIndexed { k, m -> if (k == 2) m.copy(text = "yes at the new place") else m }
+        val (read, today) = reRead(edited)
+        history.merge(read, today = today)
+        return history.texts()
+    }
+
+    private val editedTexts =
+        listOf(
+            "good morning everyone",
+            "are we still on for lunch",
+            "yes at the new place",
+            "great, booking a table",
+            "see you there then",
+            "leaving the office now",
+        )
+
+    @Test
+    fun `D1 an edit re-read the same day is applied`() {
+        assertThat(editReRead { it to nov20 }).containsExactlyElementsIn(editedTexts).inOrder()
+    }
+
+    @Test
+    fun `D2 an edit re-read the next day without a separator is applied`() {
+        // The undated read may be from the 20th: the capture day only bounds it from above.
+        assertThat(editReRead { it to nov21 }).containsExactlyElementsIn(editedTexts).inOrder()
+    }
+
+    @Test
+    fun `D3 an edit re-read the next day under YESTERDAY is applied`() {
+        assertThat(editReRead { read -> read.map { it.copy(date = nov20) } to nov21 })
+            .containsExactlyElementsIn(editedTexts)
+            .inOrder()
+    }
+
+    @Test
+    fun `D4 an edit re-read the next day above a TODAY separator is applied`() {
+        val texts = editReRead { read -> read.drop(1) + them("morning! lunch again?", "8:50 am", nov21) to nov21 }
+
+        assertThat(texts).containsExactlyElementsIn(editedTexts + "morning! lunch again?").inOrder()
+    }
+
+    @Test
+    fun `D5 an edit at 23 58 re-read at 00 03 without a separator is applied`() {
+        val times = listOf("11:50 pm", "11:51 pm", "11:52 pm", "11:54 pm", "11:55 pm", "11:56 pm")
+
+        assertThat(editReRead(times) { it to nov21 }).containsExactlyElementsIn(editedTexts).inOrder()
     }
 
     @Test
