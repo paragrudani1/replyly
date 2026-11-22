@@ -2,9 +2,9 @@
 
 Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECISIONS](../DECISIONS.md).
 
-## 2026-11-23: prompt v2 done (#27, #28); #30 PR 1 (X parser) in progress
+## 2026-11-23: prompt v2 done (#27, #28); #30 PR 1 (#40) in review
 
-**Merged.** v1 (#8–#16), polish (#19, #21–#24), profiles (#20), docs (#25), #29 (signing-key rotation), **#27 (message dates, `624939c`)**, **#28 (prompt v2, `ecb0b65`)**, and the wiki docs PRs #31–#39. Issue #26 is closed.
+**Merged.** v1 (#8–#16), polish (#19, #21–#24), profiles (#20), docs (#25), #29 (signing-key rotation), **#27 (message dates, `624939c`)**, **#28 (prompt v2, `ecb0b65`)**, and the wiki docs PRs #31–#39 (and this one). Issue #26 is closed.
 - `latest-debug` is versionCode 76 (built from `ecb0b65`), signed with the new key (certificate SHA-256 `2a5421c6…2737d6`).
 - Parag must uninstall the old app once first (DEVICE_CHECKLIST 2.0). `feedback.db` migrates to v2 with #28: no downgrade to an older APK after that.
 - The final system prompt was posted verbatim in the thread (from `bc75cd1`).
@@ -16,13 +16,11 @@ Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECIS
 - #28: rebased onto #27 and wired to the real date fields; round-2 review's R1 (1:1 targets oldest first) and R2 (approx day narrowed by bubble time) fixed by the CoS. Gate 1014 tests. DECISIONS has the #26 PR 2 entries.
 
 **In flight: issue #30, X reply and quote posts.** Issue: https://github.com/paragrudani1/replyly/issues/30. Common rules: `/root/.t3/cos/replyly/x-common.md`.
-- **PR 1 (`x-parser`): detection, X parser, "My X handle", no history, dump/scramble, interim mapping to `ParsedChat.messages`.**
-  - **Open subagent: "#30 PR 1: X detection and parser"**, worktree `t3-a25cf273-05fbfdfd38949307`.
-    - Brief: `/root/.t3/cos/replyly/x-pr1-brief.md`.
-    - taskId `node:delegated-task:command%3Amcp%3A3b3b2c71-2b5d-47d7-bcb5-344045843096%3Adelegate-task%3A8735893f-c601-4496-a9c9-8c22f0eff83b`
-    - thread `thread:delegated-task:command%3Amcp%3A3b3b2c71-2b5d-47d7-bcb5-344045843096%3Adelegate-task%3A8735893f-c601-4496-a9c9-8c22f0eff83b`
-    - If it has finished, read its result with `task_status`.
-  - **Next:** review (new delegate, brief like `v2-pr1-review-brief.md`), fix, merge on green, status post.
+- **PR 1: [#40](https://github.com/paragrudani1/replyly/pull/40) (`x-parser`, head `5a0aa16`, CI green, not merged).** Detection (reply/quote composers and DMs only, gated on the focused field's view id and English hint), X parser in `parser/x/` (`ParsedChat.x`), "My X handle", no history for X, dump/scramble, interim mapping to `ParsedChat.messages`. Gate 1047 tests. 9 DECISIONS entries, DEVICE_CHECKLIST 15.1–15.15. Author worktree `t3-a25cf273-05fbfdfd38949307`.
+  - **Open subagent: "#30 PR 1 review (PR #40)"** (round 1). Brief `/root/.t3/cos/replyly/x-pr1-review-brief.md`, output `reviews/pr40-r1.md`.
+    - taskId `node:delegated-task:command%3Amcp%3A0b3cb7ad-8b09-4a3b-81e2-44b90a1dab9f%3Adelegate-task%3Aaf64cb1e-7d2a-42da-95e7-c19016bbadbd`
+    - If it has finished, read `reviews/pr40-r1.md`.
+  - **Next:** fix findings (small ones by the CoS in the author worktree, bigger ones by a fix delegate there), merge on green, STATUS, status post.
 - **PR 2 (after PR 1 merges):** the X system-prompt section, 280/500 length enforcement (URLs 23, X's emoji/CJK weights; trim at a sentence boundary or regenerate), per-card counter, "My X voice" and "X post length" settings, X chip labels/colours, screenshots, DEVICE_CHECKLIST 15 rest. Body says `Closes #30`. Brief to write: `x-pr2-brief.md`, built on PR 1's pinned model.
 
 **Follow-ups filed:** #38 (Nothing-to-reply subtitle wrong when I never wrote or their media is last).
@@ -34,7 +32,7 @@ Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECIS
 
 **Cleanup.** Done on 2026-11-23: the stale worktrees, `/root/local-dev/tmp-replyly-base`, `/root/local-dev/replyly-audit` and the `/tmp` scratch files are removed. Remaining worktrees: the CoS's (`t3-a8f2345a…`) and PR 1's agent's (`t3-a25cf273…`).
 
-**Briefs and reviews.** In `/root/.t3/cos/replyly/`: `x-*.md`, `v2-*.md`, `issue-*.md`, and `reviews/pr27-r1.md` to `-r3.md`, `pr28-r1.md`, `pr28-r2.md`.
+**Briefs and reviews.** In `/root/.t3/cos/replyly/`: `x-*.md`, `v2-*.md`, `issue-*.md`, and `reviews/pr27-r1.md` to `-r3.md`, `pr28-r1.md`, `pr28-r2.md`, `pr40-r1.md` (when done).
 
 **How the CoS works.**
 - **GitHub token:** `GH_TOKEN="$(cat /root/.config/replyly/gh_token)" gh … -R paragrudani1/replyly`. Never print it. The T3 PR and issue tools use another login and fail for this repo.
