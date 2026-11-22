@@ -38,4 +38,4 @@ Before touching code, read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the dat
 - Shared contracts change only additively (new field with a default, new method with a default body), and the PR description says so.
 - Every dependency is already in `gradle/libs.versions.toml`; leave it unchanged unless your ticket cannot work without a new one.
 - Anything only the real S23 can confirm (view ids, overlay placement, One UI behaviour) goes into `docs/DEVICE_CHECKLIST.md` with exact steps.
-- The debug keystore `app/debug.keystore` is committed on purpose (stable signature, so updates install over the old app). Keep it.
+- The repo is public. No signing key in it: the Replyly key is a CI secret, used only on `main` pushes (`REPLYLY_SIGNING_*`); every other build signs with the machine's throwaway debug key. Never commit a keystore, token or real chat data.

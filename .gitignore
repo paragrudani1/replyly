@@ -12,10 +12,10 @@ local.properties
 *.iml
 .DS_Store
 
-# Signing: only the committed debug keystore is allowed
+# Signing: no key ever goes in the repo (it is public). The Replyly key is a CI secret.
 *.jks
 *.keystore
-!app/debug.keystore
+*.p12
 
 # Secrets
 .env*
