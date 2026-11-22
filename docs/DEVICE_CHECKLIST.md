@@ -108,6 +108,13 @@ every Back lands on "Set up Replyly". **Send:** which screen Back showed instead
 
 ## 2. After every update
 
+2.0 **Once, for the first build after 2026-11-22 (new signing key).** The repo went public, so the
+old committed debug key was replaced by a private one. Android refuses to install the new build over
+the old one ("App not installed" / "package conflicts"). **Do:** uninstall Replyly once, then install
+the new `replyly-debug.apk` and redo onboarding (section 1). This resets the encrypted history, the
+feedback log, the provider profiles and the API key (enter the key again). Later builds install over
+this one as before. **Send:** the install error text if the fresh install itself fails.
+
 2.1 **Do:** after installing a new build over an older one, turn the Replyly accessibility service
 off and on once (Settings > Accessibility > Installed apps > Replyly). **See:** the button works in
 3.1. If you skip this, every tap may show "Replyly is off here" with
