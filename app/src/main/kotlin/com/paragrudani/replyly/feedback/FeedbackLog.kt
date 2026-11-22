@@ -29,6 +29,8 @@ data class FeedbackEntry(
     val analysis: String? = null,
     /** One id per panel open; null for entries from before prompt v2. */
     val panelId: String? = null,
+    /** Input tokens read from the prompt cache (Anthropic only); null when the provider did not say. */
+    val cacheReadTokens: Int? = null,
 )
 
 /**
@@ -39,6 +41,7 @@ interface FeedbackLog {
     /**
      * @param analysis the model's reasoning: stored locally, never shown in the panel or logged.
      * @param panelId the same for every generation of one panel open (insert rate per panel).
+     * @param cacheReadTokens [com.paragrudani.replyly.llm.TokenUsage.cacheReadTokens], a count only.
      * @return the new entry id.
      */
     suspend fun record(
@@ -49,6 +52,7 @@ interface FeedbackLog {
         analysis: String? = null,
         promptVersion: Int = PromptBuilder.VERSION,
         panelId: String? = null,
+        cacheReadTokens: Int? = null,
     ): Long
 
     suspend fun markInserted(
@@ -102,6 +106,7 @@ class InMemoryFeedbackLog(
         analysis: String?,
         promptVersion: Int,
         panelId: String?,
+        cacheReadTokens: Int?,
     ): Long {
         val id = synchronized(this) { nextId++ }
         val entry =
@@ -115,6 +120,7 @@ class InMemoryFeedbackLog(
                 promptVersion = promptVersion,
                 analysis = analysis,
                 panelId = panelId,
+                cacheReadTokens = cacheReadTokens,
             )
         entries.update { it + entry }
         return id
@@ -157,6 +163,8 @@ class InMemoryFeedbackLog(
                         it.panelId,
                         it.insertedIndex?.let { i -> it.suggestions.getOrNull(i)?.text },
                         it.finalSentText,
+                        chatKey = it.chatKey.encoded,
+                        createdAtMillis = it.createdAt.toEpochMilli(),
                     )
                 },
             )

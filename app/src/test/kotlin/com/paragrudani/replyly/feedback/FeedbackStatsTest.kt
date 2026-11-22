@@ -52,11 +52,49 @@ class FeedbackStatsTest {
     }
 
     @Test
-    fun `old entries without a panel id are one panel each`() {
+    fun `old entries without a panel id or chat key are one panel each`() {
         val rows = listOf(row(1, version = 1, panel = null, inserted = "a"), row(2, version = 1, panel = null))
         val v1 = FeedbackStats.compute(rows).single()
         assertThat(v1.panels).isEqualTo(2)
         assertThat(v1.panelsWithInsert).isEqualTo(1)
+        assertThat(v1.panelsEstimated).isTrue()
+    }
+
+    @Test
+    fun `old entries of one chat within 2 minutes of the previous one are one estimated panel`() {
+        val minute = 60_000L
+
+        fun v1(
+            id: Long,
+            chat: String,
+            at: Long,
+            inserted: String? = null,
+        ) = FeedbackStatsRow(id, 1, null, inserted, null, chatKey = chat, createdAtMillis = at)
+        val rows =
+            listOf(
+                // Riya: open, Regenerate 1 min later, chip 3 min after the first (2 min after the
+                // previous one: still the same panel), then inserted.
+                v1(1, "w:Riya", 0),
+                v1(2, "w:Riya", 1 * minute),
+                v1(4, "w:Riya", 3 * minute, inserted = "x"),
+                // Another chat in between does not split or join Riya's panel.
+                v1(3, "w:Amit", 2 * minute),
+                // Riya again 10 minutes later: a new panel.
+                v1(5, "w:Riya", 13 * minute),
+                // Just over 2 minutes after that: a new panel too.
+                v1(6, "w:Riya", 15 * minute + 1),
+            )
+        val stats = FeedbackStats.compute(rows).single()
+        assertThat(stats.panels).isEqualTo(4)
+        assertThat(stats.panelsWithInsert).isEqualTo(1)
+        assertThat(stats.panelsEstimated).isTrue()
+        assertThat(FeedbackStats.estimatedPanels(rows).map { panel -> panel.map { it.id } })
+            .containsExactly(listOf(1L, 2L, 4L), listOf(5L), listOf(6L), listOf(3L))
+    }
+
+    @Test
+    fun `entries with a panel id are not estimated`() {
+        assertThat(FeedbackStats.compute(listOf(row(1))).single().panelsEstimated).isFalse()
     }
 
     @Test

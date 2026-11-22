@@ -37,6 +37,11 @@ data class Suggestion(
 data class TokenUsage(
     val promptTokens: Int,
     val completionTokens: Int,
+    /**
+     * Input tokens read from the provider's prompt cache (Anthropic `cache_read_input_tokens`,
+     * already part of [promptTokens]); null when the reply does not report it. A count only.
+     */
+    val cacheReadTokens: Int? = null,
 ) {
     val totalTokens: Int get() = promptTokens + completionTokens
 }

@@ -56,7 +56,7 @@ fun success(
     model: String = "test/model",
 ) = SuggestionResult.Success(
     suggestions = suggestions,
-    usage = TokenUsage(promptTokens = 100, completionTokens = 20),
+    usage = TokenUsage(promptTokens = 100, completionTokens = 20, cacheReadTokens = 64),
     latency = 1_200.milliseconds,
     model = model,
     promptSent = "PROMPT",
@@ -139,6 +139,7 @@ class FakeFeedbackLog : FeedbackLog {
         val analysis: String? = null,
         val promptVersion: Int = 2,
         val panelId: String? = null,
+        val cacheReadTokens: Int? = null,
     )
 
     val recorded = mutableListOf<Recorded>()
@@ -153,9 +154,10 @@ class FakeFeedbackLog : FeedbackLog {
         analysis: String?,
         promptVersion: Int,
         panelId: String?,
+        cacheReadTokens: Int?,
     ): Long {
         if (failRecord) throw IllegalStateException("db closed")
-        recorded += Recorded(chatKey, model, prompt, suggestions, analysis, promptVersion, panelId)
+        recorded += Recorded(chatKey, model, prompt, suggestions, analysis, promptVersion, panelId, cacheReadTokens)
         return 40L + recorded.size
     }
 

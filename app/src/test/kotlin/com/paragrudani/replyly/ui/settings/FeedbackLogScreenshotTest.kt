@@ -119,6 +119,7 @@ class FeedbackLogScreenshotTest {
                             panelsWithInsert = 19,
                             editsMeasured = 12,
                             averageEdit = 0.31,
+                            panelsEstimated = true,
                         ),
                         PromptVersionStats(2, panels = 3, panelsWithInsert = 2, editsMeasured = 1, averageEdit = 0.07),
                     ),

@@ -140,7 +140,9 @@ class AnthropicFormatGeneratorTest {
         val result = generate() as SuggestionResult.Success
 
         assertThat(result.suggestions.map { it.intent }).containsExactly("agree", "decline", "ask").inOrder()
+        // No cache_read_input_tokens in the reply: unknown, not 0.
         assertThat(result.usage).isEqualTo(TokenUsage(120, 30))
+        assertThat(result.usage.cacheReadTokens).isNull()
         assertThat(result.model).isEqualTo("claude-haiku-5-5")
         assertThat(result.latency).isGreaterThan(0.milliseconds)
 
@@ -186,7 +188,8 @@ class AnthropicFormatGeneratorTest {
                 ),
             ),
         )
-        generate()
+        val result = generate() as SuggestionResult.Success
+        assertThat(result.usage.cacheReadTokens).isEqualTo(7)
         val status = costGuard.status.value
         assertThat(status.requestsToday).isEqualTo(1)
         assertThat(status.promptTokensThisMonth).isEqualTo(112)

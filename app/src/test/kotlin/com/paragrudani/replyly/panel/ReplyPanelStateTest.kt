@@ -71,6 +71,7 @@ class ReplyPanelStateTest {
             assertThat(recorded.analysis).isEqualTo("ANALYSIS")
             assertThat(recorded.promptVersion).isEqualTo(2)
             assertThat(recorded.panelId).isNotEmpty()
+            assertThat(recorded.cacheReadTokens).isEqualTo(64)
         }
 
     @Test

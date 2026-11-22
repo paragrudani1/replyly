@@ -421,6 +421,7 @@ class ReplyPanelState(
                 analysis = result.analysis,
                 promptVersion = result.promptVersion,
                 panelId = panelId,
+                cacheReadTokens = result.usage.cacheReadTokens,
             )
         }
 

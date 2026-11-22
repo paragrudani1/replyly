@@ -22,7 +22,7 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 /**
  * One feedback log row. [suggestionsJson] is a JSON array of `{intent, text}`. Version 2 added
  * [promptVersion] (rows from before are prompt v1), [analysis] (the model's reasoning, local only)
- * and [panelId] (one id per panel open, for the insert rate per panel).
+ * [panelId] (one id per panel open, for the insert rate per panel) and [cacheReadTokens].
  */
 @Entity(
     tableName = "feedback_entries",
@@ -41,11 +41,15 @@ data class FeedbackEntryEntity(
     @ColumnInfo(name = "prompt_version", defaultValue = "1") val promptVersion: Int = 1,
     val analysis: String? = null,
     @ColumnInfo(name = "panel_id") val panelId: String? = null,
+    /** Input tokens read from the prompt cache (Anthropic), a count only; null when not reported. */
+    @ColumnInfo(name = "cache_read_tokens") val cacheReadTokens: Int? = null,
 )
 
-/** The columns the quality stats need: no prompt, analysis or chat key. */
+/** The columns the quality stats need: no prompt or analysis (the chat key groups v1 rows into panels). */
 data class FeedbackStatsColumns(
     val id: Long,
+    @ColumnInfo(name = "chat_key") val chatKey: String,
+    @ColumnInfo(name = "created_at") val createdAt: Long,
     @ColumnInfo(name = "prompt_version") val promptVersion: Int,
     @ColumnInfo(name = "panel_id") val panelId: String?,
     @ColumnInfo(name = "suggestions_json") val suggestionsJson: String,
@@ -94,7 +98,8 @@ interface FeedbackDao {
     fun observeRecent(limit: Int): Flow<List<FeedbackEntryEntity>>
 
     @Query(
-        "SELECT id, prompt_version, panel_id, suggestions_json, inserted_index, final_sent_text " +
+        "SELECT id, chat_key, created_at, prompt_version, panel_id, suggestions_json, inserted_index, " +
+            "final_sent_text " +
             "FROM feedback_entries ORDER BY id",
     )
     fun observeStatsColumns(): Flow<List<FeedbackStatsColumns>>
@@ -133,13 +138,14 @@ abstract class FeedbackDatabase : RoomDatabase() {
                 .addMigrations(MIGRATION_1_2)
                 .build()
 
-        /** Prompt v2 (issue #26): old rows are prompt v1, without analysis or panel id. */
+        /** Prompt v2 (issue #26): old rows are prompt v1, without analysis, panel id or cache count. */
         val MIGRATION_1_2: Migration =
             object : Migration(1, 2) {
                 override fun migrate(db: SupportSQLiteDatabase) {
                     db.execSQL("ALTER TABLE feedback_entries ADD COLUMN prompt_version INTEGER NOT NULL DEFAULT 1")
                     db.execSQL("ALTER TABLE feedback_entries ADD COLUMN analysis TEXT")
                     db.execSQL("ALTER TABLE feedback_entries ADD COLUMN panel_id TEXT")
+                    db.execSQL("ALTER TABLE feedback_entries ADD COLUMN cache_read_tokens INTEGER")
                 }
             }
 

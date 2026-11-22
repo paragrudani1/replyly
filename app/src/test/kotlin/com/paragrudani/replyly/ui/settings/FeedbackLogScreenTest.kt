@@ -164,16 +164,48 @@ class FeedbackLogScreenTest {
     }
 
     @Test
+    fun `the details show the prompt-cache read count when the provider reported it`() {
+        compose.setContent {
+            FeedbackLogScreen(
+                listOf(v2Entry.copy(cacheReadTokens = 1_024)),
+                null,
+                {},
+                {},
+                zone = ZoneId.of("Asia/Kolkata"),
+                today = LocalDate.of(2026, 11, 21),
+            )
+        }
+        compose.onNodeWithText("Cache read: 1,024 tokens").assertDoesNotExist()
+        compose.onNodeWithText("Show details").performScrollTo().performClick()
+        compose.onNodeWithText("Cache read: 1,024 tokens").assertExists()
+    }
+
+    @Test
+    fun `no cache line when the provider did not report it`() {
+        assertThat(cacheReadText(v2Entry)).isNull()
+        assertThat(cacheReadText(v2Entry.copy(cacheReadTokens = 0))).isEqualTo("Cache read: 0 tokens")
+    }
+
+    @Test
     fun `the quality card shows insert rate and edit amount per prompt version`() {
         val stats =
             listOf(
-                PromptVersionStats(1, panels = 4, panelsWithInsert = 1, editsMeasured = 0, averageEdit = null),
+                PromptVersionStats(
+                    1,
+                    panels = 4,
+                    panelsWithInsert = 1,
+                    editsMeasured = 0,
+                    averageEdit = null,
+                    panelsEstimated = true,
+                ),
                 PromptVersionStats(2, panels = 10, panelsWithInsert = 7, editsMeasured = 5, averageEdit = 0.123),
             )
         compose.setContent {
             FeedbackLogScreen(listOf(v2Entry), null, {}, {}, stats = stats, today = LocalDate.of(2026, 11, 21))
         }
         compose.onNodeWithText("Suggestion quality").assertExists()
+        compose.onNodeWithText("Prompt v1 (estimated)", substring = true).assertExists()
+        compose.onNodeWithText("Prompt v2", substring = true).assertExists()
         compose.onNodeWithText("Inserted in 1 of 4 panels (25%) · no sent messages seen yet").assertExists()
         compose.onNodeWithText("Inserted in 7 of 10 panels (70%) · edited 12% on average (5 sent)").assertExists()
     }

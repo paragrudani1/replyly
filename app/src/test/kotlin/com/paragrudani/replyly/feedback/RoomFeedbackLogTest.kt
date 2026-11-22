@@ -135,6 +135,33 @@ class RoomFeedbackLogTest {
         }
 
     @Test
+    fun `stats estimate panels for old rows of one chat created close together`() =
+        runBlocking<Unit> {
+            log.record(chat, "m", "p", three, promptVersion = 1)
+            clock.advance(Duration.ofSeconds(60))
+            val second = log.record(chat, "m", "p", three, promptVersion = 1)
+            clock.advance(Duration.ofMinutes(30))
+            log.record(chat, "m", "p", three, promptVersion = 1)
+            log.markInserted(second, 1)
+
+            val v1 = log.observeStats().first().single()
+
+            assertThat(v1.panels).isEqualTo(2)
+            assertThat(v1.panelsWithInsert).isEqualTo(1)
+            assertThat(v1.panelsEstimated).isTrue()
+        }
+
+    @Test
+    fun `the cache read count is stored and read back`() =
+        runBlocking<Unit> {
+            val id = log.record(chat, "m", "p", three, cacheReadTokens = 2_048)
+            val none = log.record(chat, "m", "p", three)
+            val recent = log.observeRecent(10).first().associateBy { it.id }
+            assertThat(recent.getValue(id).cacheReadTokens).isEqualTo(2_048)
+            assertThat(recent.getValue(none).cacheReadTokens).isNull()
+        }
+
+    @Test
     fun `observeRecent honours the limit`() =
         runBlocking<Unit> {
             repeat(5) { log.record(chat, "m", "p$it", three) }

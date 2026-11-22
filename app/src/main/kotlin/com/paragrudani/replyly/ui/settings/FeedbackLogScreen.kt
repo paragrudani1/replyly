@@ -68,7 +68,8 @@ import java.util.Locale
 /**
  * Read-only timeline of the local feedback log, grouped by day, newest first. Each entry shows
  * the chat, the prompt version, the 3 suggestions (the inserted one highlighted) and the message
- * the user sent; "Show details" reveals the model's analysis (prompt v2) and the prompt. Above the
+ * the user sent; "Show details" reveals the prompt-cache read count (Anthropic), the model's
+ * analysis (prompt v2) and the prompt. Above the
  * timeline, [stats] shows the insert rate and edit amount per prompt version.
  * [error] is a fixed message shown when the encrypted log could not be read (for example
  * [SettingsViewModel.STORAGE_LOCKED]), with a "Try again" button that calls [onRetry].
@@ -249,6 +250,13 @@ private fun FeedbackEntryCard(
                 onClick = { showPrompt = !showPrompt },
             ) { Text(if (showPrompt) "Hide details" else "Show details") }
             if (showPrompt) {
+                cacheReadText(entry)?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
                 entry.analysis?.let { analysis ->
                     Text(
                         "Analysis (from the model, never shown in the panel)",
@@ -294,7 +302,7 @@ private fun QualityStatsCard(stats: List<PromptVersionStats>) {
             )
             stats.forEach { version ->
                 Column(Modifier.semantics(mergeDescendants = true) {}) {
-                    Text("Prompt v${version.promptVersion}", style = MaterialTheme.typography.labelLarge)
+                    Text(versionLabel(version), style = MaterialTheme.typography.labelLarge)
                     Text(
                         insertRateText(version) + " · " + editAmountText(version),
                         style = MaterialTheme.typography.bodySmall,
@@ -305,6 +313,14 @@ private fun QualityStatsCard(stats: List<PromptVersionStats>) {
         }
     }
 }
+
+/** "Prompt v2", or "Prompt v1 (estimated)" when its panels were estimated (entries without a panel id). */
+fun versionLabel(stats: PromptVersionStats): String =
+    "Prompt v${stats.promptVersion}" + if (stats.panelsEstimated) " (estimated)" else ""
+
+/** "Cache read: 1,024 tokens" for the entry details, or null when the provider did not report it. */
+fun cacheReadText(entry: FeedbackEntry): String? =
+    entry.cacheReadTokens?.let { "Cache read: ${String.format(Locale.ENGLISH, "%,d", it)} tokens" }
 
 /** "Inserted in 7 of 10 panels (70%)". */
 fun insertRateText(stats: PromptVersionStats): String =

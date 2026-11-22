@@ -2,11 +2,11 @@
   "formatVersion": 1,
   "database": {
     "version": 2,
-    "identityHash": "b1dfaf6383c9614bcc70fec18f414d68",
+    "identityHash": "362624025e8e5dd93a3b48766dfd8ea6",
     "entities": [
       {
         "tableName": "feedback_entries",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `chat_key` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `model` TEXT NOT NULL, `prompt` TEXT NOT NULL, `suggestions_json` TEXT NOT NULL, `inserted_index` INTEGER, `final_sent_text` TEXT, `prompt_version` INTEGER NOT NULL DEFAULT 1, `analysis` TEXT, `panel_id` TEXT)",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `chat_key` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `model` TEXT NOT NULL, `prompt` TEXT NOT NULL, `suggestions_json` TEXT NOT NULL, `inserted_index` INTEGER, `final_sent_text` TEXT, `prompt_version` INTEGER NOT NULL DEFAULT 1, `analysis` TEXT, `panel_id` TEXT, `cache_read_tokens` INTEGER)",
         "fields": [
           {
             "fieldPath": "id",
@@ -70,6 +70,11 @@
             "fieldPath": "panelId",
             "columnName": "panel_id",
             "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "cacheReadTokens",
+            "columnName": "cache_read_tokens",
+            "affinity": "INTEGER"
           }
         ],
         "primaryKey": {
@@ -102,7 +107,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'b1dfaf6383c9614bcc70fec18f414d68')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '362624025e8e5dd93a3b48766dfd8ea6')"
     ]
   }
 }

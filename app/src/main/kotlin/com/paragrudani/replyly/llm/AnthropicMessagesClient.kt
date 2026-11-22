@@ -107,6 +107,7 @@ internal class AnthropicMessagesClient(
                     usage.int("input_tokens") + usage.int("cache_creation_input_tokens") +
                         usage.int("cache_read_input_tokens"),
                 completionTokens = usage.int("output_tokens"),
+                cacheReadTokens = (usage?.get("cache_read_input_tokens") as? JsonPrimitive)?.intOrNull,
             )
         // Thinking blocks (if any) are skipped; only text blocks carry the answer.
         val content =
