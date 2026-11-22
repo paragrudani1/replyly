@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.parser
 
 import com.google.common.truth.Truth.assertWithMessage
+import com.paragrudani.replyly.parser.generic.ChatAssembler
 import com.paragrudani.replyly.parser.generic.ChatDates
 import com.paragrudani.replyly.parser.generic.bubble
 import com.paragrudani.replyly.parser.generic.centered
@@ -28,6 +29,8 @@ import kotlin.random.Random
  * is sometimes a date word ("Today", "Monday") on a bubble's side. The capture time is a random
  * moment of the capture day in India, after the last message of that day. With `unreadable`, a
  * quarter of the separators use a format [ChatDates] cannot read ("21th November", "21 Nov '26").
+ * With `nearToday`, the capture is instead 10 minutes before to 5 minutes after the last message
+ * on screen dated the capture day, as for a screen drawn before midnight and read after it.
  *
  * Invariants, for every screen:
  * 1. The dates of the on-screen messages never decrease from top to bottom, and (WhatsApp, with
@@ -37,6 +40,9 @@ import kotlin.random.Random
  *    no date (history then marks it approx): an unreadable separator ends the date above it. For
  *    a Telegram cell, its own status line counts as a separator.
  * 4. A date word in a bubble stays a message: the message count is the true one.
+ * 5. (`nearToday`) A message dated the capture day whose time is more than
+ *    [ChatAssembler.STALE_TODAY_MINUTES] after the capture drops every date on the screen (a stale
+ *    "Today"); up to that many minutes after it, the dates stay. Both sides are seen.
  *
  * Routes: WhatsApp by view ids, WhatsApp by geometry (no ids), Telegram cell descriptions.
  */
@@ -70,8 +76,16 @@ class DateAssignmentPropertyTest {
         val items: List<Item>,
         /** The time of the chat's last message when it is from [today]: the capture comes after it. */
         val lastTimeToday: LocalTime?,
+        /**
+         * `nearToday`: the capture's minutes after the last message on screen dated [today]
+         * (negative: before it); `null` for a capture after the chat's last message.
+         */
+        val nearTodayOffset: Int? = null,
     ) {
         val messages: List<Message> get() = items.filterIsInstance<Message>()
+
+        /** The time of the last message on screen that the parser must date [today]. */
+        val lastShownToday: LocalTime? get() = messages.filter { it.expected == today }.maxOfOrNull { it.truth.time }
     }
 
     private val dateWords = listOf("Today", "Yesterday", "Monday", "21 November", "kal", "ok", "Friday?")
@@ -133,6 +147,7 @@ class DateAssignmentPropertyTest {
         maxItems: Int,
         telegram: Boolean,
         unreadable: Boolean = false,
+        nearToday: Boolean = false,
     ): Screen {
         var date = LocalDate.of(2026, 1, 1).plusDays(random.nextLong(700))
         var time = LocalTime.of(8, 0)
@@ -177,7 +192,8 @@ class DateAssignmentPropertyTest {
             items += Message(m, if (ownDate) m.date else shownDate, ownDate)
             if (items.size >= maxItems) break
         }
-        return Screen(today, items, chat.last().time.takeIf { chat.last().date == today })
+        val offset = if (nearToday) random.nextInt(-10, 6) else null
+        return Screen(today, items, chat.last().time.takeIf { chat.last().date == today }, offset)
     }
 
     /** The capture instant: a random moment of the screen's day in India, after its last message. */
@@ -185,8 +201,14 @@ class DateAssignmentPropertyTest {
         random: Random,
         screen: Screen,
     ): java.time.Instant {
-        val earliest = screen.lastTimeToday?.toSecondOfDay()?.div(60) ?: 0
-        val minute = random.nextInt(earliest, 24 * 60)
+        val near = screen.lastShownToday?.takeIf { screen.nearTodayOffset != null }
+        val minute =
+            if (near != null) {
+                (near.toSecondOfDay() / 60 + screen.nearTodayOffset!!).coerceIn(0, 24 * 60 - 1)
+            } else {
+                val earliest = screen.lastTimeToday?.toSecondOfDay()?.div(60) ?: 0
+                random.nextInt(earliest, 24 * 60)
+            }
         return screen.today
             .atTime(minute / 60, minute % 60)
             .atZone(india)
@@ -456,15 +478,32 @@ class DateAssignmentPropertyTest {
         maxItems: Int,
         telegram: Boolean = false,
         unreadable: Boolean = false,
+        nearToday: Boolean = false,
         render: (Screen, Random) -> ScreenSnapshot,
         parser: ChatParser,
     ) {
         var checked = 0
+        var dropped = 0
+        var keptNear = 0
         for (seed in seeds) {
             val random = Random(seed)
-            val screen = screen(random, maxItems, telegram, unreadable)
-            val chat = parser.parse(render(screen, random))
+            val screen = screen(random, maxItems, telegram, unreadable, nearToday)
+            val snapshot = render(screen, random)
+            val chat = parser.parse(snapshot)
             val what = "$route seed $seed"
+            // Invariant 5: a "Today" message more than the tolerance after the capture is stale.
+            val captured = snapshot.capturedAt.atZone(india).toLocalTime()
+            val limit = captured.plusMinutes(ChatAssembler.STALE_TODAY_MINUTES)
+            val stale =
+                screen.lastShownToday?.let { last -> !limit.isBefore(captured) && last.isAfter(limit) } == true
+            if (nearToday && screen.lastShownToday != null) {
+                if (stale) {
+                    dropped++
+                } else {
+                    keptNear++
+                }
+            }
+            val expected = screen.messages.map { if (stale) null else it.expected }
             assertWithMessage("$what: not read as a chat").that(chat).isNotNull()
             val dates = chat!!.messages.map { it.date }
             // Invariant 4.
@@ -475,7 +514,7 @@ class DateAssignmentPropertyTest {
             // Invariants 2 and 3.
             assertWithMessage(
                 "$what: dates",
-            ).that(dates).containsExactlyElementsIn(screen.messages.map { it.expected }).inOrder()
+            ).that(dates).containsExactlyElementsIn(expected).inOrder()
             // Invariant 1.
             val firstDated = dates.indexOfFirst { it != null }
             if (firstDated >= 0) {
@@ -498,7 +537,13 @@ class DateAssignmentPropertyTest {
             }
             checked++
         }
-        println("DateAssignmentPropertyTest $route: $checked screens")
+        println(
+            "DateAssignmentPropertyTest $route: $checked screens" +
+                if (nearToday) ", $dropped stale (dates dropped), $keptNear kept within the tolerance" else "",
+        )
+        if (nearToday) {
+            assertWithMessage("$route: both sides of the tolerance").that(minOf(dropped, keptNear)).isGreaterThan(0)
+        }
     }
 
     @Test
@@ -533,6 +578,35 @@ class DateAssignmentPropertyTest {
             maxItems = 14,
             telegram = true,
             unreadable = true,
+            render = ::telegram,
+            parser = TelegramParser(india),
+        )
+    }
+
+    @Test
+    fun `a capture just before or after a Today message drops the dates only past the tolerance`() {
+        check(
+            "whatsapp:view-ids near today",
+            6001L..6400L,
+            11,
+            nearToday = true,
+            render = ::waIds,
+            parser = WhatsAppParser(india),
+        )
+        check(
+            "whatsapp:geometry near today",
+            7001L..7400L,
+            11,
+            nearToday = true,
+            render = ::waGeometry,
+            parser = WhatsAppParser(india),
+        )
+        check(
+            "telegram near today",
+            8001L..8400L,
+            14,
+            telegram = true,
+            nearToday = true,
             render = ::telegram,
             parser = TelegramParser(india),
         )
