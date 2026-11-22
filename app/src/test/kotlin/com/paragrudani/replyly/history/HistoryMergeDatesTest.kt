@@ -29,18 +29,139 @@ class HistoryMergeDatesTest {
     private fun historyOf(vararg messages: ChatMessage) = FakeHistory().apply { merge(messages.toList()) }
 
     @Test
-    fun `a re-read that now shows the separator dates the saved rows and stores nothing`() {
-        val history = historyOf(them("good morning everyone"), me("morning! coffee?"), them("yes at 10"))
+    fun `a re-read that now shows the separator dates the rows inside the screen and stores nothing`() {
+        val history =
+            historyOf(them("good morning everyone"), me("morning! coffee?"), them("yes at 10"), me("see you"))
 
         val plan =
             history.merge(
-                listOf(them("good morning everyone", date = nov21), me("morning! coffee?", date = nov21)),
+                listOf(
+                    them("good morning everyone", date = nov21),
+                    me("morning! coffee?", date = nov21),
+                    them("yes at 10", date = nov21),
+                ),
             )
 
         assertThat(plan.inserts).isEmpty()
         assertThat(plan.edits).isEmpty()
         assertThat(plan.isNoOp).isFalse()
-        assertThat(history.messages().map { it.date }).containsExactly(nov21, nov21, null).inOrder()
+        // The screen's top and bottom message may be another day's twin (the edge limits): they
+        // stay approx until a later read shows them inside the screen.
+        assertThat(history.messages().map { it.date }).containsExactly(null, nov21, null, null).inOrder()
+    }
+
+    @Test
+    fun `a short message dates its row only when both neighbours line up around it`() {
+        val history =
+            historyOf(
+                them("message one", "9:00 am"),
+                me("ok", "9:01 am"),
+                them("message two", "9:02 am"),
+                me("ok", "9:03 am"),
+                them("message three", "9:04 am"),
+                me("message four", "9:05 am"),
+            )
+
+        history.merge(
+            listOf(
+                them("message one", "9:00 am", nov21),
+                me("ok", "9:01 am", nov21),
+                them("message two", "9:02 am", nov21),
+                // A message the history missed sits between "message two" and this "ok".
+                them("missed one", "9:02 am", nov21),
+                me("ok", "9:03 am", nov21),
+                them("message three", "9:04 am", nov21),
+                me("message four", "9:05 am", nov21),
+            ),
+        )
+
+        assertThat(history.messages().map { it.text to it.date })
+            .containsExactly(
+                // The read's first message: an edge, approx.
+                "message one" to null,
+                // Both neighbours paired with the rows around it.
+                "ok" to nov21,
+                "message two" to nov21,
+                "missed one" to nov21,
+                // Its upper neighbour is new: it could be another "ok", so it stays approx.
+                "ok" to null,
+                "message three" to nov21,
+                "message four" to null,
+            ).inOrder()
+    }
+
+    @Test
+    fun `a message dated after the day a row was first seen is another message`() {
+        // Saved on the 20th without a separator: approx 20 November, so sent on the 20th or before.
+        val history = FakeHistory()
+        history.merge(listOf(them("gm"), me("ok", "9:01 am"), them("😂", "9:02 am")), today = nov20)
+
+        // The next day the same daily greeting and replies, under "TODAY".
+        val plan =
+            history.merge(
+                listOf(them("gm", date = nov21), me("ok", "9:01 am", nov21), them("😂", "9:02 am", nov21)),
+                today = nov21,
+            )
+
+        assertThat(plan.anchored).isFalse()
+        assertThat(history.messages().map { it.date }).containsExactly(null, null, null, nov21, nov21, nov21).inOrder()
+    }
+
+    @Test
+    fun `an edit is only taken on the day the saved message was first seen`() {
+        fun saved(today: LocalDate) =
+            FakeHistory().apply {
+                merge(
+                    listOf(
+                        them("good morning everyone", "9:00 am"),
+                        me("old text here", "9:05 am"),
+                        them("see you at the station", "9:10 am"),
+                    ),
+                    today = nov20,
+                )
+                merge(
+                    listOf(
+                        them("good morning everyone", "9:00 am"),
+                        me("new text here", "9:05 am"),
+                        them("see you at the station", "9:10 am"),
+                    ),
+                    today = today,
+                )
+            }
+
+        assertThat(saved(nov20).texts())
+            .containsExactly("good morning everyone", "new text here", "see you at the station")
+            .inOrder()
+        // A day later the same times may be a daily habit: both texts are kept.
+        assertThat(saved(nov21).texts()).containsAtLeast("old text here", "new text here")
+    }
+
+    @Test
+    fun `no sender is filled into a saved run of the same text`() {
+        fun asha(
+            text: String,
+            time: String?,
+        ) = ChatMessage(sender = "Asha", text = text, timeShown = time, isMe = false)
+
+        fun ravi(
+            text: String,
+            time: String?,
+        ) = ChatMessage(sender = "Ravi", text = text, timeShown = time, isMe = false)
+        val history = FakeHistory()
+        // Asha's "ok" saved without its name label, then Ravi's "ok" with its time cut off.
+        history.merge(
+            listOf(
+                asha("message one", "9:24 am"),
+                asha("ok", "9:34 am").copy(sender = null),
+                ravi("ok", null),
+                ravi("message two", "9:34 am"),
+            ),
+        )
+
+        // The read misses Asha's "ok" and shows Ravi's with its time.
+        history.merge(listOf(asha("message one", "9:24 am"), ravi("ok", "9:34 am"), ravi("message two", "9:34 am")))
+
+        assertThat(history.messages().map { it.sender }).containsExactly("Asha", null, "Ravi", "Ravi").inOrder()
     }
 
     @Test

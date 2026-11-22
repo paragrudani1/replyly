@@ -105,25 +105,39 @@ class RoomHistoryRepositoryTest {
     fun `a separator date is stored exact, and a later read that sees the separator upgrades an approx row`() =
         runTest {
             val nov20 = LocalDate.of(2026, 11, 20)
+            val nov21 = LocalDate.of(2026, 11, 21)
             val key = ChatKey("com.whatsapp", "Asha")
             // Read on 21 November with no separator in view: approx 21 November.
-            history.merge(chat(them("are you coming tonight?"), me("yes, at 8", "6:45 pm"), them("great", "6:46 pm")))
+            history.merge(
+                chat(
+                    them("are you coming tonight?"),
+                    me("yes, at 8", "6:45 pm"),
+                    them("great", "6:46 pm"),
+                    me("see you", "6:50 pm"),
+                ),
+            )
             clock.advance(Duration.ofMinutes(2))
 
-            // Scrolled up a little: "YESTERDAY" is above the first two.
+            // Scrolled up a little: "YESTERDAY" is above the first three. Only the message inside the
+            // screen becomes exact; the top and bottom ones may be another day's twins (HistoryMerge
+            // step 8), so they stay approx.
             history.merge(
-                chat(them("are you coming tonight?").copy(date = nov20), me("yes, at 8", "6:45 pm").copy(date = nov20)),
+                chat(
+                    them("are you coming tonight?").copy(date = nov20),
+                    me("yes, at 8", "6:45 pm").copy(date = nov20),
+                    them("great", "6:46 pm").copy(date = nov20),
+                ),
             )
             // Back at the bottom, the separator out of view again.
-            history.merge(chat(me("yes, at 8", "6:45 pm"), them("great", "6:46 pm")))
+            history.merge(chat(me("yes, at 8", "6:45 pm"), them("great", "6:46 pm"), me("see you", "6:50 pm")))
 
             val stored = history.lastMessages(key, 10)
-            assertThat(
-                stored.map { it.message.text },
-            ).containsExactly("are you coming tonight?", "yes, at 8", "great").inOrder()
-            assertThat(stored.map { it.date }).containsExactly(nov20, nov20, LocalDate.of(2026, 11, 21)).inOrder()
-            assertThat(stored.map { it.dateIsApprox }).containsExactly(false, false, true).inOrder()
-            assertThat(stored.map { it.message.date }).containsExactly(nov20, nov20, null).inOrder()
+            assertThat(stored.map { it.message.text })
+                .containsExactly("are you coming tonight?", "yes, at 8", "great", "see you")
+                .inOrder()
+            assertThat(stored.map { it.date }).containsExactly(nov21, nov20, nov21, nov21).inOrder()
+            assertThat(stored.map { it.dateIsApprox }).containsExactly(true, false, true, true).inOrder()
+            assertThat(stored.map { it.message.date }).containsExactly(null, nov20, null, null).inOrder()
         }
 
     @Test

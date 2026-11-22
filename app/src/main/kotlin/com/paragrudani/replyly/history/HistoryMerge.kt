@@ -20,6 +20,15 @@ data class StoredRow(
      * history may miss messages right above this row, and the rows above may even be newer.
      */
     val gapBefore: Boolean = false,
+    /**
+     * The row's day: [message]'s exact date, or else the local day it was first seen on
+     * ([dateIsApprox]). `null` when unknown (tests). An approximate day is never given to a read
+     * message; the merge uses it only as the latest day the row's message can be from (see
+     * [HistoryMerge], "Dates") and to refuse edits and fills across days (steps 5 and 6).
+     */
+    val date: LocalDate? = message.date,
+    /** [date] is the day the row was first seen, not a date a separator showed. */
+    val dateIsApprox: Boolean = false,
 )
 
 /** A new row to store. */
@@ -114,11 +123,13 @@ object MessageHash {
  * the chat's saved rows, asks for a [MergePlan] and applies it.
  *
  * **Dates** ([ChatMessage.date], issue #26) are metadata, not identity: every comparison below
- * ignores them and [ChatMessage.repliesToMe], with one exception. Two messages whose dates are
+ * ignores them and [ChatMessage.repliesToMe], with two exceptions. Two messages whose dates are
  * both known (exact) and differ are never equal, exactly equal or an edit of one another: "gm
- * 9:00 am" yesterday and today are two messages once a separator shows it. A saved row the read
- * lines up with takes a date or a reply flag it lacked ([MergePlan.metaUpdates]); an edit keeps
- * the saved ones the read does not show.
+ * 9:00 am" yesterday and today are two messages once a separator shows it. Likewise a read
+ * message whose date is after the day a saved row was first seen ([StoredRow.dateIsApprox]) is
+ * never that row: it was sent after the row was saved. A saved row the read lines up with takes
+ * a reply flag it lacked, and an exact date it lacked only by step 8 ([MergePlan.metaUpdates]);
+ * an edit keeps the saved ones the read does not show.
  *
  * A screen read shows a contiguous window of the chat, oldest first. Message identity is the
  * [MessageHash] of (isMe, sender, text, time shown). The same message can legitimately appear
@@ -178,7 +189,8 @@ object MessageHash {
  *    on its own (step 1 to 3, two pairs or more) with the start of the next segment, the read
  *    shows that nothing is missing there: the two segments join and the marker is cleared. The
  *    same holds upwards for the previous segment.
- * 5. **Edits.** Only in an alignment with an exact pair of [DISTINCTIVE_LENGTH] text, and only
+ * 5. **Edits.** Only in an alignment with an exact pair of [DISTINCTIVE_LENGTH] text, only on one
+ *    day (below), and only
  *    strictly between two aligned pairs of one segment with as many read messages as saved rows
  *    between them, never before the first or after the last one (there the read may show a new
  *    message): a read message and the saved message in the same slot are taken for an edit
@@ -187,18 +199,30 @@ object MessageHash {
  *    before or after the slot could move into it (a neighbour equals the other side's message:
  *    then the read message may be new and the saved row one this read skipped). The saved row
  *    keeps its place and gets the new content. Pairing stops at the first slot that does not
- *    qualify.
+ *    qualify. *One day*: the read message's day (its exact date, or else the capture day) and the
+ *    saved row's day (its exact date, or else the day it was first seen) must not differ when
+ *    both are known. Otherwise the shared time may be a daily habit ("gm" at 9:00 am every day)
+ *    and the read message is not an edit; then step 3 does not accept the slot either. A real
+ *    edit of an older message (Telegram allows 48 hours) is then stored as a new message.
  * 6. **Fill in.** An aligned saved message stored without a time gets the time the read shows,
  *    and one from someone else stored without a sender gets the sender the read shows, so a row
  *    does not keep matching every message with its text. Only for pairs with another pair on
- *    each side, and not inside a run of the same text from the same side (two "ok"s in a row): at
- *    the edge of the overlap, or inside a run, the read message may be one the history missed,
- *    right next to that row.
+ *    each side, on one day (step 5), and not inside a run of the same text from the same side
+ *    (two "ok"s in a row), on screen or saved: at the edge of the overlap, or inside a run, the
+ *    read message may be one the history missed, right next to that row.
  * 7. **Place new messages.** Each remaining read message is stored right before the saved row of
  *    the next read message that has one; messages after the last pair go right after that pair's
  *    row, inside its segment, even when later segments follow. New messages above the first row
  *    of a segment take over its gap marker. Saved rows that the read skips (deleted for me, or a
  *    parser miss) are kept.
+ * 8. **Date upgrades.** A saved row without an exact date takes the date a read message shows
+ *    only from a pairing sure enough to stick for good (an exact date is never corrected): the
+ *    read anchored; the message is neither the read's first nor its last (where the edge limits
+ *    below act); the row was not first seen before that date; and the message has a
+ *    [DISTINCTIVE_LENGTH] text, or both its neighbours on screen paired with the rows right
+ *    above and below that row in its segment. Otherwise the row stays approx, and a later read
+ *    can date it. An "ok" or "gm" lined up with another day's twin (one of the limits below)
+ *    then costs at most a duplicate-looking copy, never a wrong date.
  *
  * Results by case: an identical re-read or a read inside the saved range is a no-op (it only moves
  * the current position); new messages below the end are appended and reported in
@@ -290,7 +314,8 @@ object HistoryMerge {
         stored: List<StoredRow>,
         read: List<ChatMessage>,
         currentRowId: Long? = null,
-    ): MergePlan = planOrNull(stored, read, currentRowId, tailOnly = false)!!
+        today: LocalDate? = null,
+    ): MergePlan = planOrNull(stored, read, currentRowId, tailOnly = false, today)!!
 
     /**
      * Plans a read against only the newest saved rows of a chat ([tail], in position order), so a
@@ -304,13 +329,15 @@ object HistoryMerge {
         tail: List<StoredRow>,
         read: List<ChatMessage>,
         currentRowId: Long? = null,
-    ): MergePlan? = planOrNull(tail, read, currentRowId, tailOnly = true)
+        today: LocalDate? = null,
+    ): MergePlan? = planOrNull(tail, read, currentRowId, tailOnly = true, today)
 
     private fun planOrNull(
         stored: List<StoredRow>,
         read: List<ChatMessage>,
         currentRowId: Long?,
         tailOnly: Boolean,
+        today: LocalDate?,
     ): MergePlan? {
         if (read.isEmpty()) return MergePlan(emptyList(), emptyList(), emptyList(), anchored = false, emptyList())
         val current = currentRowId?.let { id -> stored.indexOfFirst { it.id == id } }?.takeIf { it >= 0 }
@@ -320,7 +347,7 @@ object HistoryMerge {
             (current ?: stored.lastIndex).let { c ->
                 if (c < 0) -1 else ((c + 1..stored.lastIndex).firstOrNull { stored[it].gapBefore } ?: stored.size) - 1
             }
-        val alignment = Aligner(stored, read, currentEnd).align()
+        val alignment = Aligner(stored, read, currentEnd, today).align()
         val firstPair = alignment.pairs.firstOrNull()
         val lastPair = alignment.pairs.lastOrNull()
         if (tailOnly) {
@@ -330,6 +357,7 @@ object HistoryMerge {
             if (alignment.pairs.size == 1 || alignment.pairs.size != lastPair.first - firstPair.first + 1) return null
         }
 
+        val dateFor = DateTrust(stored, read, alignment)
         val edits =
             read.indices
                 .filter { alignment.edited[it] }
@@ -339,18 +367,18 @@ object HistoryMerge {
                     PlannedEdit(
                         saved.id,
                         m.copy(
-                            date = m.date ?: saved.message.date,
+                            date = dateFor(i) ?: saved.message.date,
                             repliesToMe =
                                 m.repliesToMe || saved.message.repliesToMe,
                         ),
                     )
-                } + fills(stored, read, alignment.pairs)
+                } + fills(stored, read, alignment.pairs, today)
         val metaUpdates =
             read.indices.mapNotNull { i ->
                 val j = alignment.counterpart[i]
                 if (j < 0 || alignment.edited[i]) return@mapNotNull null
                 val saved = stored[j].message
-                val date = read[i].date?.takeIf { saved.date == null }
+                val date = dateFor(i)?.takeIf { saved.date == null }
                 val replies = read[i].repliesToMe && !saved.repliesToMe
                 if (date == null && !replies) null else PlannedMeta(stored[j].id, date, replies)
             }
@@ -403,6 +431,32 @@ object HistoryMerge {
         }
     }
 
+    /**
+     * Step 8: the date a read message gives the saved row it lined up with, or `null` when the
+     * pairing is not sure enough to make the row's date exact for good. See the KDoc.
+     */
+    private class DateTrust(
+        private val stored: List<StoredRow>,
+        private val read: List<ChatMessage>,
+        private val alignment: Alignment,
+    ) {
+        private val pairs = alignment.pairs.toHashSet()
+
+        operator fun invoke(i: Int): LocalDate? {
+            val date = read[i].date ?: return null
+            val j = alignment.counterpart[i]
+            if (!alignment.anchored || j < 0 || i == 0 || i == read.lastIndex) return null
+            // A row first seen before the day the read shows cannot be that message.
+            val row = stored[j]
+            if (row.dateIsApprox && row.date != null && date.isAfter(row.date)) return null
+            if (distinctive(read[i])) return date
+            val neighboursPaired =
+                (i - 1 to j - 1) in pairs && (i + 1 to j + 1) in pairs &&
+                    !stored[j].gapBefore && !stored[j + 1].gapBefore
+            return date.takeIf { neighboursPaired }
+        }
+    }
+
     private class Alignment(
         /** For each read index, the saved index it is the same message as (or an edit of), or -1. */
         val counterpart: IntArray,
@@ -417,12 +471,49 @@ object HistoryMerge {
 
     /** Steps 1 to 5 for one read. */
     private class Aligner(
-        stored: List<StoredRow>,
+        private val stored: List<StoredRow>,
         private val read: List<ChatMessage>,
         /** The saved index of the current segment's last row (-1 for an empty history). */
         private val currentEnd: Int,
+        /** The capture day, for [daysDiffer]; `null` when unknown. */
+        private val today: LocalDate?,
     ) {
         private val saved = stored.map { it.message }
+
+        /** For a row with an approximate date: the day it was first seen, the latest day it can be from. */
+        private val latest = stored.map { row -> row.date?.takeIf { row.dateIsApprox } }
+
+        /**
+         * Read message [i] shows a date after the day saved row [j] was first seen: it was sent
+         * after that row was saved, so it is another message, as with two known dates that differ.
+         */
+        private fun tooLate(
+            i: Int,
+            j: Int,
+        ): Boolean {
+            val bound = latest[j] ?: return false
+            return read[i].date?.isAfter(bound) == true
+        }
+
+        private fun exact(
+            i: Int,
+            j: Int,
+        ) = !tooLate(i, j) && exactMatch(read[i], saved[j])
+
+        private fun same(
+            i: Int,
+            j: Int,
+        ) = !tooLate(i, j) && sameMessage(read[i], saved[j])
+
+        private fun identical(
+            i: Int,
+            j: Int,
+        ) = !tooLate(i, j) && sameIdentity(read[i], saved[j])
+
+        private fun edit(
+            i: Int,
+            j: Int,
+        ) = !tooLate(i, j) && isEdit(read[i], saved[j])
 
         /** The gap-free segments, as saved index ranges, in order. */
         private val segments: List<IntRange>
@@ -479,7 +570,9 @@ object HistoryMerge {
                 if (!strong || segmentOf[j1] != segmentOf[j2] || i2 - i1 != j2 - j1) return@zipWithNext
                 var i = i1 + 1
                 var j = j1 + 1
-                while (i < i2 && j < j2 && isEdit(read[i], saved[j]) && !shiftable(i, j)) {
+                while (i < i2 && j < j2 && edit(i, j) && !shiftable(i, j) &&
+                    !daysDiffer(read[i], stored[j], today)
+                ) {
                     counterpart[i] = j
                     edited[i] = true
                     i++
@@ -512,10 +605,10 @@ object HistoryMerge {
             i: Int,
             j: Int,
         ): Boolean =
-            sameMessage(read[i - 1], saved[j]) ||
-                sameMessage(read[i], saved[j - 1]) ||
-                (i + 1 < read.size && sameMessage(read[i + 1], saved[j])) ||
-                (j + 1 < saved.size && sameMessage(read[i], saved[j + 1]))
+            same(i - 1, j) ||
+                same(i, j - 1) ||
+                (i + 1 < read.size && same(i + 1, j)) ||
+                (j + 1 < saved.size && same(i, j + 1))
 
         /** Step 1: the best (segment index, offset `saved index - read index`), or null. */
         private fun bestAnchor(
@@ -525,7 +618,7 @@ object HistoryMerge {
             val votes = HashMap<Pair<Int, Int>, Int>()
             for (i in range) {
                 byMessage[candidateKey(read[i])]
-                    ?.filter { j -> segmentOf[j] in allowed && exactMatch(read[i], saved[j]) }
+                    ?.filter { j -> segmentOf[j] in allowed && exact(i, j) }
                     ?.forEach { j -> votes.merge(segmentOf[j] to j - i, 1, Int::plus) }
             }
             if (votes.isEmpty()) return null
@@ -551,7 +644,7 @@ object HistoryMerge {
         ): Int =
             range.count {
                 it + offset in segment && distinctive(read[it]) &&
-                    exactMatch(read[it], saved[it + offset])
+                    exact(it, it + offset)
             }
 
         /** How many read messages in [range] that land inside [segment] at [offset] cannot match there. */
@@ -559,7 +652,7 @@ object HistoryMerge {
             offset: Int,
             range: IntRange,
             segment: IntRange,
-        ): Int = range.count { it + offset in segment && !sameMessage(read[it], saved[it + offset]) }
+        ): Int = range.count { it + offset in segment && !same(it, it + offset) }
 
         /** How many read messages in [range] land inside [segment] at [offset]. */
         private fun overlapLength(
@@ -583,15 +676,15 @@ object HistoryMerge {
                 return oneAtEndAllowed &&
                     i == 0 &&
                     j == currentEnd &&
-                    sameIdentity(read[i], saved[j]) &&
+                    identical(i, j) &&
                     distinctive(read[i]) &&
                     !matchesElsewhere(j)
             }
             val (first, last) = pairs.first().first to pairs.last().first
-            val exact = pairs.count { (i, j) -> exactMatch(read[i], saved[j]) }
+            val exactPairs = pairs.count { (i, j) -> exact(i, j) }
             // Short texts repeat too often: with only those, a second exact pair is needed.
             val exactNeeded = if (pairs.none { (i, _) -> distinctive(read[i]) }) 2 else 1
-            return exact >= exactNeeded &&
+            return exactPairs >= exactNeeded &&
                 2 * pairs.size >= overlapLength(offset, range, segment) &&
                 last - first + 1 - pairs.size <= MAX_UNPAIRED_INSIDE &&
                 !substitutes(pairs)
@@ -607,8 +700,10 @@ object HistoryMerge {
             pairs.zipWithNext().any { (a, b) ->
                 val (i1, j1) = a
                 val (i2, j2) = b
-                val edit = i2 - i1 == j2 - j1 && strongAnchor(pairs) && isEdit(read[i1 + 1], saved[j1 + 1])
-                i2 > i1 + 1 && j2 > j1 + 1 && !edit
+                val editSlot =
+                    i2 - i1 == j2 - j1 && strongAnchor(pairs) && edit(i1 + 1, j1 + 1) &&
+                        !daysDiffer(read[i1 + 1], stored[j1 + 1], today)
+                i2 > i1 + 1 && j2 > j1 + 1 && !editSlot
             }
 
         /**
@@ -616,7 +711,7 @@ object HistoryMerge {
          * enough to change a saved message's text (an edit): "gm" and "ok" pairs can be another day.
          */
         private fun strongAnchor(pairs: List<Pair<Int, Int>>): Boolean =
-            pairs.any { (i, j) -> distinctive(read[i]) && exactMatch(read[i], saved[j]) }
+            pairs.any { (i, j) -> distinctive(read[i]) && exact(i, j) }
 
         /**
          * Step 3: a segment has no holes, so the read message right above the first pair must be
@@ -641,14 +736,14 @@ object HistoryMerge {
         private fun matchesElsewhere(anchor: Int): Boolean =
             read.indices.any { i ->
                 byMessage[candidateKey(read[i])].orEmpty().any { j ->
-                    j != anchor && exactMatch(read[i], saved[j]) && fitsAt(j - i, segments[segmentOf[j]])
+                    j != anchor && exact(i, j) && fitsAt(j - i, segments[segmentOf[j]])
                 }
             }
 
         private fun fitsAt(
             offset: Int,
             segment: IntRange,
-        ): Boolean = read.indices.all { k -> k + offset !in segment || sameMessage(read[k], saved[k + offset]) }
+        ): Boolean = read.indices.all { k -> k + offset !in segment || same(k, k + offset) }
 
         /** Step 3, one pair: the read's top bubble is the saved last message with its time cut off. */
         private fun clippedTopOnly(): List<Pair<Int, Int>>? {
@@ -658,6 +753,7 @@ object HistoryMerge {
                 top.isMe == last.isMe &&
                     top.text == last.text &&
                     !datesDiffer(top, last) &&
+                    !tooLate(0, currentEnd) &&
                     distinctive(top) &&
                     top.sender == last.sender &&
                     (top.isMe || top.sender != null)
@@ -673,14 +769,14 @@ object HistoryMerge {
 
         /** Step 2: drops pairs that are not exact unless an exact pair sits right next to them. */
         private fun adjacentToExact(pairs: List<Pair<Int, Int>>): List<Pair<Int, Int>> {
-            fun exact(k: Int) = pairs.getOrNull(k)?.let { (i, j) -> exactMatch(read[i], saved[j]) } == true
+            fun exactAt(k: Int) = pairs.getOrNull(k)?.let { (i, j) -> exact(i, j) } == true
 
             fun next(
                 a: Int,
                 b: Int,
             ) = pairs[b].first == pairs[a].first + 1 && pairs[b].second == pairs[a].second + 1
             return pairs.filterIndexed { k, _ ->
-                exact(k) || (k > 0 && exact(k - 1) && next(k - 1, k)) || (exact(k + 1) && next(k, k + 1))
+                exactAt(k) || (k > 0 && exactAt(k - 1) && next(k - 1, k)) || (exactAt(k + 1) && next(k, k + 1))
             }
         }
 
@@ -711,7 +807,7 @@ object HistoryMerge {
             ): Boolean {
                 val i = range.first + r
                 val j = from + c
-                return abs(j - i - offset) <= BAND && sameMessage(read[i], saved[j])
+                return abs(j - i - offset) <= BAND && same(i, j)
             }
 
             fun gain(
@@ -723,8 +819,8 @@ object HistoryMerge {
                 // Fully equal counts only with every field shown: two missing senders are not equal.
                 val fidelity =
                     when {
-                        !exactMatch(read[i], saved[j]) -> 0
-                        sameIdentity(read[i], saved[j]) && (read[i].isMe || read[i].sender != null) -> 2
+                        !exact(i, j) -> 0
+                        identical(i, j) && (read[i].isMe || read[i].sender != null) -> 2
                         else -> 1
                     }
                 val bonus = (if (distinctive(read[i])) DISTINCTIVE_WEIGHT else 0L) + fidelity * FIDELITY_WEIGHT
@@ -820,19 +916,39 @@ object HistoryMerge {
         return read.isMe || (read.sender != null && read.sender == saved.sender)
     }
 
-    /** Step 6: only pairs with another pair on each side, outside runs; see the KDoc. */
+    /**
+     * Steps 5 and 6: the read message and the saved row may be on two days, so a shared time may
+     * only be a daily habit ("gm" at 9:00 am). The read message's day is its exact date, or else
+     * the capture day [today]; the row's is its exact date, or else the day it was first seen. Both
+     * must be known and differ. A real edit of an older message is then stored as a new message.
+     */
+    private fun daysDiffer(
+        read: ChatMessage,
+        row: StoredRow,
+        today: LocalDate?,
+    ): Boolean {
+        val rowDay = row.date ?: return false
+        val readDay = read.date ?: today ?: return false
+        return readDay != rowDay
+    }
+
+    /** Step 6: only pairs with another pair on each side, outside runs, on one day; see the KDoc. */
     private fun fills(
         stored: List<StoredRow>,
         read: List<ChatMessage>,
         pairs: List<Pair<Int, Int>>,
+        today: LocalDate?,
     ): List<PlannedEdit> =
         pairs.drop(1).dropLast(1).mapNotNull { (i, j) ->
-            // Inside a run ("ok" 10:18, "ok" 10:19), the row may be any of the run.
+            // Inside a run ("ok" 10:18, "ok" 10:19), on screen or saved, the row may be any of the run.
             val inRun =
                 listOf(i - 1, i + 1).any { k ->
                     read.getOrNull(k)?.let { it.isMe == read[i].isMe && it.text == read[i].text } == true
-                }
-            if (inRun) return@mapNotNull null
+                } ||
+                    listOf(j - 1, j + 1).any { k ->
+                        stored.getOrNull(k)?.message?.let { it.isMe == read[i].isMe && it.text == read[i].text } == true
+                    }
+            if (inRun || daysDiffer(read[i], stored[j], today)) return@mapNotNull null
             val row = stored[j].message
             val filled =
                 row.copy(

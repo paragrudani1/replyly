@@ -69,13 +69,20 @@ class RoomHistoryRepository(
         return mergeLock.withLock {
             db.withTransaction {
                 val current = dao.currentRowId(chatKey)
+                val instant = clock.instant()
+                val today = LocalDate.ofInstant(instant, clock.zone)
                 val tail = dao.newestInChat(chatKey, tailSize).asReversed().map { it.toRow() }
                 val plan =
                     if (tail.size < tailSize) {
-                        HistoryMerge.plan(tail, chat.messages, current) // The tail is the whole chat.
+                        HistoryMerge.plan(tail, chat.messages, current, today) // The tail is the whole chat.
                     } else {
-                        HistoryMerge.planAgainstTail(tail, chat.messages, current)
-                            ?: HistoryMerge.plan(dao.allInChat(chatKey).map { it.toRow() }, chat.messages, current)
+                        HistoryMerge.planAgainstTail(tail, chat.messages, current, today)
+                            ?: HistoryMerge.plan(
+                                dao.allInChat(chatKey).map { it.toRow() },
+                                chat.messages,
+                                current,
+                                today,
+                            )
                     }
                 if (plan.isNoOp) {
                     // A re-read still moves the current position (a scroll inside saved rows).
@@ -96,9 +103,8 @@ class RoomHistoryRepository(
                     meta.date?.let { dao.setExactDate(meta.id, it.toEpochDay()) }
                     if (meta.repliesToMe) dao.markRepliesToMe(meta.id)
                 }
-                val instant = clock.instant()
                 val now = instant.toEpochMilli()
-                val firstSeenDay = LocalDate.ofInstant(instant, clock.zone).toEpochDay()
+                val firstSeenDay = today.toEpochDay()
                 val insertedIds =
                     dao.insert(
                         plan.inserts.map { insert ->
@@ -169,7 +175,8 @@ class RoomHistoryRepository(
             }
         }
 
-    private fun MessageEntity.toRow() = StoredRow(id, position, toMessage(), gapBefore)
+    private fun MessageEntity.toRow() =
+        StoredRow(id, position, toMessage(), gapBefore, messageDate?.let(LocalDate::ofEpochDay), dateIsApprox)
 
     /** The message as the merge sees it: only an exact date. */
     private fun MessageEntity.toMessage() =

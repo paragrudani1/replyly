@@ -37,8 +37,13 @@ import kotlin.random.Random
  * 5. `lastMessages` (the rows ending at the current position) ends with the read's last message:
  *    when the read anchored, the row it lined up with or was stored in; otherwise the last row of
  *    the segment the read created.
- * 6. A saved row that a read message showing a date lined up with (or was stored in) has that
- *    exact date after the merge.
+ * 6. A row stored for a read message showing a date has that exact date; a saved row such a
+ *    message lined up with has that exact date or none (the merge dates a row only from a sure
+ *    pairing, its step 8; invariant 1 checks that no row ever holds a wrong one). The summary
+ *    says how many lined-up dated messages dated their row.
+ *
+ * Every merge gets the simulated capture day, and rows stored without a date get it as their
+ * approximate date, as on the phone.
  *
  * Messages that are identical in every field (two "ok"s from me at 6:41 pm) cannot be told apart
  * by anyone, so the checks treat such twins as interchangeable inside a segment.
@@ -74,11 +79,16 @@ import kotlin.random.Random
  * only) leaves the history right: the seed goes on, and those reads count toward a cap of 5 % of
  * reads.
  *
- * The seeds are fixed. Outside them the merge, with or without dates, still fails about 1 seed in
- * 700 (seen: 1249 group without dates, 6079 1:1 and 7085 group with dates): a short top bubble
- * ("ok", "😂") inside a run of identical messages in one minute lines up with a twin a few rows
- * up, beyond [RUN]. No date takes part in these (the reads show none); see "Remaining risks" in
- * the issue #26 PR 1 description.
+ * The seeds are fixed. Outside them the merge still fails some seeds, never by an overwrite.
+ * Measured on seeds 100000-119999 (20,000 per config, PR #27 round 1): 1:1 1 seed (0.005%),
+ * group 11 (0.055%), 1:1 dates 5 (0.025%), group dates 12 (0.06%), 1:1 midnight 7 (0.035%),
+ * group midnight 14 (0.07%); none break invariant 1. Replaying the dated configs' reads with
+ * every date stripped (merge as on `main`) fails 5, 12, 11 and 14 seeds, two of them overwrites.
+ * The failures are the documented limits in shapes the excuses above do not cover: mostly a short
+ * bubble ("ok", "😂") lined up with a twin a few rows away inside a run of identical messages,
+ * beyond [RUN] (seen: 1249 group, invariant 4; 6079 1:1 dates, invariant 3; 7085 group dates,
+ * invariant 2), and a run ending at a row saved without a time that reports one old message in
+ * `newAtEnd` (invariant 2, feedback log only).
  */
 class HistoryMergePropertyTest {
     @Test
@@ -131,6 +141,32 @@ class HistoryMergePropertyTest {
                 9001L..9060L,
             ),
         )
+    }
+
+    /**
+     * Seeds outside the ranges above that the PR #27 review found overwriting a saved row. A date
+     * stamped onto another day's twin: 104437 (1:1 dates), 118281 (group dates), 115704 (1:1
+     * midnight), 113270 (group midnight). A daily "gm" at 9:00 am taken for an edit of another
+     * day's message at 9:00 am (104828), and a sender filled into a saved run of "ok"s (103811),
+     * both group midnight. Each may stop at a documented limit, never at a broken invariant.
+     */
+    @Test
+    fun `seeds that once overwrote a saved row stay fixed`() {
+        val midnight = MergeFuzz.Config("group midnight", group = true, dates = true, midnight = true)
+        listOf(
+            MergeFuzz.Config("1:1 dates", group = false, dates = true) to 104437L,
+            MergeFuzz.Config("group dates", group = true, dates = true) to 118281L,
+            MergeFuzz.Config("1:1 midnight", group = false, dates = true, midnight = true) to 115704L,
+            midnight to 113270L,
+            midnight to 104828L,
+            midnight to 103811L,
+        ).forEach { (config, seed) ->
+            val result = MergeFuzz.run(config, seed..seed)
+            println(result.summary())
+            assertWithMessage("${config.name} seed $seed:\n" + result.failures.joinToString("\n"))
+                .that(result.failures)
+                .isEmpty()
+        }
     }
 
     @Test
@@ -189,12 +225,16 @@ internal object MergeFuzz {
         /** Invariant number for each failed seed. */
         val failedInvariants: List<Int>,
         val excusedReads: Int,
+        /** See [Simulation.dateChances]. */
+        val dateChances: Int = 0,
+        val dateUpgrades: Int = 0,
     ) {
         fun summary() =
             "HistoryMergePropertyTest ${config.name}: $seeds seeds, $reads reads, $millis ms, " +
                 "${limits.size} stopped at a known limit ${limitClasses.groupingBy { it }.eachCount()}, " +
                 "$excusedReads reads excused (old block), ${failures.size} failed " +
-                "${failedInvariants.groupingBy { it }.eachCount()}"
+                "${failedInvariants.groupingBy { it }.eachCount()}" +
+                if (dateChances > 0) ", $dateUpgrades of $dateChances lined-up dated messages dated their row" else ""
     }
 
     fun run(
@@ -204,6 +244,8 @@ internal object MergeFuzz {
         val started = System.nanoTime()
         var reads = 0
         var excused = 0
+        var dateChances = 0
+        var dateUpgrades = 0
         val failures = mutableListOf<String>()
         val invariants = mutableListOf<Int>()
         val limits = mutableListOf<String>()
@@ -213,6 +255,8 @@ internal object MergeFuzz {
             simulation.run(config.steps)
             reads += simulation.reads
             excused += simulation.excusedReads
+            dateChances += simulation.dateChances
+            dateUpgrades += simulation.dateUpgrades
             simulation.failure?.let {
                 failures += "seed $seed: $it"
                 invariants += simulation.failedInvariant
@@ -223,7 +267,19 @@ internal object MergeFuzz {
             }
         }
         val millis = (System.nanoTime() - started) / 1_000_000
-        return Result(config, seeds.count(), reads, millis, failures, limits, classes, invariants, excused)
+        return Result(
+            config,
+            seeds.count(),
+            reads,
+            millis,
+            failures,
+            limits,
+            classes,
+            invariants,
+            excused,
+            dateChances,
+            dateUpgrades,
+        )
     }
 
     private class TrueMessage(
@@ -287,6 +343,12 @@ internal object MergeFuzz {
 
         /** Reads whose only fault is a documented limit that leaves the history right. */
         var excusedReads = 0
+            private set
+
+        /** Read messages showing a date lined up with a row without an exact date, and how many dated it. */
+        var dateChances = 0
+            private set
+        var dateUpgrades = 0
             private set
 
         fun run(steps: Int) {
@@ -510,7 +572,7 @@ internal object MergeFuzz {
             // Rows without a time before the merge, by the true message they stand for.
             val timelessBefore = before.filter { it.message.timeShown == null }.map { rowTruth.getValue(it.id) }.toSet()
             val storedBefore = before.map { rowTruth.getValue(it.id) }.toSet()
-            val plan = history.merge(read)
+            val plan = history.merge(read, today = FIRST_DAY.plusDays((clock / MINUTES_PER_DAY).toLong()))
             reads++
             plan.inserts.zip(history.lastInsertedIds).forEach { (insert, rowId) ->
                 rowTruth[rowId] = readIds[insert.message] ?: error("an insert that is not a read message")
@@ -684,17 +746,27 @@ internal object MergeFuzz {
             }
             // Invariant 6.
             val rowOfRead = plan.matchedRowIds.toMutableList()
+            val stored = BooleanArray(read.size)
             plan.inserts.zip(history.lastInsertedIds).forEach { (insert, rowId) ->
-                rowOfRead[read.indexOfFirst { it === insert.message }] = rowId
+                val k = read.indexOfFirst { it === insert.message }
+                rowOfRead[k] = rowId
+                stored[k] = true
             }
-            read
-                .zip(rowOfRead)
-                .firstOrNull { (m, rowId) ->
-                    m.date != null &&
-                        history.row(rowId!!).message.date != m.date
-                }?.let {
-                    return fail(6, "row of ${describe(it.first)} holds date ${history.row(it.second!!).message.date}")
+            read.indices
+                .firstOrNull { k ->
+                    val date = read[k].date ?: return@firstOrNull false
+                    val held = history.row(rowOfRead[k]!!).message.date
+                    held != date && (stored[k] || held != null)
+                }?.let { k ->
+                    return fail(6, "row of ${describe(read[k])} holds date ${history.row(rowOfRead[k]!!).message.date}")
                 }
+            // How often a dated read message dates the row it lined up with (step 8 of the merge).
+            read.indices.forEach { k ->
+                val rowId = plan.matchedRowIds[k] ?: return@forEach
+                if (read[k].date == null || before.single { it.id == rowId }.message.date != null) return@forEach
+                dateChances++
+                if (history.row(rowId).message.date != null) dateUpgrades++
+            }
         }
 
         /**
