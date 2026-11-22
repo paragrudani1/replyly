@@ -1241,3 +1241,91 @@ chat text, the analysis text or the prompt. **Send:** any line it prints (blur i
 (no caption). Tap the button. **See:** "Nothing to reply to" (their photo answered you), not
 follow-ups. Tap "Suggest follow-ups anyway" and open "Show details": the photo shows as a
 `[media]` line after your message. **Send:** pass/fail and the two conversation lines.
+
+## 15. X replies and quotes (issue #30, PR 1)
+
+Replyly now reads X (`com.twitter.android`): the button shows on the **reply composer** and the
+**quote composer** (and in X DMs, which work like any other chat), and the parser reads the post
+you reply to, the thread above it and the quoted post. Until PR 2 the suggestions still use the
+chat prompt, so judge only detection and reading here, not how good the cards are.
+
+**Every X view id in `parser/x/XIds.kt` is a guess** from older public Twitter dumps, and the
+composer is recognised by its hint ("Post your reply", "Add a comment"), in English. The dumps of
+15.4, 15.5, 15.6, 15.8 and 15.9 decide the real ids: send them all, with **scramble on** (handles
+scramble the same everywhere in one dump; times, counts and the composer hints stay readable).
+How to take a dump with the keyboard open: [PARSER_FIXTURES.md](PARSER_FIXTURES.md), section 1,
+step 4. The debug screen prints `Parser: x:view-ids` (ids found) or `x:geometry` (none matched),
+a line `X: reply · 2 parents + target · …`, a Notes line naming the mode and counting posts, and
+one line per post (`←` someone, `→ me`). Keep
+`adb logcat -v time -s ReplylyOverlay ReplylyA11y` open for the whole section.
+
+15.1 **Do:** Settings → "Your style". **See:** a field "My X handle" under "Names people call me".
+Type ` @YourHandle ` (with the spaces), Save. **See:** it shows `@YourHandle`. Type `my handle`
+and Save. **See:** "Letters, digits and _ only, up to 15 characters", nothing saved. Put your real
+handle back. **Send:** pass/fail.
+
+15.2 **Do:** open X on the home timeline, scroll a little. Then tap the search box (Explore tab)
+so the keyboard opens. **See:** no button on the timeline; no button on search; logcat shows
+`hidden reason=NO_INPUT_FOCUS` (or `KEYBOARD_CLOSED`) on the timeline and
+`hidden reason=NOT_A_REPLY_FIELD` on search. **Send:** the two logcat lines; if the button shows on
+search, a dump of the search screen with the keyboard open.
+
+15.3 **Do:** tap the new-post button (the "+" or feather), so "What's happening?" has the keyboard.
+Then open a post's detail view without tapping its reply bar. **See:** no button on either.
+**Send:** pass/fail; if the button shows, a dump of that screen with the keyboard open.
+
+15.4 **Do:** on the timeline, tap the reply icon under a post. The full-screen reply composer
+opens with the keyboard. **See:** the button shows above the keyboard. Take a dump of it.
+**See:** `X: reply · 0 parents + target` (or more parents if X shows the thread), the post's
+author as Title, and a Notes line with `target: named in replying-to line` (or `nearest above
+composer`) and `replying-to line: 1 handles`. **Send:** the dump (scramble on) and the summary
+lines. If the button does not show, send the dump anyway: it holds the field's hint and id.
+
+15.5 **Do:** open a post that is a reply in a thread (it shows posts above it), scroll so the post
+is in the middle, and tap the "Post your reply" bar at the bottom. **See:** if X opens the reply
+inline (keyboard up, the thread still visible), the button shows; take a dump. **See:** Notes
+`target: focal post`, the posts above it listed oldest first, and none of the replies below the
+post. If X opens the full-screen composer instead, say so and dump that. **Send:** the dump and
+the summary lines, and which of the two X did.
+
+15.6 **Do:** on a post tap Repost → Quote. The quote composer opens with "Add a comment".
+**See:** the button shows; a dump says `X: quote · 0 parents + target` and Title is the quoted
+post's author. **Send:** the dump and the summary lines.
+
+15.7 **Do:** open a long thread (6+ posts), scroll down so the first visible post's name line is
+cut off at the top, then tap the reply bar (15.5). Dump. **See:** the cut-off post is not listed,
+and no line of it shows up inside another post; the others are oldest first. **Send:** the dump.
+
+15.8 **Do:** reply to a post with an image that has alt text (it shows an "ALT" badge), and if you
+find one, a post with an image without alt text. Dump each. **See:** the post line ends with
+`[image: <alt text>]` for the first and `[image]` for the second; Notes `1 alt texts`. **Send:** both
+dumps, and in each the `contentDescription` and `viewId` of the image node.
+
+15.9 **Do:** reply to a post with a link card (title and domain under the text). Dump. **See:**
+the post line ends with `[link: <title> (<domain>)]`; Notes `1 link cards`. **Send:** the dump.
+
+15.10 **Do:** with "My X handle" set (15.1), reply inside a thread where one of the posts above is
+yours. Dump. **See:** your post shows as `→ me`; `my handle from setting`. Clear the setting, save,
+and dump the same screen. **See:** either still `→ me` with `my handle from composer_account` (X
+shows your account next to the composer) or no `→ me` and `my handle from none`. **Send:** both
+summaries.
+
+15.11 **Do:** in the reply composer (15.4), tap the button. **See:** the panel opens with 3 cards
+about the post; Usage "Requests today" goes up by exactly 1. Tap a card. **See:** the text lands
+in X's reply box; nothing is posted (the Post/Reply button is never pressed). The panel has no
+"Delete history" or contact-note action. **Send:** pass/fail and the request count before/after.
+
+15.12 **Do:** open an X DM conversation and tap the message field. **See:** the button shows;
+tapping it opens the panel with that conversation; a dump says `Parser: x:dm-generic` and
+`History: no`. **Send:** pass/fail and the dump's summary lines.
+
+15.13 **Do:** after 15.11, open Settings → Privacy → Feedback log. **See:** an entry for X with the
+target author as chat name. No other trace: X screens are never captured in the background.
+**Send:** pass/fail.
+
+15.14 **Do:** watch the logcat from the intro during the whole section. **See:** no post text, no
+names or handles, no hint text; only event names and reasons. **Send:** any line that has some.
+
+15.15 **Do:** after an X app update (Play Store), repeat 15.4 and 15.6. **See:** same results. If
+the button stops showing or `Parser:` changes from `x:view-ids` to `x:geometry`, send the dump:
+the ids moved.

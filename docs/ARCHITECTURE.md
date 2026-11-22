@@ -52,7 +52,7 @@ One lazy binding per interface, all real implementations:
 | `captureComponent` | `PassiveCaptureComponent` | Also runs both purges on connect. |
 | `replyInserter` | `AccessibilityReplyInserter` | Can only set text. |
 | `sensitiveScreenPolicy` | `DefaultSensitiveScreenPolicy` | Order: secure window, blocklisted app, banking app, password field, blocklisted chat. Blocks everything until settings load. |
-| `chatParserRegistry` | `Parsers.registry()` | WhatsApp, Telegram, generic fallback. |
+| `chatParserRegistry` | `Parsers.registry()` | WhatsApp, Telegram, X, generic fallback. X reads "My X handle" from a hot `StateFlow` of settings. |
 | `databaseKeyProvider` | `KeystoreDatabaseKeyProvider` | One SQLCipher passphrase, wrapped by a Keystore key. |
 | `historyRepository`, `contactNoteStore` | `RoomHistoryRepository`, `RoomContactNoteStore` | Share `history.db`. |
 | `suggestionRequestAssembler` | `HistorySuggestionRequestAssembler` | App labels via `PackageManager` (launcher apps are visible through `<queries>`); `clock`, the current zone and `DateFormat.is24HourFormat` for the prompt's Now header. |
@@ -138,6 +138,24 @@ One lazy binding per interface, all real implementations:
   it; `feedback/FeedbackStats`). v1 entries have no panel id: entries of one chat within 2 minutes
   of the previous one count as one panel, and the row is labelled "(estimated)". The stats are
   computed on `Dispatchers.Default`.
+
+## X replies and quotes (`parser/x/`, issue #30)
+
+- **Detection** (`XFields`): `ButtonVisibility` asks an app-specific field gate after its usual
+  checks; on X only the reply composer, the quote composer and a DM pass, told apart by the focused
+  field's view id and hint (`FocusedInput.hint`). The timeline, a post without a focused composer,
+  search and the new-post composer show no button. No tree walk.
+- **Parser** (`XParser`, `XPostReader`): posts start at a header (name, @handle, time; the focal
+  post stacks name over handle and shows an absolute time line) and run to the next one; a header
+  indented past the main column or inside a quote card id starts the embedded quoted post. View ids
+  (`XIds`, all guesses until DEVICE_CHECKLIST 15) first, text and geometry for each piece without
+  one. The result is an `XContext` on `ParsedChat.x`: mode, target, parents oldest first, the
+  composer's "Replying to" handles and my handle ("My X handle", else the composer's account).
+- **No history**: `historyApplies = false`, X is not in `TargetApps.FULL_PARSER_PACKAGES`, so
+  passive capture never reads it and the assembler's merge does nothing. Only the feedback entry is
+  stored. DMs go through `GenericChatParser` (no `XContext`).
+- **Interim prompt** (until PR 2's X mode): `ParsedChat.messages` carries the thread (parents, then
+  the target) with bracketed notes for other authors, alt text, link cards and quoted posts.
 
 ## Provider profiles (`settings/ProviderProfiles.kt`, `llm/`, `ui/settings/profiles/`)
 
