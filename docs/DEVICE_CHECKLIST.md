@@ -1065,7 +1065,7 @@ keep scrolling a little until the countdown ends). **See:** no message line has 
 as its text. The Notes line counts the pill only if it uses the separator's view id
 (`conversation_row_date_divider`) or has no id. Then it lists the pill's date next to the inline
 divider's, the same date twice with no message between them, for example
-`date separators: 3 (2026-11-20, 2026-11-20, 2026-11-21), 6 of 6 messages dated`: the two count as
+`date separators: 3 (2026-11-20, 2026-11-20, 2026-11-21), 6 of 6 messages dated, 0 replies to me`: the two count as
 one, and the messages keep their dates. If the Notes line ends with
 `dates dropped: separators out of order` and says `0 of N messages dated`, the pill showed a date
 that does not match the divider or sat below a message: send that dump. **Send:** the dump; say
