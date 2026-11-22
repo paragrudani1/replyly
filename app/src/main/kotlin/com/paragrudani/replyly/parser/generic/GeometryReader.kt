@@ -47,6 +47,8 @@ class GeometryReader(
          * given.
          */
         val separators: List<LocalDate?> = emptyList(),
+        /** For each of [separators], how many bubbles sit above it ([ChatAssembler.checkDates]). */
+        val separatorBubblesAbove: List<Int> = emptyList(),
     )
 
     private class Pending(
@@ -72,6 +74,7 @@ class GeometryReader(
         val units = units(tree, layout)
         val pending = mutableListOf<Pending>()
         val separators = mutableListOf<LocalDate?>()
+        val bubblesAbove = mutableListOf<Int>()
         var date: LocalDate? = null
         var skipped = 0
         for (unit in units) {
@@ -85,6 +88,7 @@ class GeometryReader(
                     .forEach { separator ->
                         date = ChatDates.resolve(separator.text!!, today)
                         separators += date
+                        bubblesAbove += pending.size
                     }
             }
             if (leaves.isEmpty()) continue
@@ -128,6 +132,7 @@ class GeometryReader(
                 if (today != null) {
                     date = null
                     separators += null
+                    bubblesAbove += pending.size
                 }
                 continue
             }
@@ -153,6 +158,7 @@ class GeometryReader(
             units = units.size,
             skipped = skipped,
             separators = separators,
+            separatorBubblesAbove = bubblesAbove,
         )
     }
 

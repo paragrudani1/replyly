@@ -380,6 +380,18 @@ WA_TWO_TODAYS = WA_STALE_TODAY + [
     {"kind": "in", "text": "Reached home 🏠", "time": "12:02 am"},
 ]
 
+# WhatsApp's floating date pill read as a divider (S3 of the PR #27 review round 2): right after a
+# scroll it shows the top messages' day over the inline divider of that same day, with no message
+# between the two. Captured at CAPTURED (23:45 on 21 November in India).
+WA_DATE_PILL = [
+    {"kind": "divider", "text": "YESTERDAY"},
+    {"kind": "divider", "text": "YESTERDAY"},
+    {"kind": "in", "text": "Did you book the cab?", "time": "10:12 pm"},
+    {"kind": "out", "text": "Yes, 6 am pickup", "time": "10:15 pm", "status": "Read"},
+    {"kind": "divider", "text": "TODAY"},
+    {"kind": "in", "text": "Cab is here 🚕", "time": "6:02 am"},
+]
+
 # Hinglish, with day-first numeric separators (WhatsApp Business, Indian English).
 WA_NUMERIC = [
     {"kind": "divider", "text": "12/11/2026"},
@@ -669,6 +681,8 @@ def main(out_dir):
           wa.chat("Meera", "online", WA_STALE_TODAY, 1400, captured=WA_MIDNIGHT_CAPTURED))
     write(out_dir, "whatsapp/synthetic-two_todays.json",
           wa.chat("Meera", "online", WA_TWO_TODAYS, 1200, captured=WA_MIDNIGHT_CAPTURED))
+    write(out_dir, "whatsapp/synthetic-date_pill.json", wa.chat("Meera", "online", WA_DATE_PILL, 900))
+    write(out_dir, "whatsapp/synthetic-date_pill-no_ids.json", bare.chat("Meera", "online", WA_DATE_PILL, 900))
     write(out_dir, "whatsapp/synthetic-dates-hindi.json", wa.chat("Rohan Bhai", "ऑनलाइन", WA_HINDI, 900))
     write(out_dir, "whatsapp_business/synthetic-dates-numeric.json",
           w4b.chat("Sharma Electronics", "Business account", WA_NUMERIC, 900))

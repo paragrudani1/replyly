@@ -86,7 +86,10 @@ object ChatAssembler {
      * rows approx and a later read can date them), so when the screen's dates do not add up,
      * every date on it goes:
      * - **order**: the readable [separators] (top to bottom) must strictly increase, and the
-     *   bubbles' dates must not decrease down the screen (two "TODAY"s, one of them stale);
+     *   bubbles' dates must not decrease down the screen (two "TODAY"s, one of them stale). Two
+     *   equal dates in a row with no bubble between them count once ([bubblesAbove]): WhatsApp's
+     *   floating date pill over the inline divider shows the same day, and a stale pair always
+     *   has the earlier day's bubbles between its two separators;
      * - **stale "Today"**: a bubble dated the capture day whose time shown is more than
      *   [STALE_TODAY_MINUTES] after the capture time. The screen was drawn before midnight and
      *   read after it, so "Today" means yesterday;
@@ -97,9 +100,14 @@ object ChatAssembler {
         bubbles: List<RawBubble>,
         separators: List<LocalDate?>,
         capturedAt: LocalDateTime,
+        /**
+         * For each of [separators], how many bubbles (message rows) of the screen sit above it.
+         * `null`: unknown, every separator counts.
+         */
+        bubblesAbove: List<Int>? = null,
     ): DateCheck {
         val today = capturedAt.toLocalDate()
-        val readable = separators.filterNotNull()
+        val readable = withoutRepeats(separators, bubblesAbove).filterNotNull()
         val dates = bubbles.mapNotNull { it.date }
         val dropped =
             when {
@@ -121,6 +129,17 @@ object ChatAssembler {
                 }
             }
         return DateCheck(if (dropped == null) bubbles else bubbles.map { it.copy(date = null) }, dropped)
+    }
+
+    /** [separators] without a readable date equal to the one right above it with no bubble between. */
+    private fun withoutRepeats(
+        separators: List<LocalDate?>,
+        bubblesAbove: List<Int>?,
+    ): List<LocalDate?> {
+        if (bubblesAbove == null || bubblesAbove.size != separators.size) return separators
+        return separators.filterIndexed { k, date ->
+            k == 0 || date == null || date != separators[k - 1] || bubblesAbove[k] != bubblesAbove[k - 1]
+        }
     }
 
     /** A time shown ("6:42 pm", "18:42") more than [STALE_TODAY_MINUTES] later than [capturedAt]'s. */

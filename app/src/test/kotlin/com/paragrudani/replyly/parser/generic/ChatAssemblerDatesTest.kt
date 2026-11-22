@@ -83,6 +83,40 @@ class ChatAssemblerDatesTest {
     }
 
     @Test
+    fun `two equal separators with no bubble between them count once`() {
+        // WhatsApp's floating pill over the inline divider of the same day: [YESTERDAY, YESTERDAY, TODAY].
+        val bubbles = listOf(bubble("10:00 pm", nov21), bubble("10:05 am", nov22))
+        val pill =
+            ChatAssembler.checkDates(bubbles, listOf(nov21, nov21, nov22), evening, bubblesAbove = listOf(0, 0, 1))
+
+        assertThat(pill.dropped).isNull()
+        assertThat(pill.bubbles).isEqualTo(bubbles)
+
+        // [TODAY, TODAY] with nothing between, at the top of the screen.
+        val twoAtTop =
+            ChatAssembler.checkDates(listOf(bubble("10:05 am", nov22)), listOf(nov22, nov22), evening, listOf(0, 0))
+        assertThat(twoAtTop.dropped).isNull()
+    }
+
+    @Test
+    fun `two equal separators with a bubble between them still drop the dates`() {
+        // A stale TODAY over yesterday's messages, and the new TODAY below them.
+        val check =
+            ChatAssembler.checkDates(
+                listOf(bubble("11:50 pm", nov22), bubble("12:02 am", nov22)),
+                listOf(nov22, nov22),
+                justAfterMidnight,
+                bubblesAbove = listOf(0, 1),
+            )
+
+        assertThat(check.dropped).isEqualTo("separators out of order")
+        assertThat(check.dates()).containsExactly(null, null)
+        // Without positions every separator counts, as before.
+        assertThat(ChatAssembler.checkDates(emptyList(), listOf(nov21, nov21), evening).dropped)
+            .isEqualTo("separators out of order")
+    }
+
+    @Test
     fun `an unreadable separator does not count for the order`() {
         val check =
             ChatAssembler.checkDates(

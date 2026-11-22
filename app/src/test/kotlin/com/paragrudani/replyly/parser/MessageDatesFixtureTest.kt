@@ -124,6 +124,25 @@ class MessageDatesFixtureTest {
     }
 
     @Test
+    fun `whatsapp - the floating date pill over the same day's divider keeps the dates`() {
+        // Captured at 23:45 on 21 November in India; the pill and the divider both say YESTERDAY,
+        // with no message between them. Same by view ids and by geometry.
+        listOf("whatsapp/synthetic-date_pill.json", "whatsapp/synthetic-date_pill-no_ids.json").forEach { fixture ->
+            val report = report(fixture)
+
+            assertThat(report.dates())
+                .containsExactly(
+                    "Did you book the cab?" to date(2026, 11, 20),
+                    "Yes, 6 am pickup" to date(2026, 11, 20),
+                    "Cab is here 🚕" to date(2026, 11, 21),
+                ).inOrder()
+            assertThat(report.notes.last()).isEqualTo(
+                "date separators: 3 (2026-11-20, 2026-11-20, 2026-11-21), 3 of 3 messages dated, 0 replies to me",
+            )
+        }
+    }
+
+    @Test
     fun `whatsapp - a hinglish chat with hindi separators`() {
         // Captured on Saturday 21 November 2026 in India.
         assertThat(report("whatsapp/synthetic-dates-hindi.json").dates())

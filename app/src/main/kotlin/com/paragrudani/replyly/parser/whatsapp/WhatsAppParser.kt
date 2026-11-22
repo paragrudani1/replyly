@@ -61,6 +61,7 @@ class WhatsAppParser(
                     readByIds(messageNodes, area, layout.list, separators),
                     separators.map { it.second },
                     now(snapshot),
+                    separators.map { (top, _) -> messageNodes.count { it.bounds.top < top } },
                 )
             val bubbles = checked.bubbles
             val isGroup = bubbles.any { it.label != null } || ChatText.groupHint(subtitle) == GroupHint.GROUP
@@ -84,7 +85,8 @@ class WhatsAppParser(
         val title = layout.title ?: return ParseReport(null, METHOD_GEOMETRY, listOf("no chat title"))
         val hint = ChatText.groupHint(layout.subtitle)
         val result = GeometryReader(GeometryReader.Mode.FULL).read(tree, layout, hint, today(snapshot))
-        val checked = ChatAssembler.checkDates(result.bubbles, result.separators, now(snapshot))
+        val checked =
+            ChatAssembler.checkDates(result.bubbles, result.separators, now(snapshot), result.separatorBubblesAbove)
         val isGroup = hint == GroupHint.GROUP || result.labelsFound
         val chat = chat(snapshot, title, isGroup, checked.bubbles)
         val notes =

@@ -96,6 +96,7 @@ class TelegramParser(
                     },
                     headers.map { it.second },
                     now,
+                    headers.map { (top, _) -> cellNodes.count { it.first.bounds.top < top } },
                 )
             val chat = chat(snapshot, title, isGroupBySubtitle, checked.bubbles)
             val notes =
@@ -115,7 +116,7 @@ class TelegramParser(
         }
         val title = layout.title ?: return ParseReport(null, METHOD_GEOMETRY, listOf("no chat title"))
         val result = GeometryReader(GeometryReader.Mode.FULL).read(tree, layout, hint, today)
-        val checked = ChatAssembler.checkDates(result.bubbles, result.separators, now)
+        val checked = ChatAssembler.checkDates(result.bubbles, result.separators, now, result.separatorBubblesAbove)
         val isGroup = isGroupBySubtitle || result.labelsFound
         val chat = chat(snapshot, title, isGroup, checked.bubbles)
         val notes =
