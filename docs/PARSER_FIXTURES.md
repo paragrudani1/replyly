@@ -34,7 +34,7 @@ Screens the sensitive-screen policy blocks (secure windows such as Chrome Incogn
 On the dump's card:
 
 - **Scramble text when sharing** (switch above the list): turn it on to send the structure without private content.
-  Letters become random letters of the same case and length, every word of every message included. Only whole strings that are exactly chrome stay readable (times, date separators, "online", "last seen …", "N members", "typing…", the encryption notice, "Edited", and the last "Sent/Received … at …" line of a Telegram cell), along with digits, emoji, punctuation, view ids and bounds, so the parser still reads a scrambled dump the same way.
+  Letters become random letters of the same case and length, every word of every message included. Only whole strings that are exactly chrome stay readable (times, English date separators such as "TODAY" or "21 November 2026" (not "कल" or "21.11.26", which are also ordinary bubble texts), "online", "last seen …", "N members", "typing…", the encryption notice, "Edited", and the last "Sent/Received … at …" line of a Telegram cell), along with digits, emoji, punctuation, view ids and bounds, so the parser still reads a scrambled dump the same way.
   A name scrambles to the same letters everywhere in one dump, so senders still group; two dumps never match.
   Digits are not scrambled: phone numbers stay. Check for them, or use a test chat.
   With scramble off, **Save** writes the real chat text to shared Downloads (the card warns about it).
