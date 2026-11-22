@@ -1,6 +1,6 @@
 package com.paragrudani.replyly.llm
 
-import com.paragrudani.replyly.parser.ChatMessage
+import java.time.ZonedDateTime
 import kotlin.time.Duration
 
 /** Everything the prompt is built from (spec 6). Built by [SuggestionRequestAssembler]. */
@@ -11,13 +11,21 @@ data class SuggestionRequest(
     val chatTitle: String,
     val isGroup: Boolean,
     /** Last N messages, oldest first. For generic apps: the visible messages only. */
-    val history: List<ChatMessage>,
+    val history: List<PromptMessage>,
     val aboutMe: String,
     val contactNote: String?,
     /** The user's own messages: this chat first, then 10-15 from other chats of the same app. */
     val styleExamples: List<String>,
     /** Optional one-off instruction, for example "say I'll call at 6". */
     val instruction: String?,
+    /** The phone's clock and zone when the request was built: the prompt's "Now" header. */
+    val now: ZonedDateTime,
+    /** The phone's 12/24-hour setting, for the "Now" header. */
+    val is24Hour: Boolean = false,
+    /** "Names people call me" from settings: only for ranking group mentions. */
+    val myNames: List<String> = emptyList(),
+    /** The user tapped "Suggest follow-ups anyway" (see [ReplyTarget.decide]). */
+    val followUpAnyway: Boolean = false,
 )
 
 /** One reply option. The 3 suggestions of a result each have a different [intent]. */
@@ -29,6 +37,11 @@ data class Suggestion(
 data class TokenUsage(
     val promptTokens: Int,
     val completionTokens: Int,
+    /**
+     * Input tokens read from the provider's prompt cache (Anthropic `cache_read_input_tokens`,
+     * already part of [promptTokens]); null when the reply does not report it. A count only.
+     */
+    val cacheReadTokens: Int? = null,
 ) {
     val totalTokens: Int get() = promptTokens + completionTokens
 }
@@ -42,6 +55,13 @@ sealed interface SuggestionResult {
         val model: String,
         /** The exact prompt sent, for the feedback log. Never log it to logcat. */
         val promptSent: String,
+        /**
+         * The model's short reasoning (prompt v2), for the feedback log only: never shown in the
+         * panel and never logged. Empty when the model left it out.
+         */
+        val analysis: String = "",
+        /** [PromptBuilder.VERSION] of the prompt that produced this result. */
+        val promptVersion: Int = PromptBuilder.VERSION,
     ) : SuggestionResult
 
     sealed interface Failure : SuggestionResult {

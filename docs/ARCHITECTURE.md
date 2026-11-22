@@ -27,9 +27,10 @@ All code lives in the single `:app` module, package `com.paragrudani.replyly`.
                           │                    FeedbackLog.attachFinalMessage
              ▼
      ReplyPanel.Content(PanelRequest(chat))   (panel/, in the overlay's modal window)
-             │ on open, and on Regenerate, Retry or a quick-chip tap only
+             │ on open, and on Regenerate, Retry, a quick-chip tap or "Suggest follow-ups anyway" only
              ├─► SuggestionRequestAssembler.assemble   merges the chat into history first, then
-             │     reads history, contact note, settings, app label
+             │     reads history, contact note, settings, app label, the clock (Now, 12/24 h)
+             ├─► ReplyTarget.decide (pure) ── NothingToReply ──► "Nothing to reply to", no call
              ├─► ReplyGenerator.generate ──► SuggestionResult
              │     active profile, API key, https endpoint, CostGuard.tryAcquire, call(s), recordUsage
              ├─► FeedbackLog.record
@@ -54,13 +55,13 @@ One lazy binding per interface, all real implementations:
 | `chatParserRegistry` | `Parsers.registry()` | WhatsApp, Telegram, generic fallback. |
 | `databaseKeyProvider` | `KeystoreDatabaseKeyProvider` | One SQLCipher passphrase, wrapped by a Keystore key. |
 | `historyRepository`, `contactNoteStore` | `RoomHistoryRepository`, `RoomContactNoteStore` | Share `history.db`. |
-| `suggestionRequestAssembler` | `HistorySuggestionRequestAssembler` | App labels via `PackageManager` (launcher apps are visible through `<queries>`). |
-| `replyGenerator`, `llmReplyGenerator`, `connectionTester` | `LlmReplyGenerator` | Active provider profile, OpenAI or Anthropic format (see below); optional 3 parallel calls; "Test connection". |
+| `suggestionRequestAssembler` | `HistorySuggestionRequestAssembler` | App labels via `PackageManager` (launcher apps are visible through `<queries>`); `clock`, the current zone and `DateFormat.is24HourFormat` for the prompt's Now header. |
+| `replyGenerator`, `llmReplyGenerator`, `connectionTester` | `LlmReplyGenerator` | Active provider profile, OpenAI or Anthropic format (see below); one call per tap; "Test connection". |
 | `replyPanel` | `ComposeReplyPanel` | |
-| `settingsRepository`, `costGuard` | DataStore-backed (`settings`, `cost`) | |
+| `settingsRepository`, `costGuard` | DataStore-backed (`settings`, `cost`) | `settings` runs `SettingsMigrations.ALL` (drops `use_parallel_calls`). |
 | `profileRepository`, `profileSecretStore` | `DataStoreProfileRepository`, `EncryptedProfileSecretStore` | `profiles` (no secrets), `profile_secrets` (AES-GCM per profile id). Migrates the legacy config once. |
 | `apiKeyStore` | `ActiveProfileApiKeyStore` | The active profile's key, behind the old interface (onboarding uses it). The legacy `api_key` store is only read by the migration. |
-| `feedbackLog` | `RoomFeedbackLog` | `feedback.db`, opened on first use off the main thread. |
+| `feedbackLog` | `RoomFeedbackLog` | `feedback.db` (schema 2: `prompt_version`, `analysis`, `panel_id`, `cache_read_tokens`), opened on first use off the main thread. |
 | `themeSettings` | `ThemeSettings` | The "Material You colours" flag as a hot `StateFlow`, so overlay windows theme their first frame. |
 
 `InMemory…` classes next to the interfaces are test fakes. Add behaviour to the service as a new
@@ -99,6 +100,45 @@ One lazy binding per interface, all real implementations:
   (none while a call or an insert runs, or after an insert). Passive capture never calls it.
 - Logs carry event names, counts and class names only: no chat text, prompts or key.
 
+## Prompt v2 (`llm/PromptBuilder`, `llm/ReplyTarget`, issue #26)
+
+- **System prompt**: one static constant, `PromptBuilder.SYSTEM_PROMPT` (rules plus 3 worked
+  examples), so it can be cached. Everything that changes is in the user message.
+- **User message**, in order: `Now:` header (phone clock and zone, 12/24-hour as the phone, a
+  time-of-day word: late night 00-05, morning 05-12, afternoon 12-17, evening 17-21, night 21-24);
+  app; About me, contact note, style examples; the conversation in `<conversation>`: first the
+  chat line (`Chat: <name> (1:1 with <contact>)` or `(group)`; the name is set by other people, so
+  it is inside the untrusted block), then the messages grouped by day (`— Yesterday · Sat 21 Nov —`,
+  `(approx)` for guessed dates), lines `[6:42 pm] Name: text` with the contact's name in 1:1 chats
+  and "me", `[media]` for a message without text; the reply target; my instruction; the task.
+  Chat-derived text cannot open or close `<conversation>` or `<reply_to>`.
+- **Messages** reach the prompt as `PromptMessage` (message plus `date`, `dateIsApprox`,
+  `firstSeenAt`; `repliesToMe` is read from the message). A history message gets its stored date
+  and `dateIsApprox` from `history.db`; an on-screen-only one (generic apps, or a chat with no
+  history yet) gets `ChatMessage.date`, exact, or no date.
+- **Reply target** (`ReplyTarget.decide`, pure): `Reply` with every text message from others after
+  my last one (in groups, mentions of me — a whole-word match of "Names people call me" — and
+  replies to me first). Media (blank text) count as turns but are never targets: their photo after
+  my message means `NothingToReply`. `FollowUp` when my message is the very last one and over 2
+  hours old or a question; otherwise `NothingToReply`. Send time (`ReplyTarget.sentAt`, never later
+  than the real one): exact date + bubble time; else the latest instant at or before `firstSeenAt`
+  with the bubble's local time; else `firstSeenAt`. A question: a "?" in the last sentence, a
+  question word first or a marker last ("… kya", "… na"); not when it ends in "!" without "?", nor
+  exclamations like "kyun nahi" or "what a …". The panel checks it after assembling and before any
+  call: `NothingToReply` shows "Nothing to reply to" with no call; "Suggest follow-ups anyway",
+  Regenerate, or a chip tap that leaves an instruction makes one (each a user tap; later
+  generations in that panel stay follow-ups).
+- **Output**: `{"analysis": "...", "suggestions": [{"intent","text"} x3]}`. A missing analysis is
+  read as empty. The analysis goes only to the feedback log, never to the panel or logcat.
+- **Feedback log**: each entry stores `prompt_version` (1 for entries from before v2), `analysis`,
+  a `panel_id` (one per panel open) and `cache_read_tokens` (Anthropic's prompt-cache read count, a
+  number only, shown in the entry details). The feedback screen shows, per prompt version, the insert
+  rate (panels with an inserted card / panels with suggestions) and the average edit amount
+  (normalized edit distance between the inserted suggestion and the message sent, where history saw
+  it; `feedback/FeedbackStats`). v1 entries have no panel id: entries of one chat within 2 minutes
+  of the previous one count as one panel, and the row is labelled "(estimated)". The stats are
+  computed on `Dispatchers.Default`.
+
 ## Provider profiles (`settings/ProviderProfiles.kt`, `llm/`, `ui/settings/profiles/`)
 
 - A profile is name, `ApiFormat`, base URL, model, optional max tokens, temperature and extra
@@ -123,8 +163,9 @@ One lazy binding per interface, all real implementations:
   URL+model (in the client). Temperature only if the profile sets one.
 - **Anthropic format** (`AnthropicMessagesClient`): native Messages API, `x-api-key`,
   `anthropic-version: 2026-10-21`, top-level `system`, `max_tokens` always set, no temperature.
-  JSON via `output_config.format` (a JSON schema of the suggestions contract); `effort: low` only
-  on api.anthropic.com. `stop_reason` `max_tokens` or `model_context_window_exceeded` maps to the "cut off" failure, `refusal` to a
+  JSON via `output_config.format` (a JSON schema of `{analysis, suggestions}`); `effort: low` and
+  prompt caching (`system` as one text block with `cache_control: {type: ephemeral}`, no beta
+  header) only on api.anthropic.com. `stop_reason` `max_tokens` or `model_context_window_exceeded` maps to the "cut off" failure, `refusal` to a
   fixed bad-output reason. Usage = input (+ cache) and output tokens.
 - Both formats share `LlmHttp` (fixed error wording per status, 529 "overloaded") and the JSON-mode
   fallback: a 400/422 naming the JSON fields retries once without them, remembered per URL+model.

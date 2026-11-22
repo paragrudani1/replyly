@@ -176,11 +176,18 @@ class SettingsPolishTest {
     }
 
     @Test
-    fun `the AI provider section shows the slot above the parallel-calls switch`() {
+    fun `the AI provider section shows the slot, and parallel mode is gone`() {
         setScreen(aiProvider = { Text("Profiles go here") })
         compose.onNodeWithText("Profiles go here").assertExists()
         compose.onNodeWithText("API endpoint").assertDoesNotExist()
-        compose.onNodeWithText("3 parallel calls").assertExists()
+        compose.onNodeWithText("3 parallel calls").assertDoesNotExist()
+    }
+
+    @Test
+    fun `your style has the optional names field`() {
+        setScreen()
+        scrollTo("Names people call me")
+        compose.onNodeWithText("Names people call me").assertExists()
     }
 
     @Test

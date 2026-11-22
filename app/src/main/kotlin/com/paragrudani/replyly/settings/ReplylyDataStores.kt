@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.settings
 
 import android.content.Context
+import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
 import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
@@ -30,10 +31,12 @@ object ReplylyDataStores {
     fun create(
         context: Context,
         name: String,
+        migrations: List<DataMigration<Preferences>> = emptyList(),
     ): DataStore<Preferences> =
         PreferenceDataStoreFactory.create(
             // A corrupt file falls back to defaults instead of crashing the app on every start.
             corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+            migrations = migrations,
             scope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
             produceFile = { context.applicationContext.preferencesDataStoreFile(name) },
         )

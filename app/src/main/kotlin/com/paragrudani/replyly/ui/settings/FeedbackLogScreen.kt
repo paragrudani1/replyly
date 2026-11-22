@@ -52,6 +52,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.paragrudani.replyly.R
 import com.paragrudani.replyly.feedback.FeedbackEntry
+import com.paragrudani.replyly.feedback.PromptVersionStats
 import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.ui.theme.ReplylyTheme
 import com.paragrudani.replyly.ui.theme.Spacing
@@ -66,7 +67,10 @@ import java.util.Locale
 
 /**
  * Read-only timeline of the local feedback log, grouped by day, newest first. Each entry shows
- * the chat, the 3 suggestions (the inserted one highlighted) and the message the user sent.
+ * the chat, the prompt version, the 3 suggestions (the inserted one highlighted) and the message
+ * the user sent; "Show details" reveals the prompt-cache read count (Anthropic), the model's
+ * analysis (prompt v2) and the prompt. Above the
+ * timeline, [stats] shows the insert rate and edit amount per prompt version.
  * [error] is a fixed message shown when the encrypted log could not be read (for example
  * [SettingsViewModel.STORAGE_LOCKED]), with a "Try again" button that calls [onRetry].
  *
@@ -81,6 +85,7 @@ fun FeedbackLogScreen(
     error: String?,
     onClear: () -> Unit,
     onBack: () -> Unit,
+    stats: List<PromptVersionStats> = emptyList(),
     onRetry: () -> Unit = {},
     zone: ZoneId = ZoneId.systemDefault(),
     today: LocalDate = LocalDate.now(zone),
@@ -125,6 +130,8 @@ fun FeedbackLogScreen(
                                 .semantics { liveRegion = LiveRegionMode.Polite },
                     )
                 }
+            } else if (stats.isNotEmpty() && entries.isNotEmpty()) {
+                item(key = "stats") { QualityStatsCard(stats) }
             } else if (entries.isEmpty()) {
                 item {
                     EmptyState(
@@ -230,7 +237,7 @@ private fun FeedbackEntryCard(
                     )
                 }
                 Text(
-                    "$app · ${entry.model}",
+                    "$app · ${entry.model} · prompt v${entry.promptVersion}",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -241,8 +248,31 @@ private fun FeedbackEntryCard(
             SentLine(entry)
             TextButton(
                 onClick = { showPrompt = !showPrompt },
-            ) { Text(if (showPrompt) "Hide prompt" else "Show prompt") }
+            ) { Text(if (showPrompt) "Hide details" else "Show details") }
             if (showPrompt) {
+                cacheReadText(entry)?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                entry.analysis?.let { analysis ->
+                    Text(
+                        "Analysis (from the model, never shown in the panel)",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        analysis.ifBlank { "(the model sent none)" },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                Text(
+                    "Prompt",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 Text(
                     entry.prompt,
                     style = MaterialTheme.typography.bodySmall,
@@ -252,6 +282,57 @@ private fun FeedbackEntryCard(
         }
     }
 }
+
+/**
+ * Insert rate (panels with an inserted card / panels with suggestions) and the average edit amount
+ * (how much of an inserted reply was changed before sending), one row per prompt version.
+ */
+@Composable
+private fun QualityStatsCard(stats: List<PromptVersionStats>) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerLow,
+        shape = MaterialTheme.shapes.medium,
+        modifier = Modifier.fillMaxWidth().padding(top = Spacing.S),
+    ) {
+        Column(Modifier.padding(Spacing.L), verticalArrangement = Arrangement.spacedBy(Spacing.S)) {
+            Text(
+                "Suggestion quality",
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.semantics { heading() },
+            )
+            stats.forEach { version ->
+                Column(Modifier.semantics(mergeDescendants = true) {}) {
+                    Text(versionLabel(version), style = MaterialTheme.typography.labelLarge)
+                    Text(
+                        insertRateText(version) + " · " + editAmountText(version),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** "Prompt v2", or "Prompt v1 (estimated)" when its panels were estimated (entries without a panel id). */
+fun versionLabel(stats: PromptVersionStats): String =
+    "Prompt v${stats.promptVersion}" + if (stats.panelsEstimated) " (estimated)" else ""
+
+/** "Cache read: 1,024 tokens" for the entry details, or null when the provider did not report it. */
+fun cacheReadText(entry: FeedbackEntry): String? =
+    entry.cacheReadTokens?.let { "Cache read: ${String.format(Locale.ENGLISH, "%,d", it)} tokens" }
+
+/** "Inserted in 7 of 10 panels (70%)". */
+fun insertRateText(stats: PromptVersionStats): String =
+    "Inserted in ${stats.panelsWithInsert} of ${stats.panels} panels" +
+        (stats.insertRate?.let { " (${percent(it)})" } ?: "")
+
+/** "edited 12% on average (5 sent)", or that no sent message is known yet. */
+fun editAmountText(stats: PromptVersionStats): String =
+    stats.averageEdit?.let { "edited ${percent(it)} on average (${stats.editsMeasured} sent)" }
+        ?: "no sent messages seen yet"
+
+private fun percent(fraction: Double): String = "${Math.round(fraction * 100)}%"
 
 @Composable
 private fun SuggestionLine(

@@ -6,6 +6,7 @@ import com.paragrudani.replyly.history.HistoryRepository
 import com.paragrudani.replyly.insert.InsertResult
 import com.paragrudani.replyly.insert.ReplyInserter
 import com.paragrudani.replyly.llm.ReplyGenerator
+import com.paragrudani.replyly.llm.ReplyTarget
 import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.llm.SuggestionFailureException
 import com.paragrudani.replyly.llm.SuggestionRequest
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.plus
+import java.util.UUID
 import kotlin.time.Duration
 
 /** What the panel needs from [com.paragrudani.replyly.di.AppGraph]. */
@@ -48,6 +50,12 @@ sealed interface SuggestionsUi {
     data class Error(
         val error: PanelError,
     ) : SuggestionsUi
+
+    /**
+     * My message is the last one, recent and not a question ([ReplyTarget.NothingToReply]): no call
+     * was made. "Suggest follow-ups anyway" ([ReplyPanelState.suggestFollowUpsAnyway]) makes one.
+     */
+    data object NothingToReply : SuggestionsUi
 }
 
 data class PanelUiState(
@@ -100,8 +108,13 @@ const val COPIED_VISIBLE_MILLIS = 1_500L
  * dispatcher, cancelled when [scope] ends (the composition's scope); [dispose] cancels that job when the composition forgets the state, so
  * closing the panel cancels any call still in flight.
  *
- * LLM calls: one on [start], one per [regenerate] and one per [toggleChip] tap, each ignored while
- * a call runs, while an insert runs and after the panel finished. The panel's out-and-in card animation only follows [PanelUiState.suggestions]; it
+ * LLM calls: one on [start], one per [regenerate], one per [toggleChip] tap and one on
+ * [suggestFollowUpsAnyway], each ignored while a call runs, while an insert runs and after the
+ * panel finished. Before each call the assembled request is checked with [ReplyTarget.decide]:
+ * when there is nothing to reply to, the panel shows [SuggestionsUi.NothingToReply] and makes no
+ * call, until the user taps "Suggest follow-ups anyway", Regenerate, or a chip that leaves an
+ * instruction (from then on, this panel's generations are follow-ups). Each of those is a user
+ * tap and makes one call (invariant 4). The panel's out-and-in card animation only follows [PanelUiState.suggestions]; it
  * never starts or delays a call.
  *
  * The instruction sent is [combineInstruction]: the selected chips' fixed prompts, then the typed
@@ -133,7 +146,11 @@ class ReplyPanelState(
     }
 
     private var started = false
+    private var followUpAnyway = false
     private var generation: Job? = null
+
+    /** Ties every feedback entry of this panel open together (insert rate per panel). */
+    private val panelId = UUID.randomUUID().toString()
     private var noteLoading = false
     private var copiedTimer: Job? = null
 
@@ -149,12 +166,33 @@ class ReplyPanelState(
         mutableState.update { it.copy(instruction = text.takeWholeCharacters(instructionRoom(it.chips))) }
     }
 
-    /** Regenerate and Retry: one new call with the current instruction. Ignored while one runs. */
-    fun regenerate() = generate()
+    /**
+     * Regenerate and Retry: one new call with the current instruction. Ignored while one runs. On
+     * the [SuggestionsUi.NothingToReply] state it is an explicit tap for follow-ups, like
+     * [suggestFollowUpsAnyway] (with or without an instruction): one call.
+     */
+    fun regenerate() {
+        if (mutableState.value.suggestions == SuggestionsUi.NothingToReply && canGenerate()) followUpAnyway = true
+        generate()
+    }
+
+    /**
+     * "Suggest follow-ups anyway" on the [SuggestionsUi.NothingToReply] state: one call for 3
+     * follow-ups to my last message. Ignored in any other state.
+     */
+    fun suggestFollowUpsAnyway() {
+        if (mutableState.value.suggestions != SuggestionsUi.NothingToReply || !canGenerate()) return
+        followUpAnyway = true
+        generate()
+    }
 
     /**
      * A quick-chip tap: toggles [chip] and makes one new call with the combined instruction.
      * Ignored (nothing changes) while a call or an insert runs, or after the panel finished.
+     *
+     * On the [SuggestionsUi.NothingToReply] state, a tap that leaves an instruction (a chip or
+     * typed text) asks for follow-ups that follow it, like [suggestFollowUpsAnyway]: one call. A tap
+     * that leaves no instruction only checks again (no call).
      *
      * A chip takes room from the typed text: if the field holds more than the new
      * [instructionRoom], the field itself is shortened (visible, with the counter at its limit), so
@@ -162,10 +200,13 @@ class ReplyPanelState(
      */
     fun toggleChip(chip: QuickInstruction) {
         if (!canGenerate()) return
+        val nothingToReply = mutableState.value.suggestions == SuggestionsUi.NothingToReply
         mutableState.update {
             val chips = if (chip in it.chips) it.chips - chip else it.chips + chip
             it.copy(chips = chips, instruction = it.instruction.takeWholeCharacters(instructionRoom(chips)))
         }
+        val current = mutableState.value
+        if (nothingToReply && combineInstruction(current.instruction, current.chips) != null) followUpAnyway = true
         generate()
     }
 
@@ -195,7 +236,7 @@ class ReplyPanelState(
                 val suggestionRequest =
                     when (val assembled = assemble(instruction)) {
                         is Assembled.Ok -> {
-                            assembled.request
+                            assembled.request.copy(followUpAnyway = followUpAnyway)
                         }
 
                         is Assembled.Failed -> {
@@ -203,6 +244,11 @@ class ReplyPanelState(
                             return@launch
                         }
                     }
+                // Pure and local: deciding there is nothing to reply to costs no call.
+                if (ReplyTarget.decide(suggestionRequest) == ReplyTarget.NothingToReply) {
+                    mutableState.update { it.copy(suggestions = SuggestionsUi.NothingToReply) }
+                    return@launch
+                }
                 val next =
                     when (val result = ignoringErrors { deps.generator.generate(suggestionRequest) }) {
                         is SuggestionResult.Success -> {
@@ -367,7 +413,16 @@ class ReplyPanelState(
     /** The feedback log is for judging quality later; its failure must not block the user. */
     private suspend fun recordOrNull(result: SuggestionResult.Success): Long? =
         ignoringErrors {
-            deps.feedbackLog.record(request.chat.chatKey, result.model, result.promptSent, result.suggestions)
+            deps.feedbackLog.record(
+                request.chat.chatKey,
+                result.model,
+                result.promptSent,
+                result.suggestions,
+                analysis = result.analysis,
+                promptVersion = result.promptVersion,
+                panelId = panelId,
+                cacheReadTokens = result.usage.cacheReadTokens,
+            )
         }
 
     private sealed interface Assembled {

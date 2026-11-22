@@ -11,6 +11,24 @@ Personal Android app (sideloaded, Samsung S23): a floating button above the keyb
 This is a personal project, built for one person and one phone. The code is public to read, but
 there is no license: all rights reserved. Issues and pull requests from others are not expected.
 
+## How suggestions are made
+
+One tap, one LLM call (prompt v2, issue #26). The prompt tells the model the phone's current date
+and time ("Now: Sunday, 22 Nov 2026, 11:08 am (morning), Asia/Kolkata", 12 or 24-hour like the
+phone), shows the chat grouped by day with each sender's name, and marks the messages to answer:
+everything others wrote after your last message, with group messages that mention you (Settings →
+"Names people call me") or reply to you first. The model returns a short `analysis` (kept only in
+the local feedback log) and 3 replies with clearly different intents.
+
+If your own message is the last one, Replyly asks for follow-ups when it is over 2 hours old or an
+unanswered question. Otherwise the panel shows "Nothing to reply to" without calling the model;
+"Suggest follow-ups anyway", Regenerate or a quick-chip tap there makes the one call. Settings →
+Feedback log shows the insert rate and how much you edit inserted replies, per prompt version.
+
+**Upgrading from prompt v1:** the analysis comes out of the same output budget as the replies. The
+default is now 1,536 tokens. If a profile has an explicit max tokens of 1,024 or less (set under v1),
+raise it or clear the field, or replies get cut off more often, mostly on models that think first.
+
 ## Using other providers
 
 Replyly talks to any service that speaks the **OpenAI Chat Completions** API or the **Anthropic
@@ -49,7 +67,8 @@ Notes:
   once with the other one and remembers that for the URL and model.
 - **Anthropic** requests use `x-api-key`, `anthropic-version: 2026-10-21`, a top-level `system`
   prompt and a JSON schema for the reply (structured outputs). On `api.anthropic.com` they also
-  ask for low effort to keep replies fast. A vendor that rejects the schema gets one retry without
+  ask for low effort to keep replies fast, and mark the (fixed) system prompt with `cache_control`
+  so repeated taps read it from Anthropic's prompt cache. A vendor that rejects the schema gets one retry without
   it. Temperature is never sent in this format.
 - **A local or self-hosted server** must be reachable over https from the phone (for example
   behind a reverse proxy with a real certificate, or a tunnel). Plain `http://` is refused, so the

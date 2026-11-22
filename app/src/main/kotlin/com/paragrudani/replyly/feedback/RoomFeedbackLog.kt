@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -36,10 +37,12 @@ class RoomFeedbackLog(
     private val clock: Clock,
     private val retentionDays: Flow<Int>,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    /** Where the stats are computed: they decode every row and run an edit distance, never on Main. */
+    private val statsDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) : FeedbackLog {
     /** For an already open DB (tests). */
     constructor(db: FeedbackDatabase, clock: Clock, retentionDays: Flow<Int>) :
-        this({ db }, clock, retentionDays, Dispatchers.Unconfined)
+        this({ db }, clock, retentionDays, Dispatchers.Unconfined, Dispatchers.Default)
 
     private val openLock = Mutex()
 
@@ -59,6 +62,10 @@ class RoomFeedbackLog(
         model: String,
         prompt: String,
         suggestions: List<Suggestion>,
+        analysis: String?,
+        promptVersion: Int,
+        panelId: String?,
+        cacheReadTokens: Int?,
     ): Long {
         purgeIfDue()
         return dao().insert(
@@ -74,6 +81,10 @@ class RoomFeedbackLog(
                             StoredSuggestion(it.intent, it.text)
                         },
                     ),
+                promptVersion = promptVersion,
+                analysis = analysis,
+                panelId = panelId,
+                cacheReadTokens = cacheReadTokens,
             ),
         )
     }
@@ -95,6 +106,27 @@ class RoomFeedbackLog(
                 it.toEntry()
             }
         }
+
+    override fun observeStats(): Flow<List<PromptVersionStats>> =
+        flow { emitAll(dao().observeStatsColumns()) }
+            .map { rows ->
+                FeedbackStats.compute(
+                    rows.map { row ->
+                        FeedbackStatsRow(
+                            id = row.id,
+                            promptVersion = row.promptVersion,
+                            panelId = row.panelId,
+                            insertedText =
+                                row.insertedIndex?.let { index ->
+                                    decodeSuggestions(row.suggestionsJson).getOrNull(index)?.text
+                                },
+                            finalSentText = row.finalSentText,
+                            chatKey = row.chatKey,
+                            createdAtMillis = row.createdAt,
+                        )
+                    },
+                )
+            }.flowOn(statsDispatcher)
 
     override suspend fun purgeOlderThan(cutoff: Instant): Int = dao().deleteOlderThan(cutoff.toEpochMilli())
 
@@ -122,15 +154,17 @@ class RoomFeedbackLog(
             createdAt = Instant.ofEpochMilli(createdAt),
             model = model,
             prompt = prompt,
-            suggestions =
-                json
-                    .decodeFromString(
-                        suggestionListSerializer,
-                        suggestionsJson,
-                    ).map { Suggestion(it.intent, it.text) },
+            suggestions = decodeSuggestions(suggestionsJson),
             insertedIndex = insertedIndex,
             finalSentText = finalSentText,
+            promptVersion = promptVersion,
+            analysis = analysis,
+            panelId = panelId,
+            cacheReadTokens = cacheReadTokens,
         )
+
+    private fun decodeSuggestions(suggestionsJson: String): List<Suggestion> =
+        json.decodeFromString(suggestionListSerializer, suggestionsJson).map { Suggestion(it.intent, it.text) }
 
     @Serializable
     private data class StoredSuggestion(

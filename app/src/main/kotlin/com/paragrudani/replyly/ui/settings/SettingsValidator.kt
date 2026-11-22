@@ -3,7 +3,7 @@ package com.paragrudani.replyly.ui.settings
 import com.paragrudani.replyly.settings.ReplylySettings
 
 /** Endpoint and model moved to provider profiles; the form no longer edits or checks them. */
-enum class SettingsField { HistoryMessageCount, AboutMe, RetentionDays, DailyRequestLimit }
+enum class SettingsField { HistoryMessageCount, AboutMe, MyNames, RetentionDays, DailyRequestLimit }
 
 /** What the settings form edits: numbers stay text until saved, so half-typed input is fine. */
 data class SettingsDraft(
@@ -15,7 +15,7 @@ data class SettingsDraft(
     val dailyRequestLimit: String,
     val blockedPackages: Set<String>,
     val blockedChatKeys: Set<String>,
-    val useParallelCalls: Boolean = false,
+    val myNames: String = "",
 ) {
     companion object {
         fun from(settings: ReplylySettings) =
@@ -28,7 +28,7 @@ data class SettingsDraft(
                 dailyRequestLimit = settings.dailyRequestLimit.toString(),
                 blockedPackages = settings.blockedPackages,
                 blockedChatKeys = settings.blockedChatKeys,
-                useParallelCalls = settings.useParallelCalls,
+                myNames = settings.myNames,
             )
     }
 }
@@ -50,6 +50,7 @@ object SettingsValidator {
     const val MAX_RETENTION_DAYS = 365
     const val MAX_DAILY_LIMIT = 5000
     const val MAX_ABOUT_ME = 1000
+    const val MAX_MY_NAMES = 200
     private const val MIN_API_KEY = 8
 
     private val packagePattern = Regex("""^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$""")
@@ -65,6 +66,16 @@ object SettingsValidator {
             MAX_ABOUT_ME
         ) {
             errors[SettingsField.AboutMe] = "At most $MAX_ABOUT_ME characters (now ${aboutMe.length})"
+        }
+
+        val myNames =
+            draft.myNames
+                .split(',')
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .joinToString(", ")
+        if (myNames.length > MAX_MY_NAMES) {
+            errors[SettingsField.MyNames] = "At most $MAX_MY_NAMES characters (now ${myNames.length})"
         }
 
         val retention = draft.retentionDays.wholeIn(1..MAX_RETENTION_DAYS)
@@ -84,7 +95,7 @@ object SettingsValidator {
                 aboutMe = aboutMe,
                 retentionDays = retention!!,
                 dailyRequestLimit = limit!!,
-                useParallelCalls = draft.useParallelCalls,
+                myNames = myNames,
                 // Blocklists are saved on their own the moment they change; Save keeps the stored ones.
             )
         }

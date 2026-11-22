@@ -7,6 +7,7 @@ import com.paragrudani.replyly.history.HistoryRepository
 import com.paragrudani.replyly.history.StoredMessage
 import com.paragrudani.replyly.insert.InsertResult
 import com.paragrudani.replyly.insert.ReplyInserter
+import com.paragrudani.replyly.llm.PromptMessage
 import com.paragrudani.replyly.llm.ReplyGenerator
 import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.llm.SuggestionRequest
@@ -22,6 +23,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
 import java.time.Instant
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import kotlin.time.Duration.Companion.milliseconds
 
 val whatsAppChat =
@@ -31,6 +34,12 @@ val whatsAppChat =
         isGroup = false,
         messages = listOf(ChatMessage("Riya", "kal mil rahe?", "6:42 pm", isMe = false)),
         historyApplies = true,
+    )
+
+/** My message is the last one: recent (no date known) and not a question, so nothing to reply to. */
+val myMessageLastChat =
+    whatsAppChat.copy(
+        messages = whatsAppChat.messages + ChatMessage(null, "haan pakka, 6 baje", "6:50 pm", isMe = true),
     )
 
 val genericChat = whatsAppChat.copy(packageName = "com.example.mail", title = "Inbox", historyApplies = false)
@@ -47,15 +56,25 @@ fun success(
     model: String = "test/model",
 ) = SuggestionResult.Success(
     suggestions = suggestions,
-    usage = TokenUsage(promptTokens = 100, completionTokens = 20),
+    usage = TokenUsage(promptTokens = 100, completionTokens = 20, cacheReadTokens = 64),
     latency = 1_200.milliseconds,
     model = model,
     promptSent = "PROMPT",
+    analysis = "ANALYSIS",
 )
 
-class FakeAssembler : SuggestionRequestAssembler {
+/** The fixed "now" of [FakeAssembler]: Sunday 22 Nov 2026, 7:05 pm in Kolkata. */
+val panelNow: ZonedDateTime = ZonedDateTime.of(2026, 11, 22, 19, 5, 0, 0, ZoneId.of("Asia/Kolkata"))
+
+/** Builds the request from the chat on screen; messages have no dates (like a generic app). */
+class FakeAssembler(
+    private val now: ZonedDateTime = panelNow,
+) : SuggestionRequestAssembler {
     val calls = mutableListOf<Pair<ParsedChat, String?>>()
     var failWith: Exception? = null
+
+    /** Replaces the chat's messages when set (a history read that differs from the screen). */
+    var historyOverride: List<PromptMessage>? = null
 
     override suspend fun assemble(
         chat: ParsedChat,
@@ -68,11 +87,12 @@ class FakeAssembler : SuggestionRequestAssembler {
             appLabel = "WhatsApp",
             chatTitle = chat.title,
             isGroup = chat.isGroup,
-            history = chat.messages,
+            history = historyOverride ?: chat.messages.map { PromptMessage(it) },
             aboutMe = "",
             contactNote = null,
             styleExamples = emptyList(),
             instruction = instruction,
+            now = now,
         )
     }
 }
@@ -116,6 +136,10 @@ class FakeFeedbackLog : FeedbackLog {
         val model: String,
         val prompt: String,
         val suggestions: List<Suggestion>,
+        val analysis: String? = null,
+        val promptVersion: Int = 2,
+        val panelId: String? = null,
+        val cacheReadTokens: Int? = null,
     )
 
     val recorded = mutableListOf<Recorded>()
@@ -127,9 +151,13 @@ class FakeFeedbackLog : FeedbackLog {
         model: String,
         prompt: String,
         suggestions: List<Suggestion>,
+        analysis: String?,
+        promptVersion: Int,
+        panelId: String?,
+        cacheReadTokens: Int?,
     ): Long {
         if (failRecord) throw IllegalStateException("db closed")
-        recorded += Recorded(chatKey, model, prompt, suggestions)
+        recorded += Recorded(chatKey, model, prompt, suggestions, analysis, promptVersion, panelId, cacheReadTokens)
         return 40L + recorded.size
     }
 

@@ -19,8 +19,14 @@ import okhttp3.OkHttpClient
  * and `anthropic-version`. The system prompt goes in the top-level `system` field and
  * `max_tokens` is always set.
  *
+ * Prompt caching: on api.anthropic.com only, `system` is one text block with
+ * `cache_control: {type: "ephemeral"}` (5-minute cache, no beta header). The system prompt is
+ * static, so every call within 5 minutes of the last reads it from the cache; it is well above the
+ * 512-token minimum of the current Haiku and Sonnet models. Other Anthropic-compatible hosts get a
+ * plain string, since they may reject unknown fields.
+ *
  * Reliable JSON: with [CompletionRequest.jsonMode] the request carries
- * `output_config.format` = a JSON schema of `{suggestions:[{intent,text}]}` (structured outputs;
+ * `output_config.format` = a JSON schema of `{analysis, suggestions:[{intent,text}]}` (structured outputs;
  * no assistant prefill, which current models reject). On api.anthropic.com it also sets
  * `output_config.effort: "low"` to keep thinking short (the 1-2 s target). A provider that rejects
  * `output_config` gets [CallOutcome.Failed.rejectedJsonMode], and the generator retries once
@@ -36,7 +42,20 @@ internal class AnthropicMessagesClient(
             buildJsonObject {
                 put("model", request.model)
                 put("max_tokens", request.maxTokens)
-                put("system", request.prompt.system)
+                if (isAnthropic(request.url)) {
+                    // Prompt caching: the system prompt is static text (PromptBuilder.SYSTEM_PROMPT).
+                    putJsonArray("system") {
+                        add(
+                            buildJsonObject {
+                                put("type", "text")
+                                put("text", request.prompt.system)
+                                putJsonObject("cache_control") { put("type", "ephemeral") }
+                            },
+                        )
+                    }
+                } else {
+                    put("system", request.prompt.system)
+                }
                 putJsonArray("messages") {
                     add(
                         buildJsonObject {
@@ -88,6 +107,7 @@ internal class AnthropicMessagesClient(
                     usage.int("input_tokens") + usage.int("cache_creation_input_tokens") +
                         usage.int("cache_read_input_tokens"),
                 completionTokens = usage.int("output_tokens"),
+                cacheReadTokens = (usage?.get("cache_read_input_tokens") as? JsonPrimitive)?.intOrNull,
             )
         // Thinking blocks (if any) are skipped; only text blocks carry the answer.
         val content =
@@ -139,13 +159,17 @@ internal class AnthropicMessagesClient(
                 else -> 502
             }
 
-        /** `{"suggestions":[{"intent":"...","text":"..."}]}` as a structured-output schema. */
+        /**
+         * `{"analysis":"...","suggestions":[{"intent":"...","text":"..."}]}` as a structured-output
+         * schema. `analysis` comes first, so the model writes its reasoning before the replies.
+         */
         internal val SUGGESTIONS_FORMAT: JsonObject =
             buildJsonObject {
                 put("type", "json_schema")
                 putJsonObject("schema") {
                     put("type", "object")
                     putJsonObject("properties") {
+                        putJsonObject("analysis") { put("type", "string") }
                         putJsonObject("suggestions") {
                             put("type", "array")
                             putJsonObject("items") {
@@ -165,7 +189,13 @@ internal class AnthropicMessagesClient(
                             }
                         }
                     }
-                    put("required", buildJsonArray { add("suggestions") })
+                    put(
+                        "required",
+                        buildJsonArray {
+                            add("analysis")
+                            add("suggestions")
+                        },
+                    )
                     put("additionalProperties", false)
                 }
             }

@@ -6,7 +6,6 @@ import com.paragrudani.replyly.parser.ChatMessage
 import com.paragrudani.replyly.settings.ApiFormat
 import com.paragrudani.replyly.settings.InMemoryProfileRepository
 import com.paragrudani.replyly.settings.InMemoryProfileSecretStore
-import com.paragrudani.replyly.settings.InMemorySettingsRepository
 import com.paragrudani.replyly.settings.ProviderProfile
 import com.paragrudani.replyly.settings.ReplylySettings
 import kotlinx.coroutines.runBlocking
@@ -29,6 +28,8 @@ import okio.Buffer
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -37,7 +38,6 @@ class OpenAiFormatGeneratorTest {
     private val server = MockWebServer()
     private val secrets = InMemoryProfileSecretStore()
     private val costGuard = InMemoryCostGuard(dailyRequestLimit = 50)
-    private val settings = InMemorySettingsRepository()
     private lateinit var profiles: InMemoryProfileRepository
 
     private val request =
@@ -46,11 +46,12 @@ class OpenAiFormatGeneratorTest {
             appLabel = "WhatsApp",
             chatTitle = "Ravi",
             isGroup = false,
-            history = listOf(ChatMessage("Ravi", "Kal cricket?", "6:40 pm", false)),
+            history = listOf(PromptMessage(ChatMessage("Ravi", "Kal cricket?", "6:40 pm", false))),
             aboutMe = "",
             contactNote = null,
             styleExamples = emptyList(),
             instruction = null,
+            now = ZonedDateTime.of(2026, 11, 22, 19, 5, 0, 0, ZoneId.of("Asia/Kolkata")),
         )
 
     @Before
@@ -79,7 +80,6 @@ class OpenAiFormatGeneratorTest {
 
     private fun generator(timeouts: LlmTimeouts = LlmTimeouts()) =
         LlmReplyGenerator(
-            settings,
             profiles,
             costGuard,
             LlmReplyGenerator.defaultHttpClient(timeouts),
@@ -118,6 +118,11 @@ class OpenAiFormatGeneratorTest {
         .build()
 
     private val threeJson =
+        """{"analysis":"Ravi asks about cricket kal = Mon 23 Nov.",""" +
+            """"suggestions":[{"intent":"agree","text":"Haan pakka"},{"intent":"decline","text":"Kal nahi yaar"},""" +
+            """{"intent":"ask","text":"Kitne baje?"}]}"""
+
+    private val threeWithoutAnalysis =
         """{"suggestions":[{"intent":"agree","text":"Haan pakka"},{"intent":"decline","text":"Kal nahi yaar"},""" +
             """{"intent":"ask","text":"Kitne baje?"}]}"""
 
@@ -153,10 +158,41 @@ class OpenAiFormatGeneratorTest {
         val messages = body["messages"]!!.jsonArray.map { it.jsonObject }
         assertThat(messages.map { it["role"]!!.jsonPrimitive.content }).containsExactly("system", "user").inOrder()
         assertThat(messages[0]["content"]!!.jsonPrimitive.content).isEqualTo(PromptBuilder.SYSTEM_PROMPT)
-        assertThat(messages[1]["content"]!!.jsonPrimitive.content).contains("them: Kal cricket?")
+        assertThat(messages[1]["content"]!!.jsonPrimitive.content).contains("Ravi: Kal cricket?")
+        assertThat(result.analysis).isEqualTo("Ravi asks about cricket kal = Mon 23 Nov.")
+        assertThat(result.promptVersion).isEqualTo(2)
+        // OpenAI format: no Anthropic caching field on any host.
+        assertThat(sent.json().toString()).doesNotContain("cache_control")
         assertThat(
             result.promptSent,
         ).isEqualTo(PromptBuilder.SYSTEM_PROMPT + "\n\n" + messages[1]["content"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `a reply without analysis still succeeds, with an empty analysis`() {
+        server.enqueue(ok(completion(threeWithoutAnalysis)))
+        val result = generate() as SuggestionResult.Success
+        assertThat(result.suggestions).hasSize(3)
+        assertThat(result.analysis).isEmpty()
+    }
+
+    @Test
+    fun `a non-string analysis is tolerated as empty`() {
+        server.enqueue(ok(completion(threeWithoutAnalysis.replaceFirst("{", """{"analysis":42,"""))))
+        assertThat((generate() as SuggestionResult.Success).analysis).isEmpty()
+    }
+
+    @Test
+    fun `one call per generate, with the default max tokens`() {
+        server.enqueue(ok(completion(threeJson)))
+        generate()
+        assertThat(server.requestCount).isEqualTo(1)
+        assertThat(
+            server
+                .takeRequest()
+                .json()["max_tokens"]!!
+                .jsonPrimitive.content,
+        ).isEqualTo(LlmReplyGenerator.MAX_TOKENS.toString())
     }
 
     @Test
@@ -182,7 +218,6 @@ class OpenAiFormatGeneratorTest {
         val result =
             runBlocking {
                 LlmReplyGenerator(
-                    settings,
                     profiles,
                     costGuard,
                     LlmReplyGenerator.defaultHttpClient(),
@@ -201,7 +236,6 @@ class OpenAiFormatGeneratorTest {
         val result =
             runBlocking {
                 LlmReplyGenerator(
-                    settings,
                     profiles,
                     guard,
                     LlmReplyGenerator.defaultHttpClient(),
@@ -309,64 +343,6 @@ class OpenAiFormatGeneratorTest {
     }
 
     @Test
-    fun `parallel mode makes 3 single-intent calls and merges them`() {
-        runBlocking { settings.update { it.copy(useParallelCalls = true) } }
-        server.dispatcher =
-            object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest): MockResponse {
-                    val user =
-                        request
-                            .json()["messages"]!!
-                            .jsonArray[1]
-                            .jsonObject["content"]!!
-                            .jsonPrimitive.content
-                    val intent = FixedIntent.entries.first { user.contains("intent \"${it.id}\"") }
-                    // The model may echo any intent label; the fixed intent wins.
-                    val reply = """{"suggestions":[{"intent":"whatever","text":"reply ${intent.id}"}]}"""
-                    return ok(completion(reply, promptTokens = 100, completionTokens = 10))
-                }
-            }
-
-        val result = generate() as SuggestionResult.Success
-
-        assertThat(server.requestCount).isEqualTo(3)
-        assertThat(result.suggestions)
-            .containsExactly(
-                Suggestion("agree", "reply agree"),
-                Suggestion("decline", "reply decline"),
-                Suggestion("ask", "reply ask"),
-            ).inOrder()
-        assertThat(result.usage).isEqualTo(TokenUsage(promptTokens = 300, completionTokens = 30))
-        assertThat(result.promptSent).contains("intent \"decline\"")
-        assertThat(costGuard.status.value.requestsToday).isEqualTo(1)
-        assertThat(costGuard.status.value.totalTokensThisMonth).isEqualTo(330)
-    }
-
-    @Test
-    fun `parallel mode fails when one call fails, and keeps the others' usage`() {
-        runBlocking { settings.update { it.copy(useParallelCalls = true) } }
-        server.dispatcher =
-            object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest): MockResponse {
-                    val user =
-                        request
-                            .json()["messages"]!!
-                            .jsonArray[1]
-                            .jsonObject["content"]!!
-                            .jsonPrimitive.content
-                    if (user.contains("intent \"ask\"")) return error(503)
-                    return ok(completion("""{"suggestions":[{"intent":"x","text":"fine"}]}""", 100, 10))
-                }
-            }
-
-        val result = generate()
-
-        assertThat((result as SuggestionResult.Failure.Http).code).isEqualTo(503)
-        assertThat(costGuard.status.value.requestsToday).isEqualTo(1)
-        assertThat(costGuard.status.value.totalTokensThisMonth).isEqualTo(220)
-    }
-
-    @Test
     fun `key with a trailing newline is trimmed before use`() {
         runBlocking { secrets.setApiKey(PID, "sk-or-x\n") }
         server.enqueue(ok(completion(threeJson)))
@@ -422,20 +398,6 @@ class OpenAiFormatGeneratorTest {
     }
 
     @Test
-    fun `parallel mode counts one request`() {
-        runBlocking { settings.update { it.copy(useParallelCalls = true) } }
-        server.dispatcher =
-            object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest): MockResponse =
-                    ok(completion("""{"suggestions":[{"intent":"x","text":"fine"}]}"""))
-            }
-        generate()
-        generate()
-        assertThat(server.requestCount).isEqualTo(6)
-        assertThat(costGuard.status.value.requestsToday).isEqualTo(2)
-    }
-
-    @Test
     fun `other endpoints get no reasoning field`() {
         server.enqueue(ok(completion(threeJson)))
         generate()
@@ -465,7 +427,7 @@ class OpenAiFormatGeneratorTest {
                         .build()
                 }.build()
         updateProfile { it.copy(baseUrl = ReplylySettings.DEFAULT_ENDPOINT) }
-        val result = runBlocking { LlmReplyGenerator(settings, profiles, costGuard, fake).generate(request) }
+        val result = runBlocking { LlmReplyGenerator(profiles, costGuard, fake).generate(request) }
 
         assertThat(result).isInstanceOf(SuggestionResult.Success::class.java)
         assertThat(hosts).containsExactly("openrouter.ai")
@@ -503,7 +465,7 @@ class OpenAiFormatGeneratorTest {
         updateProfile { it.copy(baseUrl = "https://api.openai.com/v1", maxTokens = 300) }
         val http = fakeHttp(bodies, 200 to completion(threeJson))
 
-        val result = runBlocking { LlmReplyGenerator(settings, profiles, costGuard, http).generate(request) }
+        val result = runBlocking { LlmReplyGenerator(profiles, costGuard, http).generate(request) }
 
         assertThat(result).isInstanceOf(SuggestionResult.Success::class.java)
         val body = bodies.single()
@@ -564,7 +526,7 @@ class OpenAiFormatGeneratorTest {
                 200 to completion(threeJson),
             )
 
-        val result = runBlocking { LlmReplyGenerator(settings, profiles, costGuard, http).generate(request) }
+        val result = runBlocking { LlmReplyGenerator(profiles, costGuard, http).generate(request) }
 
         assertThat(result).isInstanceOf(SuggestionResult.Success::class.java)
         assertThat(bodies.map { it.containsKey("max_completion_tokens") }).containsExactly(true, false).inOrder()
@@ -585,7 +547,7 @@ class OpenAiFormatGeneratorTest {
                 200 to completion(threeJson),
                 200 to completion(threeJson),
             )
-        val generator = LlmReplyGenerator(settings, profiles, costGuard, http)
+        val generator = LlmReplyGenerator(profiles, costGuard, http)
 
         assertThat(runBlocking { generator.generate(request) }).isInstanceOf(SuggestionResult.Success::class.java)
         assertThat(runBlocking { generator.generate(request) }).isInstanceOf(SuggestionResult.Success::class.java)
@@ -608,7 +570,7 @@ class OpenAiFormatGeneratorTest {
         val rejected = 400 to """{"error":{"message":"Unsupported parameter: 'reasoning_effort'"}}"""
         val http = fakeHttp(bodies, rejected, rejected)
 
-        val result = runBlocking { LlmReplyGenerator(settings, profiles, costGuard, http).generate(request) }
+        val result = runBlocking { LlmReplyGenerator(profiles, costGuard, http).generate(request) }
 
         assertThat((result as SuggestionResult.Failure.Http).code).isEqualTo(400)
         assertThat(bodies).hasSize(2)
@@ -621,7 +583,7 @@ class OpenAiFormatGeneratorTest {
         val http = fakeHttp(bodies, 400 to """{"error":{"message":"max_tokens and max_completion_tokens: bad"}}""")
         updateProfile { it.copy(baseUrl = "https://proxy.example.com/v1") }
 
-        val result = runBlocking { LlmReplyGenerator(settings, profiles, costGuard, http).generate(request) }
+        val result = runBlocking { LlmReplyGenerator(profiles, costGuard, http).generate(request) }
 
         assertThat((result as SuggestionResult.Failure.Http).code).isEqualTo(400)
         assertThat(bodies).hasSize(2)
@@ -673,7 +635,6 @@ class OpenAiFormatGeneratorTest {
         val result =
             runBlocking {
                 LlmReplyGenerator(
-                    settings,
                     empty,
                     costGuard,
                     LlmReplyGenerator.defaultHttpClient(),

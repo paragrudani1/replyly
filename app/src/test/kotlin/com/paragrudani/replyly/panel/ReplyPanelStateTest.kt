@@ -63,8 +63,15 @@ class ReplyPanelStateTest {
             panel.start()
             advanceUntilIdle()
 
-            assertThat(feedback.recorded)
-                .containsExactly(FakeFeedbackLog.Recorded(whatsAppChat.chatKey, "m1", "PROMPT", threeSuggestions))
+            val recorded = feedback.recorded.single()
+            assertThat(recorded.chatKey).isEqualTo(whatsAppChat.chatKey)
+            assertThat(recorded.model).isEqualTo("m1")
+            assertThat(recorded.prompt).isEqualTo("PROMPT")
+            assertThat(recorded.suggestions).isEqualTo(threeSuggestions)
+            assertThat(recorded.analysis).isEqualTo("ANALYSIS")
+            assertThat(recorded.promptVersion).isEqualTo(2)
+            assertThat(recorded.panelId).isNotEmpty()
+            assertThat(recorded.cacheReadTokens).isEqualTo(64)
         }
 
     @Test

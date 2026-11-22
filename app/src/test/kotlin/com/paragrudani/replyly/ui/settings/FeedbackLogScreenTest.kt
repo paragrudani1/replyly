@@ -5,9 +5,11 @@ import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
 import com.paragrudani.replyly.feedback.FeedbackEntry
+import com.paragrudani.replyly.feedback.PromptVersionStats
 import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.parser.ChatKey
 import org.junit.Rule
@@ -123,5 +125,88 @@ class FeedbackLogScreenTest {
         assertThat(durationUntilNextDay(dstStart, ny).isNegative).isFalse()
         val waited = dstStart.plus(durationUntilNextDay(dstStart, ny))
         assertThat(waited.atZone(ny).toLocalDate()).isEqualTo(LocalDate.of(2026, 11, 2))
+    }
+
+    private val v2Entry =
+        FeedbackEntry(
+            id = 7,
+            chatKey = ChatKey("com.whatsapp", "Riya"),
+            createdAt = LocalDateTime.of(2026, 11, 21, 14, 5).atZone(ZoneId.of("Asia/Kolkata")).toInstant(),
+            model = "m",
+            prompt = "THE PROMPT",
+            suggestions = listOf(Suggestion("yes", "Haan"), Suggestion("no", "Nahi"), Suggestion("ask", "Kab?")),
+            insertedIndex = 0,
+            finalSentText = "Haan pakka",
+            promptVersion = 2,
+            analysis = "Riya asks to meet kal = Sun 22 Nov.",
+        )
+
+    @Test
+    fun `the analysis stays hidden until Show details, then shows with the prompt`() {
+        compose.setContent {
+            FeedbackLogScreen(
+                listOf(v2Entry),
+                null,
+                {},
+                {},
+                zone = ZoneId.of("Asia/Kolkata"),
+                today = LocalDate.of(2026, 11, 21),
+                appLabel = { "WhatsApp" },
+            )
+        }
+        compose.onNodeWithText("WhatsApp · m · prompt v2").assertExists()
+        compose.onNodeWithText("Riya asks to meet kal = Sun 22 Nov.").assertDoesNotExist()
+
+        compose.onNodeWithText("Show details").performScrollTo().performClick()
+
+        compose.onNodeWithText("Riya asks to meet kal = Sun 22 Nov.").assertExists()
+        compose.onNodeWithText("THE PROMPT").assertExists()
+    }
+
+    @Test
+    fun `the details show the prompt-cache read count when the provider reported it`() {
+        compose.setContent {
+            FeedbackLogScreen(
+                listOf(v2Entry.copy(cacheReadTokens = 1_024)),
+                null,
+                {},
+                {},
+                zone = ZoneId.of("Asia/Kolkata"),
+                today = LocalDate.of(2026, 11, 21),
+            )
+        }
+        compose.onNodeWithText("Cache read: 1,024 tokens").assertDoesNotExist()
+        compose.onNodeWithText("Show details").performScrollTo().performClick()
+        compose.onNodeWithText("Cache read: 1,024 tokens").assertExists()
+    }
+
+    @Test
+    fun `no cache line when the provider did not report it`() {
+        assertThat(cacheReadText(v2Entry)).isNull()
+        assertThat(cacheReadText(v2Entry.copy(cacheReadTokens = 0))).isEqualTo("Cache read: 0 tokens")
+    }
+
+    @Test
+    fun `the quality card shows insert rate and edit amount per prompt version`() {
+        val stats =
+            listOf(
+                PromptVersionStats(
+                    1,
+                    panels = 4,
+                    panelsWithInsert = 1,
+                    editsMeasured = 0,
+                    averageEdit = null,
+                    panelsEstimated = true,
+                ),
+                PromptVersionStats(2, panels = 10, panelsWithInsert = 7, editsMeasured = 5, averageEdit = 0.123),
+            )
+        compose.setContent {
+            FeedbackLogScreen(listOf(v2Entry), null, {}, {}, stats = stats, today = LocalDate.of(2026, 11, 21))
+        }
+        compose.onNodeWithText("Suggestion quality").assertExists()
+        compose.onNodeWithText("Prompt v1 (estimated)", substring = true).assertExists()
+        compose.onNodeWithText("Prompt v2", substring = true).assertExists()
+        compose.onNodeWithText("Inserted in 1 of 4 panels (25%) · no sent messages seen yet").assertExists()
+        compose.onNodeWithText("Inserted in 7 of 10 panels (70%) · edited 12% on average (5 sent)").assertExists()
     }
 }

@@ -71,6 +71,24 @@ class ComposeReplyPanelTest {
         assertThat(feedback.recorded).isEmpty()
     }
 
+    @Test
+    fun `nothing to reply to - opening makes no call, the anyway button makes one`() {
+        compose.setContent { panel.Content(request = PanelRequest(myMessageLastChat), onClose = {}) }
+        compose.mainClock.advanceTimeBy(FakeGenerator.GENERATE_MILLIS * 3)
+        compose.waitForIdle()
+
+        compose.onNodeWithText(NOTHING_TO_REPLY_TITLE).assertExists()
+        assertThat(generator.calls).isEqualTo(0)
+
+        compose.onNodeWithText(SUGGEST_FOLLOW_UPS).performClick()
+        compose.mainClock.advanceTimeBy(FakeGenerator.GENERATE_MILLIS * 3)
+        compose.waitForIdle()
+
+        assertThat(generator.calls).isEqualTo(1)
+        assertThat(generator.requests.single().followUpAnyway).isTrue()
+        compose.onNodeWithText(NOTHING_TO_REPLY_TITLE).assertDoesNotExist()
+    }
+
     /** The host passes `PanelSheetState::requestClose` (and with it the close fallback) as onClose. */
     @Test
     fun `insert, Close and Open settings each close through onClose once`() {

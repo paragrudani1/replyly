@@ -1,9 +1,11 @@
 package com.paragrudani.replyly.feedback
 
+import com.paragrudani.replyly.llm.PromptBuilder
 import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.parser.ChatKey
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import java.time.Clock
@@ -21,6 +23,14 @@ data class FeedbackEntry(
     val insertedIndex: Int? = null,
     /** The message the user actually sent, seen in the next history read. */
     val finalSentText: String? = null,
+    /** [PromptBuilder.VERSION] that produced the entry; entries from before prompt v2 are 1. */
+    val promptVersion: Int = 1,
+    /** The model's short reasoning (prompt v2, local only); null before v2, empty if the model left it out. */
+    val analysis: String? = null,
+    /** One id per panel open; null for entries from before prompt v2. */
+    val panelId: String? = null,
+    /** Input tokens read from the prompt cache (Anthropic only); null when the provider did not say. */
+    val cacheReadTokens: Int? = null,
 )
 
 /**
@@ -28,12 +38,21 @@ data class FeedbackEntry(
  * encrypted (SQLCipher via [com.paragrudani.replyly.security.DatabaseKeyProvider]).
  */
 interface FeedbackLog {
-    /** @return the new entry id. */
+    /**
+     * @param analysis the model's reasoning: stored locally, never shown in the panel or logged.
+     * @param panelId the same for every generation of one panel open (insert rate per panel).
+     * @param cacheReadTokens [com.paragrudani.replyly.llm.TokenUsage.cacheReadTokens], a count only.
+     * @return the new entry id.
+     */
     suspend fun record(
         chatKey: ChatKey,
         model: String,
         prompt: String,
         suggestions: List<Suggestion>,
+        analysis: String? = null,
+        promptVersion: Int = PromptBuilder.VERSION,
+        panelId: String? = null,
+        cacheReadTokens: Int? = null,
     ): Long
 
     suspend fun markInserted(
@@ -53,6 +72,9 @@ interface FeedbackLog {
     ): Boolean
 
     fun observeRecent(limit: Int): Flow<List<FeedbackEntry>>
+
+    /** Insert rate and edit amount per prompt version, over every entry kept ([FeedbackStats]). */
+    fun observeStats(): Flow<List<PromptVersionStats>> = flowOf(emptyList())
 
     suspend fun purgeOlderThan(cutoff: Instant): Int
 
@@ -81,9 +103,26 @@ class InMemoryFeedbackLog(
         model: String,
         prompt: String,
         suggestions: List<Suggestion>,
+        analysis: String?,
+        promptVersion: Int,
+        panelId: String?,
+        cacheReadTokens: Int?,
     ): Long {
         val id = synchronized(this) { nextId++ }
-        entries.update { it + FeedbackEntry(id, chatKey, clock.instant(), model, prompt, suggestions) }
+        val entry =
+            FeedbackEntry(
+                id,
+                chatKey,
+                clock.instant(),
+                model,
+                prompt,
+                suggestions,
+                promptVersion = promptVersion,
+                analysis = analysis,
+                panelId = panelId,
+                cacheReadTokens = cacheReadTokens,
+            )
+        entries.update { it + entry }
         return id
     }
 
@@ -113,6 +152,23 @@ class InMemoryFeedbackLog(
     }
 
     override fun observeRecent(limit: Int): Flow<List<FeedbackEntry>> = entries.map { it.takeLast(limit).reversed() }
+
+    override fun observeStats(): Flow<List<PromptVersionStats>> =
+        entries.map { list ->
+            FeedbackStats.compute(
+                list.map {
+                    FeedbackStatsRow(
+                        it.id,
+                        it.promptVersion,
+                        it.panelId,
+                        it.insertedIndex?.let { i -> it.suggestions.getOrNull(i)?.text },
+                        it.finalSentText,
+                        chatKey = it.chatKey.encoded,
+                        createdAtMillis = it.createdAt.toEpochMilli(),
+                    )
+                },
+            )
+        }
 
     override suspend fun purgeOlderThan(cutoff: Instant): Int {
         var removed = 0

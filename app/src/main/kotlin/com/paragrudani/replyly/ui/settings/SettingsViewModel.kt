@@ -6,6 +6,7 @@ import com.paragrudani.replyly.cost.CostGuard
 import com.paragrudani.replyly.cost.CostStatus
 import com.paragrudani.replyly.feedback.FeedbackEntry
 import com.paragrudani.replyly.feedback.FeedbackLog
+import com.paragrudani.replyly.feedback.PromptVersionStats
 import com.paragrudani.replyly.settings.ReplylySettings
 import com.paragrudani.replyly.settings.SettingsRepository
 import com.paragrudani.replyly.settings.current
@@ -60,6 +61,13 @@ class SettingsViewModel(
         feedbackLog.observeRecent(FEEDBACK_VIEWER_LIMIT).catch { e ->
             if (e is CancellationException) throw e
             showStorageError()
+            emit(emptyList())
+        }
+
+    /** Insert rate and edit amount per prompt version; empty if the log cannot be read (the entries show why). */
+    val feedbackStats: Flow<List<PromptVersionStats>> =
+        feedbackLog.observeStats().catch { e ->
+            if (e is CancellationException) throw e
             emit(emptyList())
         }
 
