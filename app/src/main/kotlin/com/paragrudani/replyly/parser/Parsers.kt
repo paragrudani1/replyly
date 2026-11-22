@@ -4,12 +4,17 @@ import com.paragrudani.replyly.parser.generic.GenericChatParser
 import com.paragrudani.replyly.parser.telegram.TelegramParser
 import com.paragrudani.replyly.parser.whatsapp.WhatsAppParser
 import com.paragrudani.replyly.screen.ScreenSnapshot
+import java.time.ZoneId
 
 // Owned by ticket #2. AppGraph only calls Parsers.registry().
 object Parsers {
-    fun registry(): ChatParserRegistry =
+    /**
+     * [zone] turns a snapshot's capture time into the day that "Today" and weekday separators
+     * resolve against: the phone's zone.
+     */
+    fun registry(zone: ZoneId = ZoneId.systemDefault()): ChatParserRegistry =
         ChatParserRegistry(
-            parsers = listOf(WhatsAppParser(), TelegramParser()),
+            parsers = listOf(WhatsAppParser(zone), TelegramParser(zone)),
             fallback = GenericChatParser(),
         )
 }

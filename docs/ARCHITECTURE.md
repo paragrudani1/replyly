@@ -71,6 +71,8 @@ One lazy binding per interface, all real implementations:
 - **Two encrypted Room DBs, one key.** `history.db` (messages, contact notes) and `feedback.db`
   (feedback log) both open with SQLCipher and the passphrase from `DatabaseKeyProvider`. They open
   lazily, so no Keystore work runs on the main thread or at service connect.
+- `history.db` v2 stores a date per message (an epoch day): exact when a date separator showed
+  it, otherwise approx (the local day the row was first seen). `HistoryMerge` explains how it is used.
 - If the passphrase is lost for good, both DBs are wiped and a new one is created (no crash loop).
   A transient Keystore failure throws `DatabaseKeyUnavailableException` and wipes nothing; the
   panel shows it as `Failure.StorageLocked` ("encrypted storage is locked, try again").

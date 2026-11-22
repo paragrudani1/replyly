@@ -5,13 +5,22 @@ import com.paragrudani.replyly.parser.ChatMessage
 import com.paragrudani.replyly.parser.ParsedChat
 import kotlinx.coroutines.flow.Flow
 import java.time.Instant
+import java.time.LocalDate
 
 /** A message kept in local history. */
 data class StoredMessage(
     val chatKey: ChatKey,
+    /** As read; its [ChatMessage.date] is set only when [date] is exact. */
     val message: ChatMessage,
     /** When Replyly first saw this message on screen (not the time shown in the bubble). */
     val firstSeenAt: Instant,
+    /**
+     * The message's local date: from a date separator seen above it on some read (exact), or else
+     * the local date of [firstSeenAt] ([dateIsApprox]). `null` only for a fake that never sets it.
+     */
+    val date: LocalDate? = null,
+    /** [date] is the day Replyly first saw the message, not one a separator showed. */
+    val dateIsApprox: Boolean = false,
 )
 
 /**

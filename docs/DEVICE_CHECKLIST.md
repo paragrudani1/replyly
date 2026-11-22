@@ -1031,3 +1031,93 @@ model, and tap Save without typing a key. **See:** the key field opens with "Ent
 this provider" and nothing is saved. Tap Cancel. Then edit it again, tap "Remove" next to the
 saved key, then Cancel, and edit again. **See:** "API key: saved ••••••••" is still there.
 **Send:** pass/fail.
+
+## 13. Message dates (issue #26, PR 1)
+
+The parsers now read date separators ("TODAY", "YESTERDAY", "THURSDAY", "21 NOVEMBER 2026",
+"21/11/2026") and give each message below one that date. Telegram also reads the day from each
+cell's last line ("Received yesterday at 9:15 PM"). The debug screen does not print a date per
+message yet; it prints one **Notes** line per dump, for example:
+`date separators: 2 (2026-11-21, 2026-11-22), 7 of 9 messages dated, 1 replies to me`.
+The dates in brackets are the separators read, top to bottom; `?` is a separator whose text the
+parser could not turn into a date. All formats below are guesses from public knowledge: the
+S23 (One UI, Indian English) decides.
+
+How to take and send a dump: [PARSER_FIXTURES.md](PARSER_FIXTURES.md), section 1. Use a test
+chat and share with **scramble off** for these steps: scramble keeps "TODAY"-style separators but
+scrambles month names inside Telegram's "Received Nov 19 at …" lines, which hides what 13.6 checks.
+
+13.1 **Do:** open a WhatsApp 1:1 chat with messages from today and yesterday, scroll so both the
+"YESTERDAY" and "TODAY" separators are on screen, and take a dump. **See:** the Notes line says
+`date separators: 2 (<yesterday>, <today>)` with the right dates, and "N of N messages dated"
+except for messages above the first separator. **Send:** the dump, and the exact separator text
+WhatsApp shows (capitals, spacing).
+
+13.2 **Do:** in the same chat scroll up to messages older than a week, so a separator with a full
+date is on screen; dump. Then scroll to messages 2 to 6 days old (weekday separators); dump.
+**See:** the separators show up in the Notes line with the right dates (a weekday is the most
+recent past one). **Send:** both dumps, and the exact text of the full-date separator (for example
+"21 NOVEMBER 2026", "21 Nov 2026" or "21/11/2026").
+
+13.3 **Do:** scroll slowly in the middle of a long chat and watch the top of the list: WhatsApp
+shows a floating date pill there while scrolling. Dump while it is visible (start the dump, then
+keep scrolling a little until the countdown ends). **See:** no message line has the pill's text
+as its text. The Notes line counts the pill only if it uses the separator's view id
+(`conversation_row_date_divider`) or has no id. Then it lists the pill's date next to the inline
+divider's, the same date twice with no message between them, for example
+`date separators: 3 (2026-11-20, 2026-11-20, 2026-11-21), 6 of 6 messages dated, 0 replies to me`: the two count as
+one, and the messages keep their dates. If the Notes line ends with
+`dates dropped: separators out of order` and says `0 of N messages dated`, the pill showed a date
+that does not match the divider or sat below a message: send that dump. **Send:** the dump; say
+whether the pill was on screen when the toast came. In the dump (scramble off), search for the
+pill's text and send the `viewId` of the node that holds it (or "none"). Once that id is known,
+the parser ignores the pill by its id.
+
+13.4 **Do:** repeat 13.1 in WhatsApp Business. **See:** the same as 13.1, `Parser:
+whatsapp:view-ids`. **Send:** the dump.
+
+13.5 **Do:** in a WhatsApp group, long-press one of your messages → Reply, and ask someone to reply
+to it by quoting it (or use a second phone). Dump the chat with their reply on screen. **See:**
+the Notes line says `1 replies to me` (one per quoted reply of yours on screen); a reply that quotes
+someone else does not count. **Send:** the dump, and what the quote's author line says on screen
+("You"?).
+
+13.6 **Do:** open a Telegram chat with messages from today, yesterday and more than a week ago;
+dump once per day range. **See:** `Parser: telegram:cell-descriptions`, a line
+`N cells dated by their own text` equal to the message count, and the date headers ("Today",
+"November 19") in the Notes line. **Send:** the dumps (scramble off), and the last line of one
+older cell as you read it with TalkBack, word for word.
+
+13.7 **Do:** in Telegram, reply to someone's message, and have them reply to one of yours. Dump
+with both on screen. **See:** for now the Notes line says `0 replies to me` (the reply header's
+accessibility text is not known yet). **Send:** the dump (scramble off): it shows where Telegram
+puts the reply header, so the parser can learn it.
+
+13.8 **Do:** install this build over the previous one (history kept), open a chat that has
+history, and open the debug screen. **See:** the app opens normally, no crash, and the panel still
+shows suggestions in that chat (the history DB moved to version 2). **Send:** pass/fail; a crash
+report or `adb logcat -v time | grep -i -E "room|migration|replyly"` output if it fails.
+
+13.9 **Do:** just after midnight, open a chat with messages from before and after midnight on
+screen; dump. **See:** the messages before midnight are under "YESTERDAY" with yesterday's date,
+those after under "TODAY" with today's. **Send:** the dump and the time you took it.
+
+13.10 **Do:** open a WhatsApp chat at about 23:55 and keep it open on screen without scrolling
+until after midnight. Have a message arrive after midnight (from a second phone, or ask someone).
+At about 00:05, take a dump without scrolling first. **See:** whether the old separator above the
+evening's messages still says "TODAY", and whether a second "TODAY" appeared above the new
+message. The Notes line should end with `dates dropped: stale today` (one "TODAY") or
+`dates dropped: separators out of order` (two), and say `0 of N messages dated`. **Send:** the
+dump, the exact time you took it, and what the separators said on screen.
+Two more variants, each on its own night:
+- **Locked overnight.** At about 23:55 open the chat, lock the phone with the chat on screen, and
+  leave it until the morning. Unlock and take a dump at once, without scrolling. **See:** whether
+  the separator above yesterday's messages now says "YESTERDAY" (WhatsApp redrew the rows on
+  resume) or still "TODAY". With a stale "TODAY" and every message on screen earlier in the day
+  than the capture time, the Notes line shows no `dates dropped`: the check cannot see it.
+- **Scrolled up.** At about 23:55 scroll up in the chat until no "TODAY" separator is on screen
+  (only older days, or no separator), keep it on screen past midnight, and dump at about 00:05
+  without scrolling. **See:** what the separators on screen say: a separator drawn before midnight
+  ("YESTERDAY" meaning the day before yesterday) is one day off, and nothing on screen shows it.
+**Send:** for each variant, the dump, the exact time you took it, and what the separators said on
+screen. These decide whether the merge needs a rule for stale screens without "TODAY".

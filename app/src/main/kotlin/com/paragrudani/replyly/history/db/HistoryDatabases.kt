@@ -11,6 +11,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
+import java.time.ZoneId
 
 /**
  * Opens the DB on first use, off the main thread. If opening fails (for example a transient
@@ -58,6 +59,7 @@ object HistoryDatabases {
                 Room
                     .databaseBuilder(context, HistoryDatabase::class.java, NAME)
                     .openHelperFactory(SupportOpenHelperFactory(keyProvider.getOrCreatePassphrase()))
+                    .addMigrations(*HistoryMigrations.all(ZoneId.systemDefault()))
                     .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
                     .build()
             },

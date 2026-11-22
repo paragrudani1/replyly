@@ -6,9 +6,20 @@ import com.paragrudani.replyly.parser.Parsers
 import com.paragrudani.replyly.parser.TargetApps
 import com.paragrudani.replyly.testing.Fixtures
 import org.junit.Test
+import java.time.LocalDate
+import java.time.ZoneId
 
 class WhatsAppParserTest {
-    private val parser = WhatsAppParser()
+    private val india = ZoneId.of("Asia/Kolkata")
+    private val parser = WhatsAppParser(india)
+
+    // The fixtures are captured on Saturday 21 November 2026, 15:45 in India.
+    private val today = LocalDate.of(2026, 11, 21)
+    private val yesterday = LocalDate.of(2026, 11, 20)
+
+    private fun ChatMessage.on(date: LocalDate?) = copy(date = date)
+
+    private fun List<ChatMessage>.on(date: LocalDate?) = map { it.on(date) }
 
     private fun me(
         text: String,
@@ -23,18 +34,21 @@ class WhatsAppParserTest {
 
     private val oneToOne =
         listOf(
-            them("Asha Patel", "Are you coming to Riya's birthday on Saturday?", "9:15 pm"),
-            me("Yes! What time does it start?", "9:20 pm"),
-            // A message whose text is "Today" is a message, not a date separator.
-            them("Asha Patel", "Today", "10:02 am"),
-            them("Asha Patel", "7 pm at her place", "10:02 am"),
-            // The reply quote ("7 pm at her place") is not part of the text.
-            me("Perfect, I'll bring the cake 🎂", "10:05 am"),
-            // A message that looks like a time is still a message.
-            me("10:30", "10:06 am"),
-            // "This message was deleted" is dropped; trailing no-break-space padding is trimmed.
-            them("Asha Patel", "Can you also pick up candles?", "10:08 am"),
-        )
+            // Below "YESTERDAY".
+            them("Asha Patel", "Are you coming to Riya's birthday on Saturday?", "9:15 pm").on(yesterday),
+            me("Yes! What time does it start?", "9:20 pm").on(yesterday),
+        ) +
+            listOf(
+                // Below "TODAY". A message whose text is "Today" is a message, not a date separator.
+                them("Asha Patel", "Today", "10:02 am"),
+                them("Asha Patel", "7 pm at her place", "10:02 am"),
+                // The reply quote ("7 pm at her place") is not part of the text.
+                me("Perfect, I'll bring the cake 🎂", "10:05 am"),
+                // A message that looks like a time is still a message.
+                me("10:30", "10:06 am"),
+                // "This message was deleted" is dropped; trailing no-break-space padding is trimmed.
+                them("Asha Patel", "Can you also pick up candles?", "10:08 am"),
+            ).on(today)
 
     @Test
     fun `one to one chat by view ids`() {
@@ -66,21 +80,22 @@ class WhatsAppParserTest {
 
     private val group =
         listOf(
-            // Top bubble, cut by the toolbar: its sender label scrolled away.
+            // Top bubble, cut by the toolbar: its sender label scrolled away. No separator above it.
             them(null, "Also bring a torch", t("6:10 pm")),
             // The "TODAY" divider sits inside this row.
-            them("Asha", "Good morning all ☀️", t("8:02 am")),
+            them("Asha", "Good morning all ☀️", t("8:02 am")).on(today),
             // No label: same sender as the bubble above.
-            them("Asha", "Trek is on for Sunday?", t("8:03 am")),
+            them("Asha", "Trek is on for Sunday?", t("8:03 am")).on(today),
             // "Asha added Meera" (system) is skipped.
-            them("Meera", "Hi everyone! Thanks for adding me", t("8:10 am")),
-            me("Welcome Meera! 🎉", t("8:12 am")),
-            // Unread banner skipped. Unsaved number: the label is the number; the reply quote is not text.
-            them("+91 98765 43210", "Sunday works. What time?", t("8:15 am")),
+            them("Meera", "Hi everyone! Thanks for adding me", t("8:10 am")).on(today),
+            me("Welcome Meera! 🎉", t("8:12 am")).on(today),
+            // Unread banner skipped. Unsaved number: the label is the number; the reply quote is not
+            // text, and it quotes me ("You").
+            them("+91 98765 43210", "Sunday works. What time?", t("8:15 am")).on(today).copy(repliesToMe = true),
             // "Forwarded" is not text.
-            them("Ravi", "Trek checklist: water, shoes, cap", t("8:20 am")),
-            them("Ravi", "ok", t("8:21 am")),
-            me("ok", t("8:22 am")),
+            them("Ravi", "Trek checklist: water, shoes, cap", t("8:20 am")).on(today),
+            them("Ravi", "ok", t("8:21 am")).on(today),
+            me("ok", t("8:22 am")).on(today),
         )
 
     @Test
@@ -102,7 +117,10 @@ class WhatsAppParserTest {
         assertThat(report.method).isEqualTo(WhatsAppParser.METHOD_GEOMETRY)
         assertThat(chat.title).isEqualTo("Weekend Trek")
         assertThat(chat.isGroup).isTrue()
-        assertThat(chat.messages).containsExactlyElementsIn(group).inOrder()
+        // Without ids, the centred "Asha added Meera" may be a separator ChatDates cannot read: it
+        // ends the date above it, so the bubbles below it have none (history marks them approx).
+        val belowSystemLine = group.drop(3).map { it.copy(date = null) }
+        assertThat(chat.messages).containsExactlyElementsIn(group.take(3) + belowSystemLine).inOrder()
     }
 
     @Test
@@ -112,11 +130,13 @@ class WhatsAppParserTest {
         assertThat(chat.title).isEqualTo("Dad")
         assertThat(chat.messages)
             .containsExactly(
-                them("Dad", "Reached?", "9:00 pm"),
-                me("ok", "9:02 pm"),
-                me("ok", "9:02 pm"),
-                them("Dad", "ok", "9:03 pm"),
-                them("Dad", "ok", "9:03 pm"),
+                *listOf(
+                    them("Dad", "Reached?", "9:00 pm"),
+                    me("ok", "9:02 pm"),
+                    me("ok", "9:02 pm"),
+                    them("Dad", "ok", "9:03 pm"),
+                    them("Dad", "ok", "9:03 pm"),
+                ).on(today).toTypedArray(),
             ).inOrder()
     }
 
@@ -131,7 +151,7 @@ class WhatsAppParserTest {
             me("Haan haan pakka 🙏🏽", "11:45 am"),
             them(sender, "Kem cho? Majama?", "11:50 am"),
             me("Majama! Tame kaho", "11:51 am"),
-        )
+        ).on(today)
 
     @Test
     fun `hinglish and gujlish text is kept as written`() {
@@ -144,7 +164,7 @@ class WhatsAppParserTest {
 
     @Test
     fun `whatsapp business chat uses its own package in the chat key`() {
-        val chat = Parsers.registry().parse(Fixtures.snapshot("whatsapp_business/synthetic-hinglish.json"))!!
+        val chat = Parsers.registry(india).parse(Fixtures.snapshot("whatsapp_business/synthetic-hinglish.json"))!!
 
         assertThat(chat.chatKey.encoded).isEqualTo("com.whatsapp.w4b:Rohan Bhai")
         assertThat(chat.historyApplies).isTrue()
@@ -164,16 +184,22 @@ class WhatsAppParserTest {
 
     @Test
     fun `whatsapp business keeps the same text sent twice`() {
-        val chat = Parsers.registry().parse(Fixtures.snapshot("whatsapp_business/synthetic-same_text_twice.json"))!!
+        val chat =
+            Parsers
+                .registry(
+                    india,
+                ).parse(Fixtures.snapshot("whatsapp_business/synthetic-same_text_twice.json"))!!
 
         assertThat(chat.chatKey.encoded).isEqualTo("com.whatsapp.w4b:Dad")
         assertThat(chat.messages)
             .containsExactly(
-                them("Dad", "Reached?", "9:00 pm"),
-                me("ok", "9:02 pm"),
-                me("ok", "9:02 pm"),
-                them("Dad", "ok", "9:03 pm"),
-                them("Dad", "ok", "9:03 pm"),
+                *listOf(
+                    them("Dad", "Reached?", "9:00 pm"),
+                    me("ok", "9:02 pm"),
+                    me("ok", "9:02 pm"),
+                    them("Dad", "ok", "9:03 pm"),
+                    them("Dad", "ok", "9:03 pm"),
+                ).on(today).toTypedArray(),
             ).inOrder()
     }
 

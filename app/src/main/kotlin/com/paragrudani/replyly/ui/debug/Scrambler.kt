@@ -19,8 +19,8 @@ import javax.crypto.spec.SecretKeySpec
  * - Names are scrambled on their own, so the same name gives the same scramble wherever it appears:
  *   the first line of a Telegram cell, the name in "Asha is typing…", each name in "Asha, Ravi, You".
  *   Fixtures made from a scrambled dump keep the "same sender" signal.
- * - Only whole strings that match a strict pattern stay readable: [isKeptWhole] (times, date
- *   separators, "online", "last seen…", "N members…", "typing…", the exact encryption notices,
+ * - Only whole strings that match a strict pattern stay readable: [isKeptWhole] (times, English
+ *   date separators such as "TODAY" or "21 November 2026", "online", "last seen…", "N members…", "typing…", the exact encryption notices,
  *   unread banners, deleted placeholders, bubble labels), and the last line of a Telegram cell when
  *   it is exactly a status line ("Sent today at 6:42 PM, Read"). Words inside a message are never
  *   kept, whatever they are.
@@ -162,12 +162,32 @@ class Scrambler(
                     """ at $TIME(?:, (?:read|unread|seen|delivered|edited|sent|pending))*$""",
             )
         private val forwarded = Regex("""^(Forwarded from )(.+)$""")
+
+        private const val MONTH =
+            """(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?""" +
+                """|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?"""
+        private const val WEEKDAY = """(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)"""
+
+        /**
+         * Date separators kept whole: the narrow English list from before issue #26, not every form
+         * [ChatText.isDateSeparator] reads. That one also takes "कल", "21.11.26" or "10-10-10",
+         * which are ordinary bubble texts too, and would leave them readable in a shared dump.
+         */
+        private val separators =
+            listOf(
+                Regex("""^(?:today|yesterday)$"""),
+                Regex("""^$WEEKDAY$"""),
+                Regex("""^(?:$WEEKDAY,? )?\d{1,2} $MONTH(?:,? \d{4})?$"""),
+                Regex("""^(?:$WEEKDAY,? )?$MONTH \d{1,2}(?:,? \d{4})?$"""),
+                Regex("""^\d{1,2}/\d{1,2}/\d{2,4}$"""),
+                Regex("""^\d{4}-\d{2}-\d{2}$"""),
+            )
         private val activeName = Regex("""^(.+?)( (?:is|are) (?:typing|recording audio)(?:…|\.\.\.)?)$""")
 
         /** Whole strings that hold no private content and that the parsers need to read. */
         fun isKeptWhole(text: String): Boolean {
             val s = ChatText.squash(text).lowercase()
-            return ChatText.isTime(text) || ChatText.isDateSeparator(text) || ChatText.isUnreadBanner(text) ||
+            return ChatText.isTime(text) || separators.any { it.matches(s) } || ChatText.isUnreadBanner(text) ||
                 ChatText.isBubbleLabel(text) || s in deleted || s in encryptionNotices || online.matches(s) ||
                 lastSeen.matches(s) || members.matches(s) || typing.matches(s)
         }

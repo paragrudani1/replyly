@@ -145,7 +145,7 @@ fun chatScreen(
         )
     return ScreenSnapshot(
         packageName = packageName,
-        capturedAt = Instant.parse("2026-11-21T10:15:30Z"),
+        capturedAt = Instant.parse("2026-11-21T21:15:30Z"),
         screenWidth = 1080,
         screenHeight = 2340,
         root = ScreenNode(bounds = Bounds(0, 0, 1080, 2340), children = header + list + input),

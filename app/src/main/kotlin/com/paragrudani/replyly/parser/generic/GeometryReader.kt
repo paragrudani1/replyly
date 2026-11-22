@@ -1,19 +1,26 @@
 package com.paragrudani.replyly.parser.generic
 
 import com.paragrudani.replyly.screen.Bounds
+import java.time.LocalDate
 import kotlin.math.abs
 
 /**
  * Reads bubbles from screen geometry alone, with no view ids (spec 4, geometry rules).
  *
  * Each child of the message list is one unit (a row). Inside a unit:
- * - centred date separators, the encryption notice and unread banners are dropped;
+ * - centred date separators, the encryption notice and unread banners are not messages; with a
+ *   `today`, a date separator gives its date ([ChatDates]) to every bubble below it until the
+ *   next one (without, as for generic apps, it is only dropped). A centred unit without a time
+ *   that is none of these (below) may be a separator in a format [ChatDates] cannot read, so it
+ *   ends the date above it: the bubbles below get none until the next readable separator. A
+ *   real system message ("Asha added Ravi") then costs them only precision;
  * - the bottom-right clock time is the bubble's time, never its text (also when fused with a label:
  *   "edited 6:42 pm" as the last leaf);
  * - "Edited", "Forwarded", tick words are dropped;
  * - the last remaining text is the message; in [Mode.FULL] the text above it is either a sender
- *   label (first line of an incoming group bubble) or a reply-quote preview (skipped);
- * - a centred unit without a time is a system message and is dropped.
+ *   label (first line of an incoming group bubble) or a reply-quote preview (skipped; an incoming
+ *   bubble whose preview names "You" replies to me);
+ * - a centred unit without a time is a system message (or an unreadable separator) and is dropped.
  * The bubble box (the widest container of its text inside the row, narrower than the row) gives
  * the side ([Sides.resolve]).
  */
@@ -34,6 +41,14 @@ class GeometryReader(
         val labelsFound: Boolean,
         val units: Int,
         val skipped: Int,
+        /**
+         * The date separators read, top to bottom, as resolved dates; `null` for a centred line
+         * that ended the date above it without being a readable date. Empty when no `today` was
+         * given.
+         */
+        val separators: List<LocalDate?> = emptyList(),
+        /** For each of [separators], how many bubbles sit above it ([ChatAssembler.checkDates]). */
+        val separatorBubblesAbove: List<Int> = emptyList(),
     )
 
     private class Pending(
@@ -42,6 +57,7 @@ class GeometryReader(
         val bubbleNode: TreeNode,
         val box: Bounds,
         val tick: Boolean,
+        val date: LocalDate?,
     ) {
         var label: String? = null
         var side: Side = Side.LEFT
@@ -51,15 +67,30 @@ class GeometryReader(
         tree: ScreenTree,
         layout: ChatLayout,
         groupHint: GroupHint,
+        /** The capture day, to resolve date separators; `null` drops them without reading them. */
+        today: LocalDate? = null,
     ): Result {
         val area = layout.content
         val units = units(tree, layout)
         val pending = mutableListOf<Pending>()
+        val separators = mutableListOf<LocalDate?>()
+        val bubblesAbove = mutableListOf<Int>()
+        var date: LocalDate? = null
         var skipped = 0
         for (unit in units) {
             val all = tree.textLeaves(unit).filter { it.bounds.overlapsVertically(area) }
             val leaves = all.filterNot { isCenteredChrome(it, area) }
             skipped += all.size - leaves.size
+            if (today != null) {
+                // A separator sits above the bubbles of its unit (WhatsApp puts it inside the row).
+                all
+                    .filter { it !in leaves && ChatText.isDateSeparator(it.text!!) }
+                    .forEach { separator ->
+                        date = ChatDates.resolve(separator.text!!, today)
+                        separators += date
+                        bubblesAbove += pending.size
+                    }
+            }
             if (leaves.isEmpty()) continue
 
             if (leaves.size == 1 && ChatText.timeOf(leaves[0].text!!) != null) {
@@ -95,15 +126,21 @@ class GeometryReader(
                     .lastOrNull()
                     ?.bounds ?: textNodes.map { it.bounds }.union()
             if (timeLeaf == null && Sides.isCentered(box, area)) {
-                // "Asha added Meera", "Missed voice call"...: system messages sit in the middle.
+                // "Asha added Meera", "Missed voice call"...: system messages sit in the middle. So
+                // does a separator ChatDates cannot read: the date above it ends here.
                 skipped++
+                if (today != null) {
+                    date = null
+                    separators += null
+                    bubblesAbove += pending.size
+                }
                 continue
             }
             val tick =
                 unit.descendantsAndSelf().any { n ->
                     n.shown && n.text == null && n.description?.let(ChatText::isTickDescription) == true
                 }
-            pending += Pending(content, timeLeaf?.text?.let(ChatText::timeOf), bubbleNode, box, tick)
+            pending += Pending(content, timeLeaf?.text?.let(ChatText::timeOf), bubbleNode, box, tick, date)
         }
 
         Sides.resolve(pending.map { it.box }, pending.map { it.tick }, area).forEachIndexed { i, side ->
@@ -115,7 +152,14 @@ class GeometryReader(
             if (groupHint == GroupHint.GROUP) skipped += mergeLabelRows(pending)
         }
         val bubbles = pending.mapNotNull(::toBubble)
-        return Result(bubbles, labelsFound = pending.any { it.label != null }, units = units.size, skipped = skipped)
+        return Result(
+            bubbles,
+            labelsFound = pending.any { it.label != null },
+            units = units.size,
+            skipped = skipped,
+            separators = separators,
+            separatorBubblesAbove = bubblesAbove,
+        )
     }
 
     private fun toBubble(p: Pending): RawBubble? {
@@ -123,12 +167,14 @@ class GeometryReader(
         return when (mode) {
             Mode.FULL -> {
                 val text = texts.last().takeUnless(ChatText::isDeletedPlaceholder)
-                RawBubble(p.side, p.label, text, p.time)
+                // The label is someone else's name, so a "You" above the message is a quote's author.
+                val quotesMe = p.side == Side.LEFT && texts.dropLast(1).any(ChatText::isMeName)
+                RawBubble(p.side, p.label, text, p.time, p.date, quotesMe)
             }
 
             Mode.VISIBLE_TEXT -> {
                 val visible = texts.filterNot(ChatText::isDeletedPlaceholder)
-                if (visible.isEmpty()) null else RawBubble(p.side, null, visible.joinToString("\n"), p.time)
+                if (visible.isEmpty()) null else RawBubble(p.side, null, visible.joinToString("\n"), p.time, p.date)
             }
         }
     }

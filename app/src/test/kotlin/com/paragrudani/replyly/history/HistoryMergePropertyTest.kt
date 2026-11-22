@@ -3,6 +3,7 @@ package com.paragrudani.replyly.history
 import com.google.common.truth.Truth.assertWithMessage
 import com.paragrudani.replyly.parser.ChatMessage
 import org.junit.Test
+import java.time.LocalDate
 import java.util.IdentityHashMap
 import kotlin.math.abs
 import kotlin.random.Random
@@ -22,14 +23,38 @@ import kotlin.random.Random
  * flings up more than a screen, jumps anywhere, or comes back after more than a screen of new
  * messages (a gap).
  *
+ * With [MergeFuzz.Config.dates], the screen also shows date separators (issue #26): one above the
+ * first message of each day, scrolling in and out with the window (the top day's separator is
+ * sometimes just above the screen). A read message below a visible separator carries that day's
+ * date, the others none. [MergeFuzz.Config.midnight] makes days roll over often, close to
+ * midnight, so the same times and texts ("ok" at 11:58 pm) come back on many days.
+ *
+ * With [MergeFuzz.Config.editRate], a message sent at most [MergeFuzz.Config.editWindow] minutes
+ * earlier gets a new text now and then (15 minutes as in WhatsApp, 48 hours as in Telegram): a
+ * distinctive text stays distinctive, a short one ("ok") gets another short one ("ok!"). With
+ * [MergeFuzz.Config.lateReadRate], some reads come a day or two after the last message, so an
+ * edit is often read again first on a later day, without a separator on screen (PR #27 review
+ * round 2, S1). A row may hold any text its message ever had; a row holding an old text next to
+ * a row of the same segment that the read stored with the new one is the merge's documented
+ * "edit stored as a new message" and is left out of invariant 3. The summary counts the edits,
+ * the rows holding an edited message's current text, and every row that stands for a message
+ * another row also stands for (mostly reads appended after a gap).
+ *
  * Invariants, checked after every merge:
- * 1. No saved row's text, sender or time ever changes into another message's.
+ * 1. No saved row's text, sender, time or exact date ever changes into another message's.
  * 2. [MergePlan.newAtEnd] holds only messages newer than every message saved before the merge.
  * 3. Within each gap-free segment, the saved order is the true order (and nothing is stored twice).
  * 4. Every message visible in a read that anchored is stored, exactly once, in one segment.
  * 5. `lastMessages` (the rows ending at the current position) ends with the read's last message:
  *    when the read anchored, the row it lined up with or was stored in; otherwise the last row of
  *    the segment the read created.
+ * 6. A row stored for a read message showing a date has that exact date; a saved row such a
+ *    message lined up with has that exact date or none (the merge dates a row only from a sure
+ *    pairing, its step 8; invariant 1 checks that no row ever holds a wrong one). The summary
+ *    says how many lined-up dated messages dated their row.
+ *
+ * Every merge gets the simulated capture day, and rows stored without a date get it as their
+ * approximate date, as on the phone.
  *
  * Messages that are identical in every field (two "ok"s from me at 6:41 pm) cannot be told apart
  * by anyone, so the checks treat such twins as interchangeable inside a segment.
@@ -64,6 +89,20 @@ import kotlin.random.Random
  * `newAtEnd` by a read whose true range touches a block older than other saved rows (invariant 2
  * only) leaves the history right: the seed goes on, and those reads count toward a cap of 5 % of
  * reads.
+ *
+ * The seeds are fixed. Outside them the merge still fails some seeds, never by an overwrite.
+ * Measured on seeds 100000-119999 (20,000 per config, PR #27 round 1): 1:1 1 seed (0.005%),
+ * group 11 (0.055%), 1:1 dates 5 (0.025%), group dates 12 (0.06%), 1:1 midnight 7 (0.035%),
+ * group midnight 14 (0.07%); none break invariant 1. Replaying the dated configs' reads with
+ * every date stripped (merge as on `main`) fails 5, 12, 11 and 14 seeds, two of them overwrites.
+ * Round 2, seeds 500000-519999 (20,000 per config): the configs above and their tail variants
+ * fail 7 to 11 seeds each (at most 0.055%); the edit configs fail 1:1 13, group 17, group 48 h 19,
+ * group midnight 10 and 1:1 tail 13 seeds (at most 0.1%). None breaks invariant 1.
+ * The failures are the documented limits in shapes the excuses above do not cover: mostly a short
+ * bubble ("ok", "😂") lined up with a twin a few rows away inside a run of identical messages,
+ * beyond [RUN] (seen: 1249 group, invariant 4; 6079 1:1 dates, invariant 3; 7085 group dates,
+ * invariant 2), and a run ending at a row saved without a time that reports one old message in
+ * `newAtEnd` (invariant 2, feedback log only).
  */
 class HistoryMergePropertyTest {
     @Test
@@ -91,10 +130,90 @@ class HistoryMergePropertyTest {
     }
 
     @Test
+    fun `reads with date separators keep the merge invariants`() {
+        check(MergeFuzz.run(MergeFuzz.Config("1:1 dates", group = false, dates = true), 101L..300L))
+        check(MergeFuzz.run(MergeFuzz.Config("group dates", group = true, dates = true), 1101L..1300L))
+        check(
+            MergeFuzz.run(MergeFuzz.Config("1:1 dates tail", group = false, dates = true, tailSize = 12), 2101L..2150L),
+        )
+        check(
+            MergeFuzz.run(
+                MergeFuzz.Config("group dates tail", group = true, dates = true, tailSize = 12),
+                3101L..3150L,
+            ),
+        )
+    }
+
+    @Test
+    fun `midnight rollover with separators scrolling in and out keeps the merge invariants`() {
+        check(
+            MergeFuzz.run(MergeFuzz.Config("1:1 midnight", group = false, dates = true, midnight = true), 8001L..8100L),
+        )
+        check(
+            MergeFuzz.run(
+                MergeFuzz.Config("group midnight", group = true, dates = true, midnight = true),
+                9001L..9060L,
+            ),
+        )
+    }
+
+    @Test
+    fun `edits and reads on later days keep the merge invariants`() {
+        edits.forEach { (config, seeds) -> check(MergeFuzz.run(config, seeds)) }
+    }
+
+    /**
+     * Seeds outside the ranges above that the PR #27 review found overwriting a saved row. A date
+     * stamped onto another day's twin: 104437 (1:1 dates), 118281 (group dates), 115704 (1:1
+     * midnight), 113270 (group midnight). A daily "gm" at 9:00 am taken for an edit of another
+     * day's message at 9:00 am (104828), and a sender filled into a saved run of "ok"s (103811),
+     * both group midnight. A short edit ("ok" to "ok!") taken for an edit of the run's other
+     * "ok", lined up one row off (500331 and 516434, 1:1 edits; 617554, group edits). Each may stop
+     * at a documented limit, never at a broken invariant.
+     */
+    @Test
+    fun `seeds that once overwrote a saved row stay fixed`() {
+        val midnight = MergeFuzz.Config("group midnight", group = true, dates = true, midnight = true)
+        listOf(
+            MergeFuzz.Config("1:1 dates", group = false, dates = true) to 104437L,
+            MergeFuzz.Config("group dates", group = true, dates = true) to 118281L,
+            MergeFuzz.Config("1:1 midnight", group = false, dates = true, midnight = true) to 115704L,
+            midnight to 113270L,
+            midnight to 104828L,
+            midnight to 103811L,
+            edits[0].first to 500331L,
+            edits[0].first to 516434L,
+            edits[1].first to 617554L,
+        ).forEach { (config, seed) ->
+            val result = MergeFuzz.run(config, seed..seed)
+            println(result.summary())
+            assertWithMessage("${config.name} seed $seed:\n" + result.failures.joinToString("\n"))
+                .that(result.failures)
+                .isEmpty()
+        }
+    }
+
+    @Test
     fun `long screens and few unique texts keep the merge invariants`() {
         check(MergeFuzz.run(MergeFuzz.Config("1:1 14 bubbles", group = false, maxHeight = 14), 4001L..4040L))
         check(MergeFuzz.run(MergeFuzz.Config("group 20% unique", group = true, uniqueShare = 0.2), 5001L..5040L))
     }
+
+    private val edits =
+        listOf(
+            MergeFuzz.Config("1:1 edits", group = false, dates = true, editRate = 0.15, lateReadRate = 0.15) to
+                6001L..6100L,
+            MergeFuzz.Config("group edits", group = true, dates = true, editRate = 0.15, lateReadRate = 0.15) to
+                7001L..7100L,
+            MergeFuzz.Config(
+                "group edits 48h",
+                group = true,
+                dates = true,
+                editRate = 0.15,
+                editWindow = 48 * 60,
+                lateReadRate = 0.15,
+            ) to 7101L..7200L,
+        )
 
     private fun check(result: MergeFuzz.Result) {
         println(result.summary())
@@ -127,6 +246,16 @@ internal object MergeFuzz {
         /** Chance that a bubble between the top and bottom one is missing from a read. */
         val dropRate: Double = 0.015,
         val steps: Int = 120,
+        /** Reads show date separators: messages below one carry its date. */
+        val dates: Boolean = false,
+        /** Days roll over often, mostly close to midnight. */
+        val midnight: Boolean = false,
+        /** Chance per step that a message sent within [editWindow] minutes is edited. */
+        val editRate: Double = 0.0,
+        /** How long after sending a message can be edited: 15 minutes (WhatsApp), 48 h (Telegram). */
+        val editWindow: Int = 15,
+        /** Chance that a read happens a day or two after the last message (no message in between). */
+        val lateReadRate: Double = 0.0,
     )
 
     class Result(
@@ -142,12 +271,27 @@ internal object MergeFuzz {
         /** Invariant number for each failed seed. */
         val failedInvariants: List<Int>,
         val excusedReads: Int,
+        /** See [Simulation.dateChances]. */
+        val dateChances: Int = 0,
+        val dateUpgrades: Int = 0,
+        /** Edits made in the true chats. */
+        val edits: Int = 0,
+        /**
+         * Saved rows holding an edited message's current text when the seed ended, copies in a
+         * read stored again after a gap included (so a higher count is not by itself better).
+         */
+        val editsApplied: Int = 0,
+        /** Rows that stand for a true message another row also stands for, when the seed ended. */
+        val duplicateRows: Int = 0,
     ) {
         fun summary() =
             "HistoryMergePropertyTest ${config.name}: $seeds seeds, $reads reads, $millis ms, " +
                 "${limits.size} stopped at a known limit ${limitClasses.groupingBy { it }.eachCount()}, " +
                 "$excusedReads reads excused (old block), ${failures.size} failed " +
-                "${failedInvariants.groupingBy { it }.eachCount()}"
+                "${failedInvariants.groupingBy { it }.eachCount()}" +
+                (if (dateChances > 0) ", $dateUpgrades of $dateChances lined-up dated messages dated a row" else "") +
+                (if (edits > 0) ", $edits edits, $editsApplied applied" else "") +
+                ", $duplicateRows rows stored twice"
     }
 
     fun run(
@@ -157,6 +301,11 @@ internal object MergeFuzz {
         val started = System.nanoTime()
         var reads = 0
         var excused = 0
+        var dateChances = 0
+        var dateUpgrades = 0
+        var edits = 0
+        var editsApplied = 0
+        var duplicateRows = 0
         val failures = mutableListOf<String>()
         val invariants = mutableListOf<Int>()
         val limits = mutableListOf<String>()
@@ -166,6 +315,11 @@ internal object MergeFuzz {
             simulation.run(config.steps)
             reads += simulation.reads
             excused += simulation.excusedReads
+            dateChances += simulation.dateChances
+            dateUpgrades += simulation.dateUpgrades
+            edits += simulation.edits
+            editsApplied += simulation.editsApplied()
+            duplicateRows += simulation.duplicateRows()
             simulation.failure?.let {
                 failures += "seed $seed: $it"
                 invariants += simulation.failedInvariant
@@ -176,21 +330,47 @@ internal object MergeFuzz {
             }
         }
         val millis = (System.nanoTime() - started) / 1_000_000
-        return Result(config, seeds.count(), reads, millis, failures, limits, classes, invariants, excused)
+        return Result(
+            config,
+            seeds.count(),
+            reads,
+            millis,
+            failures,
+            limits,
+            classes,
+            invariants,
+            excused,
+            dateChances,
+            dateUpgrades,
+            edits,
+            editsApplied,
+            duplicateRows,
+        )
     }
 
     private class TrueMessage(
         val id: Int,
         val isMe: Boolean,
         val sender: String?,
-        val text: String,
+        text: String,
         val time: String,
         /** Minutes since the chat started. */
         val minute: Int,
     ) {
+        /** Every text it had, oldest first: an edit adds one. A row may hold any of them. */
+        val versions = mutableListOf(text)
+        val text: String get() = versions.last()
+
+        val day: Int get() = minute / MINUTES_PER_DAY
+        val date: LocalDate get() = FIRST_DAY.plusDays(day.toLong())
+
+        /**
+         * What a bubble shows of it: identical twins share it. Not the date: a row without an exact
+         * date cannot tell twins of two days apart (invariant 1 checks the exact dates).
+         */
         val key: List<Any?> get() = listOf(isMe, sender, text, time)
 
-        override fun toString() = "#$id ${if (isMe) "me" else sender} \"$text\" $time"
+        override fun toString() = "#$id ${if (isMe) "me" else sender} \"$text\" $time $date"
     }
 
     private class Simulation(
@@ -202,7 +382,16 @@ internal object MergeFuzz {
         private val truth = mutableListOf<TrueMessage>()
 
         /** Minutes since the chat started; bubbles show only the time of day. */
-        private var clock = random.nextInt(MINUTES_PER_DAY)
+        private var clock =
+            if (config.midnight) {
+                MINUTES_PER_DAY -
+                    random.nextInt(
+                        1,
+                        40,
+                    )
+            } else {
+                random.nextInt(MINUTES_PER_DAY)
+            }
         private val history = FakeHistory(config.tailSize)
 
         /** Row id to the true message it stands for. */
@@ -226,10 +415,30 @@ internal object MergeFuzz {
         var excusedReads = 0
             private set
 
+        /** Read messages showing a date lined up with a row without an exact date, and how many dated it. */
+        var dateChances = 0
+            private set
+        var dateUpgrades = 0
+            private set
+
+        var edits = 0
+            private set
+
+        /** Rows holding an edited message's current text. */
+        fun editsApplied() =
+            history.sortedRows().count { row ->
+                truth[rowTruth.getValue(row.id)].let { it.versions.size > 1 && row.message.text == it.text }
+            }
+
+        /** Rows that stand for a true message another row also stands for. */
+        fun duplicateRows() =
+            history.sortedRows().let { rows -> rows.size - rows.map { rowTruth.getValue(it.id) }.toSet().size }
+
         fun run(steps: Int) {
             repeat(25) { addMessage() }
             for (step in 1..steps) {
                 if (random.nextDouble() < 0.4) repeat(random.nextInt(1, 4)) { addMessage() }
+                if (config.editRate > 0 && random.nextDouble() < config.editRate) edit()
                 val height = random.nextInt(3, config.maxHeight + 1)
                 val action = random.nextDouble()
                 when {
@@ -267,6 +476,11 @@ internal object MergeFuzz {
                     atBottom = true
                 }
                 top = top.coerceIn(0, last)
+                if (config.lateReadRate > 0 && random.nextDouble() < config.lateReadRate) {
+                    // The chat is opened again a day or two later, at any time of day.
+                    val day = clock / MINUTES_PER_DAY + random.nextInt(1, 3)
+                    clock = day * MINUTES_PER_DAY + random.nextInt(MINUTES_PER_DAY)
+                }
                 read(top, minOf(truth.size, top + height), step)
                 if (failure != null || knownLimit != null) return
             }
@@ -277,16 +491,39 @@ internal object MergeFuzz {
             atBottom = false
         }
 
+        /**
+         * A message sent at most [Config.editWindow] minutes ago gets a new text: a distinctive
+         * one stays distinctive, a short one ("ok") gets another short one.
+         */
+        private fun edit() {
+            // Stickers have no text to edit.
+            val recent = truth.filter { clock - it.minute <= config.editWindow && it.text.isNotEmpty() }
+            if (recent.isEmpty()) return
+            val t = recent.random(random)
+            t.versions +=
+                if (t.text.length >= HistoryMerge.DISTINCTIVE_LENGTH) {
+                    "message ${t.id} v${t.versions.size + 1}"
+                } else {
+                    t.text + "!"
+                }
+            edits++
+        }
+
         private fun addMessage() {
             val step = random.nextDouble()
             val next =
-                clock +
-                    when {
-                        step < 0.45 -> 0
-                        step < 0.75 -> random.nextInt(1, 4)
-                        step < 0.95 -> random.nextInt(4, 31)
-                        else -> random.nextInt(60, 601)
-                    }
+                if (config.midnight && step < 0.12) {
+                    // Jump to a few minutes before the next midnight.
+                    (clock / MINUTES_PER_DAY + 1) * MINUTES_PER_DAY - random.nextInt(1, 6)
+                } else {
+                    clock +
+                        when {
+                            step < 0.45 -> 0
+                            step < 0.75 -> random.nextInt(1, 4)
+                            step < 0.95 -> random.nextInt(4, 31)
+                            else -> random.nextInt(60, 601)
+                        }
+                }
             val gm = (next - GM) / MINUTES_PER_DAY
             if (gm > (clock - GM) / MINUTES_PER_DAY && random.nextDouble() < 0.7) {
                 // Asha's "gm" at 9:00 am on most days: the same message, day after day.
@@ -335,14 +572,21 @@ internal object MergeFuzz {
 
         /**
          * What the parser reads from the screen window `truth[from until to]`, with the true index
-         * of each message read (a bubble between the edges may be missing).
+         * of each message read (a bubble between the edges may be missing). With dates, a
+         * separator sits above the first message of each day; the top message's one is on screen
+         * only half the time.
          */
         private fun render(
             from: Int,
             to: Int,
         ): List<Pair<Int, ChatMessage>> {
             var label: String? = null
+            var separatorDate: LocalDate? = null
             return (from until to).mapNotNull { k ->
+                if (config.dates) {
+                    val firstOfDay = k == 0 || truth[k - 1].day != truth[k].day
+                    if (firstOfDay && (k > from || random.nextBoolean())) separatorDate = truth[k].date
+                }
                 val t = truth[k]
                 val clipped = (k == from && random.nextDouble() < 0.35) || (k == to - 1 && random.nextDouble() < 0.15)
                 val sender =
@@ -363,7 +607,12 @@ internal object MergeFuzz {
                         }
                     }
                 val dropped = k > from && k < to - 1 && random.nextDouble() < config.dropRate
-                if (dropped) null else k to ChatMessage(sender, t.text, if (clipped) null else t.time, t.isMe)
+                if (dropped) {
+                    null
+                } else {
+                    k to
+                        ChatMessage(sender, t.text, if (clipped) null else t.time, t.isMe, separatorDate)
+                }
             }
         }
 
@@ -430,7 +679,7 @@ internal object MergeFuzz {
             // Rows without a time before the merge, by the true message they stand for.
             val timelessBefore = before.filter { it.message.timeShown == null }.map { rowTruth.getValue(it.id) }.toSet()
             val storedBefore = before.map { rowTruth.getValue(it.id) }.toSet()
-            val plan = history.merge(read)
+            val plan = history.merge(read, today = FIRST_DAY.plusDays((clock / MINUTES_PER_DAY).toLong()))
             reads++
             plan.inserts.zip(history.lastInsertedIds).forEach { (insert, rowId) ->
                 rowTruth[rowId] = readIds[insert.message] ?: error("an insert that is not a read message")
@@ -507,7 +756,7 @@ internal object MergeFuzz {
                         rendered.any { (u, m) ->
                             abs(u - t.id) <= 2 &&
                                 rowSegment.none { rowTruth.getValue(it.id) == u } &&
-                                row.message == m.copy(sender = row.message.sender)
+                                row.message.copy(date = null) == m.copy(sender = row.message.sender, date = null)
                         }
                 val limit =
                     when {
@@ -537,8 +786,9 @@ internal object MergeFuzz {
                     }
                 }
             }
-            // Invariant 3.
-            val segments = segmentsOf(rows).map { canonicalIds(it) }
+            // Invariant 3. A row with an edited message's old text, next to a row the read stored
+            // with the new one, is the documented "edit stored as a new message": not checked.
+            val segments = segmentsOf(rows).map { canonicalIds(withoutStaleCopies(it)) }
             segments.firstOrNull { ids -> ids.zipWithNext().any { (a, b) -> a >= b } }?.let { ids ->
                 val inverted = ids.zipWithNext().filter { (a, b) -> a >= b }
                 val undecidable =
@@ -602,6 +852,29 @@ internal object MergeFuzz {
                     }
                 return fail(5, "lastMessages ends with #${lastTruth.id}, not $lastRead", limit)
             }
+            // Invariant 6.
+            val rowOfRead = plan.matchedRowIds.toMutableList()
+            val stored = BooleanArray(read.size)
+            plan.inserts.zip(history.lastInsertedIds).forEach { (insert, rowId) ->
+                val k = read.indexOfFirst { it === insert.message }
+                rowOfRead[k] = rowId
+                stored[k] = true
+            }
+            read.indices
+                .firstOrNull { k ->
+                    val date = read[k].date ?: return@firstOrNull false
+                    val held = history.row(rowOfRead[k]!!).message.date
+                    held != date && (stored[k] || held != null)
+                }?.let { k ->
+                    return fail(6, "row of ${describe(read[k])} holds date ${history.row(rowOfRead[k]!!).message.date}")
+                }
+            // How often a dated read message dates the row it lined up with (step 8 of the merge).
+            read.indices.forEach { k ->
+                val rowId = plan.matchedRowIds[k] ?: return@forEach
+                if (read[k].date == null || before.single { it.id == rowId }.message.date != null) return@forEach
+                dateChances++
+                if (history.row(rowId).message.date != null) dateUpgrades++
+            }
         }
 
         /**
@@ -659,6 +932,13 @@ internal object MergeFuzz {
                 }
         }
 
+        /** [segment] without rows holding an old text of a message another row of it stands for. */
+        private fun withoutStaleCopies(segment: List<StoredRow>): List<StoredRow> =
+            segment.filterNot { row ->
+                val t = truth[rowTruth.getValue(row.id)]
+                row.message.text != t.text && segment.any { it !== row && rowTruth.getValue(it.id) == t.id }
+            }
+
         private fun segmentsOf(rows: List<StoredRow>): List<List<StoredRow>> =
             rows.fold(mutableListOf<MutableList<StoredRow>>()) { segments, row ->
                 if (segments.isEmpty() || row.gapBefore) segments += mutableListOf<StoredRow>()
@@ -672,7 +952,9 @@ internal object MergeFuzz {
          */
         private fun canonicalIds(segment: List<StoredRow>): List<Int> {
             val ids = segment.map { rowTruth.getValue(it.id) }.toMutableList()
-            ids.indices.groupBy { truth[ids[it]].key }.values.forEach { slots ->
+            // With the text the row holds: an edited message's old "ok" is a twin of another "ok".
+            val key = { k: Int -> truth[ids[k]].let { t -> listOf(t.isMe, t.sender, segment[k].message.text, t.time) } }
+            ids.indices.groupBy(key).values.forEach { slots ->
                 val sorted = slots.map { ids[it] }.sorted()
                 slots.forEachIndexed { k, slot -> ids[slot] = sorted[k] }
             }
@@ -683,29 +965,38 @@ internal object MergeFuzz {
             saved: ChatMessage,
             t: TrueMessage,
         ) = saved.isMe == t.isMe &&
-            saved.text == t.text &&
+            saved.text in t.versions &&
             (saved.sender == null || saved.sender == t.sender) &&
-            (saved.timeShown == null || saved.timeShown == t.time)
+            (saved.timeShown == null || saved.timeShown == t.time) &&
+            (saved.date == null || saved.date == t.date)
 
         /** Equal in every field both show, as the merge's exact match: only a sender may be missing. */
         private fun sameShown(
             a: ChatMessage,
             b: ChatMessage,
-        ) = a.isMe == b.isMe &&
+        ) = !datesDiffer(a, b) &&
+            a.isMe == b.isMe &&
             a.text == b.text &&
             a.timeShown == b.timeShown &&
             (a.sender == b.sender || (!a.isMe && (a.sender == null || b.sender == null)))
+
+        private fun datesDiffer(
+            a: ChatMessage,
+            b: ChatMessage,
+        ) = a.date != null && b.date != null && a.date != b.date
 
         /** As the merge's loose match: a field missing on either side matches anything. */
         private fun sameShownOrMissing(
             a: ChatMessage,
             b: ChatMessage,
-        ) = a.isMe == b.isMe &&
+        ) = !datesDiffer(a, b) &&
+            a.isMe == b.isMe &&
             a.text == b.text &&
             (a.isMe || a.sender == null || b.sender == null || a.sender == b.sender) &&
             (a.timeShown == null || b.timeShown == null || a.timeShown == b.timeShown)
 
-        private fun describe(m: ChatMessage) = "${if (m.isMe) "me" else m.sender} \"${m.text}\" ${m.timeShown}"
+        private fun describe(m: ChatMessage) =
+            "${if (m.isMe) "me" else m.sender} \"${m.text}\" ${m.timeShown} ${m.date ?: ""}"
     }
 
     /** How far apart two equal short messages still make a run. */
@@ -714,6 +1005,9 @@ internal object MergeFuzz {
     /** Twins further apart than two screens count as "far" (another day). */
     private const val FAR = 16
     private const val MINUTES_PER_DAY = 24 * 60
+
+    /** The date of the chat's first day (day 0 of [TrueMessage.minute]). */
+    private val FIRST_DAY: LocalDate = LocalDate.of(2026, 9, 1)
     private const val TITLE = "Asha"
     private val MEMBERS = listOf("Asha", "Ravi", "Meera", "Bob")
 

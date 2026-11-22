@@ -6,11 +6,13 @@ import com.paragrudani.replyly.parser.TargetApps
 import com.paragrudani.replyly.parser.whatsapp.WhatsAppParser
 import com.paragrudani.replyly.screen.ScreenSnapshot
 import org.junit.Test
+import java.time.LocalDate
+import java.time.ZoneOffset
 
 /** Geometry rules in full mode, driven through the WhatsApp parser with no view ids. */
 class GeometryEdgeCasesTest {
     private fun parse(snapshot: ScreenSnapshot) =
-        WhatsAppParser().explain(snapshot).let { report ->
+        WhatsAppParser(ZoneOffset.UTC).explain(snapshot).let { report ->
             assertThat(report.method).isEqualTo(WhatsAppParser.METHOD_GEOMETRY)
             checkNotNull(report.chat) { report.toString() }
         }
@@ -88,11 +90,14 @@ class GeometryEdgeCasesTest {
                 ),
             )
 
+        // Captured on 21 November 2026: each separator dates the bubbles below it.
+        val yesterday = LocalDate.of(2026, 11, 20)
+        val nov21 = LocalDate.of(2026, 11, 21)
         assertThat(chat.messages)
             .containsExactly(
-                them("Asha", "When?", "6:00 pm"),
-                me("Today", "6:01 pm"),
-                them("Asha", "Friday", "6:02 pm"),
+                them("Asha", "When?", "6:00 pm").copy(date = yesterday),
+                me("Today", "6:01 pm").copy(date = nov21),
+                them("Asha", "Friday", "6:02 pm").copy(date = nov21),
             ).inOrder()
     }
 

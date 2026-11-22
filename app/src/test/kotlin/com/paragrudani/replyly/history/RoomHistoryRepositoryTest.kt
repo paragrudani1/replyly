@@ -20,8 +20,11 @@ import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 
 @RunWith(RobolectricTestRunner::class)
 class RoomHistoryRepositoryTest {
@@ -79,6 +82,96 @@ class RoomHistoryRepositoryTest {
             history.merge(chat(them("a"), them("b"), them("c"), them("d")))
 
             assertThat(texts(ChatKey("com.whatsapp", "Asha"), limit = 2)).containsExactly("c", "d").inOrder()
+        }
+
+    @Test
+    fun `a message with no separator above it gets the local date it was first seen on, marked approx`() =
+        runTest {
+            // 20:00 UTC on 21 November is already 22 November in India.
+            val india = Clock.fixed(Instant.parse("2026-11-21T20:00:00Z"), ZoneId.of("Asia/Kolkata"))
+            val history = RoomHistoryRepository(handle, india)
+            val read = chat(them("hi"), me("hello"))
+
+            history.merge(read)
+
+            val stored = history.lastMessages(read.chatKey, 10)
+            assertThat(stored.map { it.date }).containsExactly(LocalDate.of(2026, 11, 22), LocalDate.of(2026, 11, 22))
+            assertThat(stored.map { it.dateIsApprox }).containsExactly(true, true)
+            // The message itself carries only exact dates.
+            assertThat(stored.map { it.message.date }).containsExactly(null, null)
+        }
+
+    @Test
+    fun `a separator date is stored exact, and a later read that sees the separator upgrades an approx row`() =
+        runTest {
+            val nov20 = LocalDate.of(2026, 11, 20)
+            val nov21 = LocalDate.of(2026, 11, 21)
+            val key = ChatKey("com.whatsapp", "Asha")
+            // Read on 21 November with no separator in view: approx 21 November.
+            history.merge(
+                chat(
+                    them("are you coming tonight?"),
+                    me("yes, at 8", "6:45 pm"),
+                    them("great", "6:46 pm"),
+                    me("see you", "6:50 pm"),
+                ),
+            )
+            clock.advance(Duration.ofMinutes(2))
+
+            // Scrolled up a little: "YESTERDAY" is above the first three. Only the message inside the
+            // screen becomes exact; the top and bottom ones may be another day's twins (HistoryMerge
+            // step 8), so they stay approx.
+            history.merge(
+                chat(
+                    them("are you coming tonight?").copy(date = nov20),
+                    me("yes, at 8", "6:45 pm").copy(date = nov20),
+                    them("great", "6:46 pm").copy(date = nov20),
+                ),
+            )
+            // Back at the bottom, the separator out of view again.
+            history.merge(chat(me("yes, at 8", "6:45 pm"), them("great", "6:46 pm"), me("see you", "6:50 pm")))
+
+            val stored = history.lastMessages(key, 10)
+            assertThat(stored.map { it.message.text })
+                .containsExactly("are you coming tonight?", "yes, at 8", "great", "see you")
+                .inOrder()
+            assertThat(stored.map { it.date }).containsExactly(nov21, nov20, nov21, nov21).inOrder()
+            assertThat(stored.map { it.dateIsApprox }).containsExactly(true, false, true, true).inOrder()
+            assertThat(stored.map { it.message.date }).containsExactly(null, nov20, null, null).inOrder()
+        }
+
+    @Test
+    fun `an edit keeps the exact date, and a reply to me is stored`() =
+        runTest {
+            val nov21 = LocalDate.of(2026, 11, 21)
+            val key = ChatKey("com.whatsapp", "Asha")
+            history.merge(
+                chat(
+                    me("dinner on friday?", "6:40 pm").copy(date = nov21),
+                    them("yes, 8 pm works", "6:44 pm").copy(date = nov21, repliesToMe = true),
+                    me("typo", "6:45 pm").copy(date = nov21),
+                    them("see you then", "6:46 pm").copy(date = nov21),
+                ),
+            )
+
+            history.merge(
+                chat(
+                    me("dinner on friday?", "6:40 pm"),
+                    them("yes, 8 pm works", "6:44 pm"),
+                    me("fixed", "6:45 pm"),
+                    them("see you then", "6:46 pm"),
+                ),
+            )
+
+            val stored = history.lastMessages(key, 10)
+            assertThat(
+                stored.map {
+                    it.message.text
+                },
+            ).containsExactly("dinner on friday?", "yes, 8 pm works", "fixed", "see you then").inOrder()
+            assertThat(stored.map { it.date }.toSet()).containsExactly(nov21)
+            assertThat(stored.map { it.dateIsApprox }.toSet()).containsExactly(false)
+            assertThat(stored.map { it.message.repliesToMe }).containsExactly(false, true, false, false).inOrder()
         }
 
     @Test

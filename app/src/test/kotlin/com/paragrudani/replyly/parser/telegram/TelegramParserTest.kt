@@ -6,20 +6,28 @@ import com.paragrudani.replyly.parser.Parsers
 import com.paragrudani.replyly.parser.TargetApps
 import com.paragrudani.replyly.testing.Fixtures
 import org.junit.Test
+import java.time.LocalDate
+import java.time.ZoneId
 
 class TelegramParserTest {
-    private val parser = TelegramParser()
+    private val india = ZoneId.of("Asia/Kolkata")
+    private val parser = TelegramParser(india)
+
+    // The older fixtures are captured on Saturday 21 November 2026 in India; their cells say "today".
+    private val nov21 = LocalDate.of(2026, 11, 21)
 
     private fun me(
         text: String,
         time: String,
-    ) = ChatMessage(sender = null, text = text, timeShown = time, isMe = true)
+        date: LocalDate? = nov21,
+    ) = ChatMessage(sender = null, text = text, timeShown = time, isMe = true, date = date)
 
     private fun them(
         sender: String?,
         text: String,
         time: String,
-    ) = ChatMessage(sender = sender, text = text, timeShown = time, isMe = false)
+        date: LocalDate? = nov21,
+    ) = ChatMessage(sender = sender, text = text, timeShown = time, isMe = false, date = date)
 
     private fun read(fixture: String) =
         parser.explain(Fixtures.snapshot("telegram/$fixture")).let { report ->
@@ -115,7 +123,7 @@ class TelegramParserTest {
 
     @Test
     fun `registry routes telegram here`() {
-        assertThat(Parsers.registry().parserFor(TargetApps.TELEGRAM)).isInstanceOf(TelegramParser::class.java)
+        assertThat(Parsers.registry(india).parserFor(TargetApps.TELEGRAM)).isInstanceOf(TelegramParser::class.java)
     }
 
     @Test

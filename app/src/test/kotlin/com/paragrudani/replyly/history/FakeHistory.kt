@@ -1,10 +1,12 @@
 package com.paragrudani.replyly.history
 
 import com.paragrudani.replyly.parser.ChatMessage
+import java.time.LocalDate
 
 /**
  * In-memory stand-in for the messages table of one chat: applies [HistoryMerge] plans the way
- * [RoomHistoryRepository] does, including the tail-first planning when [tailSize] is set.
+ * [RoomHistoryRepository] does, including the tail-first planning when [tailSize] is set. With a
+ * `today` passed to [merge], rows stored without an exact date get that day, approx.
  */
 internal class FakeHistory(
     private val tailSize: Int? = null,
@@ -20,22 +22,42 @@ internal class FakeHistory(
     var currentRowId: Long? = null
         private set
 
-    fun merge(read: List<ChatMessage>): MergePlan {
+    fun merge(
+        read: List<ChatMessage>,
+        today: LocalDate? = null,
+    ): MergePlan {
         val all = sortedRows()
         val plan =
             if (tailSize == null || all.size < tailSize) {
-                HistoryMerge.plan(all, read, currentRowId)
+                HistoryMerge.plan(all, read, currentRowId, today)
             } else {
-                HistoryMerge.planAgainstTail(all.takeLast(tailSize), read, currentRowId)
-                    ?: HistoryMerge.plan(all, read, currentRowId)
+                HistoryMerge.planAgainstTail(all.takeLast(tailSize), read, currentRowId, today)
+                    ?: HistoryMerge.plan(all, read, currentRowId, today)
             }
         plan.moves.forEach { move -> update(move.id) { it.copy(position = move.position) } }
         plan.gapsCleared.forEach { id -> update(id) { it.copy(gapBefore = false) } }
-        plan.edits.forEach { edit -> update(edit.id) { it.copy(message = edit.message) } }
+        // As RoomHistoryRepository: an edit's null date leaves the saved one, metadata after edits.
+        plan.edits.forEach { edit ->
+            update(edit.id) { it.withExactDate(edit.message.date, edit.message) }
+        }
+        plan.metaUpdates.forEach { meta ->
+            update(meta.id) {
+                it.withExactDate(meta.date, it.message.copy(repliesToMe = it.message.repliesToMe || meta.repliesToMe))
+            }
+        }
         lastInsertedIds =
             plan.inserts.map { insert ->
                 val id = nextId++
-                rows += StoredRow(id, insert.position, insert.message, insert.gapBefore)
+                val m = insert.message
+                rows +=
+                    StoredRow(
+                        id,
+                        insert.position,
+                        m,
+                        insert.gapBefore,
+                        date = m.date ?: today,
+                        dateIsApprox = m.date == null && today != null,
+                    )
                 id
             }
         val positions = rows.map { it.position }
@@ -72,6 +94,17 @@ internal class FakeHistory(
             if (segments.isEmpty() || row.gapBefore) segments += mutableListOf<String>()
             segments.last() += row.message.text
             segments
+        }
+
+    /** [message] with the row's exact date, or [date] (exact) when not null. */
+    private fun StoredRow.withExactDate(
+        date: LocalDate?,
+        message: ChatMessage,
+    ): StoredRow =
+        if (date == null) {
+            copy(message = message.copy(date = this.message.date))
+        } else {
+            copy(message = message.copy(date = date), date = date, dateIsApprox = false)
         }
 
     private fun update(

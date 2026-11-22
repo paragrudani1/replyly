@@ -55,6 +55,18 @@ class ScramblerTest {
     }
 
     @Test
+    fun `only the narrow English separator list stays whole, not every date the parsers read`() {
+        listOf("TODAY", "Yesterday", "Monday", "21 November 2026", "November 21, 2026", "21/11/2026")
+            .forEach { assertThat(Scrambler.isKeptWhole(it)).isTrue() }
+        // Bubble texts that ChatDates would also read as a separator ("tomorrow", "today", a date).
+        listOf("कल", "आज", "21.11.26", "10-10-10", "शनिवार", "Sat 21 Nov")
+            .forEach { assertThat(Scrambler.isKeptWhole(it)).isFalse() }
+        val fixed = Scrambler(ByteArray(32) { it.toByte() })
+        assertThat(fixed.scrambleText("कल")).isNotEqualTo("कल")
+        assertThat(fixed.scrambleText("आज")).isNotEqualTo("आज")
+    }
+
+    @Test
     fun `text that only starts like chrome is scrambled whole, kept words included`() {
         val fixed = Scrambler(ByteArray(32) { it.toByte() })
         listOf(
