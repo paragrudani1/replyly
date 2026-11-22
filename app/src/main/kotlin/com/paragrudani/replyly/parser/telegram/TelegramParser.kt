@@ -34,9 +34,13 @@ import java.time.ZoneId
  *
  * Dates: the last line names the day ("today", "yesterday", "Nov 19", "21.11.25"), which is the
  * message's own date. A cell whose line has none takes the date of the date header cell above it
- * ("Today", "November 19"), as on WhatsApp. Relative names resolve against the snapshot's capture
- * day in [zone]. Reply headers are not in the description as far as known: [CellDescription] never
- * sets "replies to me" (DEVICE_CHECKLIST.md 13).
+ * ("Today", "November 19"), as on WhatsApp. Any other short line in the list that is not a cell
+ * counts as a header too: one that is not a readable date ("Asha joined", or a date format
+ * [ChatDates] does not know) ends the date above it, so the cells below get none rather than the
+ * previous day's. Relative names resolve against the snapshot's capture day in [zone], and
+ * [ChatAssembler.checkDates] drops every date of a screen whose dates do not add up. Reply
+ * headers are not in the description as far as known: [CellDescription] never sets "replies to
+ * me" (DEVICE_CHECKLIST.md 13).
  */
 class TelegramParser(
     private val zone: ZoneId = ZoneId.systemDefault(),
@@ -48,7 +52,8 @@ class TelegramParser(
         val layout = ChatLayout.detect(tree)
         val hint = ChatText.groupHint(layout.subtitle)
         val isGroupBySubtitle = hint == GroupHint.GROUP
-        val today = snapshot.capturedAt.atZone(zone).toLocalDate()
+        val now = snapshot.capturedAt.atZone(zone).toLocalDateTime()
+        val today = now.toLocalDate()
         // Screen order, not tree order: the chat list may lay its children out newest first.
         val inList = tree.shownNodes.filter { layout.list == null || layout.list.isAncestorOf(it) }
         val cellNodes =
@@ -61,10 +66,10 @@ class TelegramParser(
         val raws = cellNodes.map { it.second }
         val headers =
             inList
-                .filter { node -> cellNodes.none { it.first === node } }
+                .filter { node -> cellNodes.none { (cell, _) -> cell === node || cell.isAncestorOf(node) } }
                 .mapNotNull { node ->
                     listOfNotNull(node.text, node.description)
-                        .firstOrNull(ChatText::isDateSeparator)
+                        .firstOrNull(::isHeaderText)
                         ?.let { node.bounds.top to ChatDates.resolve(it, today) }
                 }.sortedBy { it.first }
         val headerDates = ChatAssembler.datesBelow(headers, cellNodes.map { it.first.bounds.top })
@@ -84,17 +89,21 @@ class TelegramParser(
 
         if (cells.isNotEmpty()) {
             val title = layout.title ?: return ParseReport(null, METHOD_DESCRIPTIONS, listOf("no chat title"))
-            val bubbles =
-                cells.map {
-                    RawBubble(if (it.isMe) Side.RIGHT else Side.LEFT, it.sender, it.text, it.time, it.date)
-                }
-            val chat = chat(snapshot, title, isGroupBySubtitle, bubbles)
+            val checked =
+                ChatAssembler.checkDates(
+                    cells.map {
+                        RawBubble(if (it.isMe) Side.RIGHT else Side.LEFT, it.sender, it.text, it.time, it.date)
+                    },
+                    headers.map { it.second },
+                    now,
+                )
+            val chat = chat(snapshot, title, isGroupBySubtitle, checked.bubbles)
             val notes =
                 listOf(
                     "${cells.size} message cells",
                     "group from subtitle: ${hint.name.lowercase()}",
                     "${cells.count { it.ownDate }} cells dated by their own text",
-                    ChatAssembler.dateNote(headers.map { it.second }, chat.messages),
+                    ChatAssembler.dateNote(headers.map { it.second }, chat.messages, checked.dropped),
                 )
             return ParseReport(chat, METHOD_DESCRIPTIONS, notes)
         }
@@ -106,15 +115,27 @@ class TelegramParser(
         }
         val title = layout.title ?: return ParseReport(null, METHOD_GEOMETRY, listOf("no chat title"))
         val result = GeometryReader(GeometryReader.Mode.FULL).read(tree, layout, hint, today)
+        val checked = ChatAssembler.checkDates(result.bubbles, result.separators, now)
         val isGroup = isGroupBySubtitle || result.labelsFound
-        val chat = chat(snapshot, title, isGroup, result.bubbles)
+        val chat = chat(snapshot, title, isGroup, checked.bubbles)
         val notes =
             listOf(
                 "no message cells: geometry fallback",
                 "${result.units} rows, ${result.bubbles.size} bubbles, ${result.skipped} skipped",
-                ChatAssembler.dateNote(result.separators, chat.messages),
+                ChatAssembler.dateNote(result.separators, chat.messages, checked.dropped),
             )
         return ParseReport(chat, METHOD_GEOMETRY, notes)
+    }
+
+    /**
+     * A list node that is not a message cell, with one short line: a date header ("Today",
+     * "November 19"), or a service line ("Asha joined the group") that may be an unreadable header.
+     * Either way it ends the date of the header above it (an unreadable one resolves to `null`).
+     * The unread banner sits between messages of one day, so it does not.
+     */
+    private fun isHeaderText(text: String): Boolean {
+        val s = ChatText.squash(text)
+        return s.isNotEmpty() && '\n' !in text && s.length <= MAX_HEADER && !ChatText.isUnreadBanner(s)
     }
 
     private fun chat(
@@ -133,6 +154,9 @@ class TelegramParser(
     companion object {
         const val METHOD_DESCRIPTIONS = "telegram:cell-descriptions"
         const val METHOD_GEOMETRY = "telegram:geometry"
+
+        /** The longest header line: "Wednesday, 19 November 2026" with room to spare. */
+        private const val MAX_HEADER = 40
     }
 }
 

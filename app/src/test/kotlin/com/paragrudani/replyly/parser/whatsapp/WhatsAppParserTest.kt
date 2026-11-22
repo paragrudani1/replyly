@@ -117,7 +117,10 @@ class WhatsAppParserTest {
         assertThat(report.method).isEqualTo(WhatsAppParser.METHOD_GEOMETRY)
         assertThat(chat.title).isEqualTo("Weekend Trek")
         assertThat(chat.isGroup).isTrue()
-        assertThat(chat.messages).containsExactlyElementsIn(group).inOrder()
+        // Without ids, the centred "Asha added Meera" may be a separator ChatDates cannot read: it
+        // ends the date above it, so the bubbles below it have none (history marks them approx).
+        val belowSystemLine = group.drop(3).map { it.copy(date = null) }
+        assertThat(chat.messages).containsExactlyElementsIn(group.take(3) + belowSystemLine).inOrder()
     }
 
     @Test

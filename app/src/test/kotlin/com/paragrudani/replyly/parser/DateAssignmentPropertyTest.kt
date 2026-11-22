@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.parser
 
 import com.google.common.truth.Truth.assertWithMessage
+import com.paragrudani.replyly.parser.generic.ChatDates
 import com.paragrudani.replyly.parser.generic.bubble
 import com.paragrudani.replyly.parser.generic.centered
 import com.paragrudani.replyly.parser.generic.chatScreen
@@ -25,14 +26,16 @@ import kotlin.random.Random
  * message of each day (the one of the window's top day is sometimes scrolled away), in a random
  * form ("TODAY", "Thursday", "21 NOVEMBER 2026", "21/11/2026", Hindi...), and messages whose text
  * is sometimes a date word ("Today", "Monday") on a bubble's side. The capture time is a random
- * moment of the last day, in India.
+ * moment of the capture day in India, after the last message of that day. With `unreadable`, a
+ * quarter of the separators use a format [ChatDates] cannot read ("21th November", "21 Nov '26").
  *
  * Invariants, for every screen:
- * 1. The dates of the on-screen messages never decrease from top to bottom, and (WhatsApp) once a
- *    message has a date, every message below it has one.
- * 2. Every message below a separator gets that separator's (true) date.
- * 3. A message with no separator above it gets no date (history then marks it approx). For a
- *    Telegram cell, its own status line counts as a separator.
+ * 1. The dates of the on-screen messages never decrease from top to bottom, and (WhatsApp, with
+ *    every separator readable) once a message has a date, every message below it has one.
+ * 2. Every message below a readable separator gets that separator's (true) date.
+ * 3. A message with no separator above it, or whose nearest separator above is unreadable, gets
+ *    no date (history then marks it approx): an unreadable separator ends the date above it. For
+ *    a Telegram cell, its own status line counts as a separator.
  * 4. A date word in a bubble stays a message: the message count is the true one.
  *
  * Routes: WhatsApp by view ids, WhatsApp by geometry (no ids), Telegram cell descriptions.
@@ -51,6 +54,7 @@ class DateAssignmentPropertyTest {
 
     private class Separator(
         val text: String,
+        val readable: Boolean = true,
     ) : Item
 
     private class Message(
@@ -64,6 +68,8 @@ class DateAssignmentPropertyTest {
     private class Screen(
         val today: LocalDate,
         val items: List<Item>,
+        /** The time of the chat's last message when it is from [today]: the capture comes after it. */
+        val lastTimeToday: LocalTime?,
     ) {
         val messages: List<Message> get() = items.filterIsInstance<Message>()
     }
@@ -106,11 +112,27 @@ class DateAssignmentPropertyTest {
         return if (upper) text.uppercase(Locale.ENGLISH) else text
     }
 
+    /** A separator text that [ChatDates] cannot read, for [date]. */
+    private fun unreadableText(
+        random: Random,
+        date: LocalDate,
+    ): String {
+        val text =
+            when (random.nextInt(3)) {
+                0 -> "${date.dayOfMonth}th " + date.month.getDisplayName(TextStyle.FULL, Locale.ENGLISH)
+                1 -> DateTimeFormatter.ofPattern("d MMM ''yy", Locale.ENGLISH).format(date)
+                else -> "📅 " + DateTimeFormatter.ofPattern("dd/MM/yyyy").format(date)
+            }
+        check(ChatDates.parse(text) == null) { "readable: $text" }
+        return text
+    }
+
     /** A true chat over several days and a window of at most [maxItems] screen items. */
     private fun screen(
         random: Random,
         maxItems: Int,
         telegram: Boolean,
+        unreadable: Boolean = false,
     ): Screen {
         var date = LocalDate.of(2026, 1, 1).plusDays(random.nextLong(700))
         var time = LocalTime.of(8, 0)
@@ -143,21 +165,33 @@ class DateAssignmentPropertyTest {
             val firstOfDay = k == 0 || chat[k - 1].date != m.date
             // The top day's separator may sit above the screen.
             if (firstOfDay && (k > from || random.nextBoolean())) {
-                items += Separator(separatorText(random, m.date, today))
-                shownDate = m.date
+                if (unreadable && random.nextDouble() < 0.25) {
+                    items += Separator(unreadableText(random, m.date), readable = false)
+                    shownDate = null
+                } else {
+                    items += Separator(separatorText(random, m.date, today))
+                    shownDate = m.date
+                }
             }
             val ownDate = telegram && random.nextDouble() < 0.5
             items += Message(m, if (ownDate) m.date else shownDate, ownDate)
             if (items.size >= maxItems) break
         }
-        return Screen(today, items)
+        return Screen(today, items, chat.last().time.takeIf { chat.last().date == today })
     }
 
-    /** The capture instant: a random moment of [today] in India. */
+    /** The capture instant: a random moment of the screen's day in India, after its last message. */
     private fun capturedAt(
         random: Random,
-        today: LocalDate,
-    ) = today.atTime(random.nextInt(24), random.nextInt(60)).atZone(india).toInstant()
+        screen: Screen,
+    ): java.time.Instant {
+        val earliest = screen.lastTimeToday?.toSecondOfDay()?.div(60) ?: 0
+        val minute = random.nextInt(earliest, 24 * 60)
+        return screen.today
+            .atTime(minute / 60, minute % 60)
+            .atZone(india)
+            .toInstant()
+    }
 
     private fun clock(t: LocalTime) = DateTimeFormatter.ofPattern("h:mm a", Locale.ENGLISH).format(t).lowercase()
 
@@ -263,7 +297,7 @@ class DateAssignmentPropertyTest {
             )
         return ScreenSnapshot(
             packageName = pkg,
-            capturedAt = capturedAt(random, screen.today),
+            capturedAt = capturedAt(random, screen),
             screenWidth = 1080,
             screenHeight = 2340,
             root = ScreenNode(bounds = Bounds(0, 0, 1080, 2340), children = listOf(title, list, input)),
@@ -297,7 +331,7 @@ class DateAssignmentPropertyTest {
             "Asha",
             "online",
             rows,
-        ).copy(capturedAt = capturedAt(random, screen.today))
+        ).copy(capturedAt = capturedAt(random, screen))
     }
 
     // ---- Telegram cells
@@ -409,7 +443,7 @@ class DateAssignmentPropertyTest {
             )
         return ScreenSnapshot(
             packageName = TargetApps.TELEGRAM,
-            capturedAt = capturedAt(random, screen.today),
+            capturedAt = capturedAt(random, screen),
             screenWidth = 1080,
             screenHeight = 2340,
             root = ScreenNode(bounds = Bounds(0, 0, 1080, 2340), children = listOf(header, list, input)),
@@ -421,13 +455,14 @@ class DateAssignmentPropertyTest {
         seeds: LongRange,
         maxItems: Int,
         telegram: Boolean = false,
+        unreadable: Boolean = false,
         render: (Screen, Random) -> ScreenSnapshot,
         parser: ChatParser,
     ) {
         var checked = 0
         for (seed in seeds) {
             val random = Random(seed)
-            val screen = screen(random, maxItems, telegram)
+            val screen = screen(random, maxItems, telegram, unreadable)
             val chat = parser.parse(render(screen, random))
             val what = "$route seed $seed"
             assertWithMessage("$what: not read as a chat").that(chat).isNotNull()
@@ -445,8 +480,10 @@ class DateAssignmentPropertyTest {
             val firstDated = dates.indexOfFirst { it != null }
             if (firstDated >= 0) {
                 val below = dates.drop(firstDated)
-                // A Telegram cell dated by its own line may sit above an undated one.
-                if (!telegram) {
+                // A Telegram cell dated by its own line may sit above an undated one, and an
+                // unreadable separator ends the date above it.
+                val allReadable = screen.items.none { it is Separator && !it.readable }
+                if (!telegram && allReadable) {
                     assertWithMessage(
                         "$what: a dated message above an undated one",
                     ).that(below).doesNotContain(null)
@@ -471,6 +508,35 @@ class DateAssignmentPropertyTest {
     @Test
     fun `whatsapp by geometry keeps the date invariants`() =
         check("whatsapp:geometry", 1001L..1400L, maxItems = 11, render = ::waGeometry, parser = WhatsAppParser(india))
+
+    @Test
+    fun `an unreadable separator ends the date above it on every route`() {
+        check(
+            "whatsapp:view-ids unreadable",
+            3001L..3400L,
+            maxItems = 11,
+            unreadable = true,
+            render = ::waIds,
+            parser = WhatsAppParser(india),
+        )
+        check(
+            "whatsapp:geometry unreadable",
+            4001L..4400L,
+            maxItems = 11,
+            unreadable = true,
+            render = ::waGeometry,
+            parser = WhatsAppParser(india),
+        )
+        check(
+            "telegram unreadable",
+            5001L..5400L,
+            maxItems = 14,
+            telegram = true,
+            unreadable = true,
+            render = ::telegram,
+            parser = TelegramParser(india),
+        )
+    }
 
     @Test
     fun `telegram cells keep the date invariants`() =

@@ -10,14 +10,17 @@ import kotlin.math.abs
  * Each child of the message list is one unit (a row). Inside a unit:
  * - centred date separators, the encryption notice and unread banners are not messages; with a
  *   `today`, a date separator gives its date ([ChatDates]) to every bubble below it until the
- *   next one (without, as for generic apps, it is only dropped);
+ *   next one (without, as for generic apps, it is only dropped). A centred unit without a time
+ *   that is none of these (below) may be a separator in a format [ChatDates] cannot read, so it
+ *   ends the date above it: the bubbles below get none until the next readable separator. A
+ *   real system message ("Asha added Ravi") then costs them only precision;
  * - the bottom-right clock time is the bubble's time, never its text (also when fused with a label:
  *   "edited 6:42 pm" as the last leaf);
  * - "Edited", "Forwarded", tick words are dropped;
  * - the last remaining text is the message; in [Mode.FULL] the text above it is either a sender
  *   label (first line of an incoming group bubble) or a reply-quote preview (skipped; an incoming
  *   bubble whose preview names "You" replies to me);
- * - a centred unit without a time is a system message and is dropped.
+ * - a centred unit without a time is a system message (or an unreadable separator) and is dropped.
  * The bubble box (the widest container of its text inside the row, narrower than the row) gives
  * the side ([Sides.resolve]).
  */
@@ -38,7 +41,11 @@ class GeometryReader(
         val labelsFound: Boolean,
         val units: Int,
         val skipped: Int,
-        /** The date separators read, top to bottom, as resolved dates. Empty when no `today` was given. */
+        /**
+         * The date separators read, top to bottom, as resolved dates; `null` for a centred line
+         * that ended the date above it without being a readable date. Empty when no `today` was
+         * given.
+         */
         val separators: List<LocalDate?> = emptyList(),
     )
 
@@ -115,8 +122,13 @@ class GeometryReader(
                     .lastOrNull()
                     ?.bounds ?: textNodes.map { it.bounds }.union()
             if (timeLeaf == null && Sides.isCentered(box, area)) {
-                // "Asha added Meera", "Missed voice call"...: system messages sit in the middle.
+                // "Asha added Meera", "Missed voice call"...: system messages sit in the middle. So
+                // does a separator ChatDates cannot read: the date above it ends here.
                 skipped++
+                if (today != null) {
+                    date = null
+                    separators += null
+                }
                 continue
             }
             val tick =
