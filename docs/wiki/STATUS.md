@@ -2,10 +2,10 @@
 
 Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECISIONS](../DECISIONS.md).
 
-## 2026-11-22: after #29 (signing key), before #27 merges
+## 2026-11-22: #27 under round-2 review
 
 **Merged.** v1 (#8–#16), polish (#19, #21–#24), profiles (#20), docs (#25), and #29 (signing-key rotation).
-- `main` is at `1254a71`.
+- `main` is at `1254a71` plus the wiki docs PRs #31–#33.
 - `latest-debug` is versionCode 55, with certificate SHA-256 `2a5421c6…2737d6` (the new key).
 - Parag must uninstall the old app once first (DEVICE_CHECKLIST 2.0).
 
@@ -18,14 +18,21 @@ Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECIS
 - **#27 (`v2-dates`): message dates in the parsers and history.**
   - Review r1 (`/root/.t3/cos/replyly/reviews/pr27-r1.md`) blocked it on B1: the merge wrote an exact date onto the wrong twin row.
   - The CoS also put S1 (plausibility check), S2 (unreadable separator) and S3 (cross-day edit overwrite) in this round.
-  - The fix agent died in the API outage. A resume agent continues its uncommitted work in worktree `t3-bdc5acab-c3bf153cc79d182f`; brief `/root/.t3/cos/replyly/v2-pr1-fix1-resume.md`.
-  - **Open subagent (running when this was written):** "Resume PR #27 fix round 1".
-    - taskId `node:delegated-task:command%3Amcp%3A1410ce0e-91bd-494d-a451-5d28566ed806%3Adelegate-task%3Ae3c3b744-3bc3-48d8-8a2c-f8360db8da10`
-    - thread `thread:delegated-task:command%3Amcp%3A1410ce0e-91bd-494d-a451-5d28566ed806%3Adelegate-task%3Ae3c3b744-3bc3-48d8-8a2c-f8360db8da10`
-    - It reports with `PR <url>, head <sha>, checks <state>`, after pushing to `v2-dates` and watching CI.
-    - It does not merge.
+  - **Fix round 1 is done:** head `2522486`, CI run 45052430977 green, local gate 905 tests. The resume agent's report, in brief:
+    - B1, S1 (`ChatAssembler.checkDates`), S2, S3 (`StoredRow.date`) and the nits are fixed.
+    - 0 invariant-1 failures at 20,000 seeds in every dated config.
+    - Additive contract changes: `StoredRow.date`/`dateIsApprox`, `HistoryMerge.plan(today=)`, `ChatAssembler.dateNote(dropped=)`.
+    - Not merged with `main`, because there are no conflicts and PR CI builds the merge anyway.
+    - Decisions to record: an edit of a message from another day is stored as new; fixtures are captured at 23:45 IST.
+  - **Open subagent: "Review PR #27 round 2"** (fresh reviewer).
+    - Brief: `/root/.t3/cos/replyly/v2-pr1-review2-brief.md`.
+    - Writes `/root/.t3/cos/replyly/reviews/pr27-r2.md`.
+    - taskId `node:delegated-task:command%3Amcp%3A22202a9d-777c-4d01-90e1-4d7877bf4760%3Adelegate-task%3Af1e44d43-e8b4-4f23-8bd7-297d5378c29b`
+    - thread `thread:delegated-task:command%3Amcp%3A22202a9d-777c-4d01-90e1-4d7877bf4760%3Adelegate-task%3Af1e44d43-e8b4-4f23-8bd7-297d5378c29b`
     - If it has finished, read its result with `task_status`.
-  - **Next:** fresh re-review, then merge on green CI.
+  - **Next:**
+    - If r2 has no blockers or should-fixes, merge #27 once CI is green.
+    - Otherwise, write a fix brief (round 2) for an agent working in worktree `t3-bdc5acab-c3bf153cc79d182f`.
 - **#28 (`v2-prompt`, head `abb5c50`, CI green): prompt v2.**
   - The r1 fixes are done.
   - **Next, after #27 merges:**
