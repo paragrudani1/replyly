@@ -1057,7 +1057,9 @@ shows a floating date pill there while scrolling. Dump while it is visible (star
 keep scrolling a little until the countdown ends). **See:** no message line has the pill's text
 as its text. The Notes line counts the pill only if it uses the separator's view id
 (`conversation_row_date_divider`) or has no id; either way its date must be the top messages'
-date. **Send:** the dump; say whether the pill was on screen when the toast came.
+date. **Send:** the dump; say whether the pill was on screen when the toast came. In the dump
+(scramble off), search for the pill's text and send the `viewId` of the node that holds it
+(or "none"), so the parser can ignore the pill by its id.
 
 13.4 **Do:** repeat 13.1 in WhatsApp Business. **See:** the same as 13.1, `Parser:
 whatsapp:view-ids`. **Send:** the dump.
@@ -1087,3 +1089,11 @@ report or `adb logcat -v time | grep -i -E "room|migration|replyly"` output if i
 13.9 **Do:** just after midnight, open a chat with messages from before and after midnight on
 screen; dump. **See:** the messages before midnight are under "YESTERDAY" with yesterday's date,
 those after under "TODAY" with today's. **Send:** the dump and the time you took it.
+
+13.10 **Do:** open a WhatsApp chat at about 23:55 and keep it open on screen without scrolling
+until after midnight. Have a message arrive after midnight (from a second phone, or ask someone).
+At about 00:05, take a dump without scrolling first. **See:** whether the old separator above the
+evening's messages still says "TODAY", and whether a second "TODAY" appeared above the new
+message. The Notes line should end with `dates dropped: stale today` (one "TODAY") or
+`dates dropped: separators out of order` (two), and say `0 of N messages dated`. **Send:** the
+dump, the exact time you took it, and what the separators said on screen.
