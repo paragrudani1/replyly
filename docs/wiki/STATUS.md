@@ -2,9 +2,9 @@
 
 Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECISIONS](../DECISIONS.md).
 
-## 2026-11-22: #27 merged; #28 rebasing onto real dates
+## 2026-11-22: #27 merged; #28 under combined review
 
-**Merged.** v1 (#8–#16), polish (#19, #21–#24), profiles (#20), docs (#25), #29 (signing-key rotation), **#27 (message dates, `624939c`)**, and the wiki docs PRs #31–#36.
+**Merged.** v1 (#8–#16), polish (#19, #21–#24), profiles (#20), docs (#25), #29 (signing-key rotation), **#27 (message dates, `624939c`)**, and the wiki docs PRs #31–#37.
 - `latest-debug` is versionCode 69 (built from `624939c`), signed with the new key (certificate SHA-256 `2a5421c6…2737d6`).
 - Parag must uninstall the old app once first (DEVICE_CHECKLIST 2.0).
 
@@ -15,21 +15,24 @@ Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECIS
 
 **In flight: issue #26, prompt v2.** Issue: https://github.com/paragrudani1/replyly/issues/26
 - **#27 is done.** 3 review rounds (`/root/.t3/cos/replyly/reviews/pr27-r1.md`, `-r2.md`, `-r3.md`). The CoS applied r3's two should-fixes itself (the reviewer had tested both), plus pinned seeds 500331, 516434 and 617554. Gate 919 tests; 0 invariant-1 failures at fresh seeds 700000–709999. DECISIONS has the PR 1 entries and accepted limits.
-- **#28 (`v2-prompt`, head `abb5c50` before the rebase): prompt v2.**
-  - **Open subagent: "Rebase PR #28 onto main with real dates"**, working in worktree `t3-f24e6775-b855e9cd9242b6bb`.
-    - Brief: `/root/.t3/cos/replyly/v2-pr2-rebase-brief.md` (rebase, wire `date`/`dateIsApprox`/`repliesToMe`, one `SchemaAssets`, docs, gate, force-with-lease push, CI).
-    - taskId `node:delegated-task:command%3Amcp%3A334b0d3f-4292-46aa-a114-dfd1b720a456%3Adelegate-task%3Af8bb14d6-d15c-4e5c-b2cf-f937d3b9ed3f`
-    - thread `thread:delegated-task:command%3Amcp%3A334b0d3f-4292-46aa-a114-dfd1b720a456%3Adelegate-task%3Af8bb14d6-d15c-4e5c-b2cf-f937d3b9ed3f`
+- **#28 (`v2-prompt`): prompt v2.**
+  - **Rebase done:** head `ca48e1a`, on `main` with #27; CI run 45078197175 green; local gate 1013 tests.
+    - Only docs conflicted (README, DEVICE_CHECKLIST 13 then 14, ARCHITECTURE); all kept both sides.
+    - Wiring: history `date`/`dateIsApprox` from the stored row; on-screen-only `message.date`, never approx; `PromptMessage.repliesToMe` derived from `ChatMessage`. The `firstSeenAt` stand-in is gone; the bubble-time fallback for approx dates stays.
+    - One `SchemaAssets` (`app/src/test/.../testing/SchemaAssets.kt`). No shared-contract change.
+  - **Open subagent: "Review PR #28 round 2"** (combined: r1 fixes + wiring + the final system prompt).
+    - Brief: `/root/.t3/cos/replyly/v2-pr2-review2-brief.md`. Writes `/root/.t3/cos/replyly/reviews/pr28-r2.md`.
+    - taskId `node:delegated-task:command%3Amcp%3A3b3b2c71-2b5d-47d7-bcb5-344045843096%3Adelegate-task%3Afb4a12a1-61ea-4bc4-b9ac-88c678fc9777`
+    - thread `thread:delegated-task:command%3Amcp%3A3b3b2c71-2b5d-47d7-bcb5-344045843096%3Adelegate-task%3Afb4a12a1-61ea-4bc4-b9ac-88c678fc9777`
     - If it has finished, read its result with `task_status`.
   - **Next:**
-    1. Check the rebase report.
-    2. Run a combined re-review (new delegate): r1 fixes (`reviews/pr28-r1.md`) plus the date wiring.
-    3. Post `PromptBuilder.SYSTEM_PROMPT` verbatim in the thread.
-    4. Merge on green CI, update this file, post a short status.
+    1. Fix the findings: small ones yourself in worktree `t3-f24e6775-b855e9cd9242b6bb`, bigger ones by a fix delegate.
+    2. Post `PromptBuilder.SYSTEM_PROMPT` verbatim in the thread (after any prompt fixes).
+    3. Merge on green CI, update this file, post a short status. Then #30.
 
 **Queued: issue #30** (X reply and quote posts). Starts after #28 merges. Plan: parser and detection first; then prompt mode, settings and counter; 1–2 PRs.
 
-**Briefs and reviews.** In `/root/.t3/cos/replyly/`: `v2-*.md`, `issue-*.md`, and `reviews/pr27-r1.md` to `pr27-r3.md` and `pr28-r1.md`.
+**Briefs and reviews.** In `/root/.t3/cos/replyly/`: `v2-*.md`, `issue-*.md`, and `reviews/pr27-r1.md` to `pr27-r3.md`, `pr28-r1.md` and `pr28-r2.md`.
 
 **Open risks**
 - Every date-separator format is a guess until there are S23 dumps (DEVICE_CHECKLIST 13). 13.10 (chat open across midnight) decides whether the merge needs a rule for stale screens.
