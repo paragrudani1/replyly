@@ -37,6 +37,15 @@ data class MessageEntity(
     val hash: String,
     /** Epoch millis when Replyly first saw the message. Retention purges by this. */
     @ColumnInfo(name = "first_seen_at") val firstSeenAt: Long,
+    /**
+     * The message's local date as an epoch day ([java.time.LocalDate.toEpochDay]): from a date
+     * separator, or the local date of [firstSeenAt] when [dateIsApprox]. Null only in rows a
+     * migration could not date (none: 1 to 2 dates every row).
+     */
+    @ColumnInfo(name = "message_date") val messageDate: Long? = null,
+    @ColumnInfo(name = "date_is_approx", defaultValue = "0") val dateIsApprox: Boolean = false,
+    /** [com.paragrudani.replyly.parser.ChatMessage.repliesToMe]: once set, never cleared. */
+    @ColumnInfo(name = "replies_to_me", defaultValue = "0") val repliesToMe: Boolean = false,
 )
 
 /**
@@ -133,6 +142,16 @@ interface MessageDao {
         hash: String,
     )
 
+    /** A date read from a separator: replaces an approximate one. */
+    @Query("UPDATE messages SET message_date = :epochDay, date_is_approx = 0 WHERE id = :id")
+    suspend fun setExactDate(
+        id: Long,
+        epochDay: Long,
+    )
+
+    @Query("UPDATE messages SET replies_to_me = 1 WHERE id = :id")
+    suspend fun markRepliesToMe(id: Long)
+
     @Query("UPDATE messages SET gap_before = 0 WHERE id = :id")
     suspend fun clearGap(id: Long)
 
@@ -179,11 +198,14 @@ interface ContactNoteDao {
 
 /**
  * The encrypted `history` DB (ticket #3): messages and contact notes. Opened with SQLCipher by
- * [HistoryDatabases]. Schema JSON is exported to `app/schemas/`; a version bump needs a migration.
+ * [HistoryDatabases]. Schema JSON is exported to `app/schemas/`; a version bump needs a migration
+ * ([HistoryMigrations]).
+ *
+ * Versions: 1 (ticket #3); 2 adds `message_date`, `date_is_approx` and `replies_to_me` (issue #26).
  */
 @Database(
     entities = [MessageEntity::class, ChatPositionEntity::class, ContactNoteEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class HistoryDatabase : RoomDatabase() {

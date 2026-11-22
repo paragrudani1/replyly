@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import java.time.Clock
 import java.time.Instant
+import java.time.LocalDate
 
 /** In-memory fake for tests (AppGraph binds the real one). Not persisted, not encrypted, and it appends without any dedup. */
 class InMemoryHistoryRepository(
@@ -17,8 +18,18 @@ class InMemoryHistoryRepository(
     override suspend fun merge(chat: ParsedChat): Int {
         if (!chat.historyApplies) return 0
         val now = clock.instant()
+        val today = LocalDate.ofInstant(now, clock.zone)
         synchronized(messages) {
-            chat.messages.forEach { messages += StoredMessage(chat.chatKey, it, now) }
+            chat.messages.forEach {
+                messages +=
+                    StoredMessage(
+                        chat.chatKey,
+                        it,
+                        now,
+                        it.date ?: today,
+                        it.date == null,
+                    )
+            }
         }
         return chat.messages.size
     }
