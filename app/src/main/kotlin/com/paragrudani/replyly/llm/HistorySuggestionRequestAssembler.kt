@@ -20,9 +20,10 @@ import java.time.ZoneId
  * have no history: they use the visible messages only. If the encrypted DB's key is unavailable
  * for a moment, it throws [SuggestionFailureException] with [SuggestionResult.Failure.StorageLocked].
  *
- * Message dates (until PR 1 of issue #26 stores real ones): a history message gets the local date
- * of its `firstSeenAt`, marked approx; an on-screen-only message gets no date. `repliesToMe` is
- * false for now.
+ * Message dates: a history message gets its stored date ([StoredMessage.date], approx when no date
+ * separator was seen above it); an on-screen-only message (generic apps, or a chat whose history is
+ * empty) gets the date its separator showed ([ChatMessage.date], exact, or none). `repliesToMe`
+ * comes from the parsed message either way.
  */
 class HistorySuggestionRequestAssembler(
     private val history: HistoryRepository,
@@ -65,7 +66,7 @@ class HistorySuggestionRequestAssembler(
             messages =
                 history
                     .lastMessages(key, n)
-                    .map { it.toPromptMessage(zoneNow) }
+                    .map { it.toPromptMessage() }
                     .ifEmpty { chat.messages.takeLast(n).map(::onScreen) }
             val mineHere =
                 history
@@ -95,16 +96,10 @@ class HistorySuggestionRequestAssembler(
         )
     }
 
-    private fun StoredMessage.toPromptMessage(zone: ZoneId) =
-        PromptMessage(
-            message = message,
-            date = firstSeenAt.atZone(zone).toLocalDate(),
-            dateIsApprox = true,
-            repliesToMe = false,
-            firstSeenAt = firstSeenAt,
-        )
+    private fun StoredMessage.toPromptMessage() =
+        PromptMessage(message = message, date = date, dateIsApprox = dateIsApprox, firstSeenAt = firstSeenAt)
 
-    private fun onScreen(message: ChatMessage) = PromptMessage(message)
+    private fun onScreen(message: ChatMessage) = PromptMessage(message, date = message.date, dateIsApprox = false)
 
     companion object {
         /** How far back to look for the user's own messages in this chat. */

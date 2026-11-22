@@ -10,12 +10,16 @@ import java.time.LocalDate
  */
 data class PromptMessage(
     val message: ChatMessage,
-    /** Local date of the message, or null when unknown (an on-screen message with no history). */
+    /**
+     * Local date of the message: history's stored date, or the on-screen [ChatMessage.date] for a
+     * message that is not in history. Null when unknown.
+     */
     val date: LocalDate? = null,
-    /** True when [date] is a guess (from [firstSeenAt]) rather than a visible date separator. */
+    /** True when [date] is history's guess (the day Replyly first saw it), not a date separator. */
     val dateIsApprox: Boolean = false,
-    /** The message quotes or replies to one of mine (group reply ranking). */
-    val repliesToMe: Boolean = false,
     /** When Replyly first saw the message; null for on-screen messages that are not in history. */
     val firstSeenAt: Instant? = null,
-)
+) {
+    /** The message quotes or replies to one of mine (group reply ranking); from [ChatMessage.repliesToMe]. */
+    val repliesToMe: Boolean get() = message.repliesToMe
+}

@@ -29,7 +29,7 @@ class PromptBuilderTest {
         date: LocalDate? = null,
         approx: Boolean = false,
         repliesToMe: Boolean = false,
-    ) = PromptMessage(ChatMessage(sender, text, time, isMe = false), date, approx, repliesToMe)
+    ) = PromptMessage(ChatMessage(sender, text, time, isMe = false, repliesToMe = repliesToMe), date, approx)
 
     private fun request(
         history: List<PromptMessage> = listOf(me("Hey"), them("Hi")),

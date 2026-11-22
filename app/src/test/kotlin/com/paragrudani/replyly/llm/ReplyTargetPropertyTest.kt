@@ -71,17 +71,16 @@ class ReplyTargetPropertyTest {
                 1 -> "%d:%02d %s".format((sent.hour + 11) % 12 + 1, sent.minute, if (sent.hour < 12) "am" else "pm")
                 else -> "%02d:%02d".format(sent.hour, sent.minute)
             }
+        // Draws in a fixed order, so each seed keeps generating the same conversation.
+        val sender = if (isMe) null else senders.random(random)
+        val text = texts.random(random)
+        val date = if (random.nextBoolean()) sent.toLocalDate() else null
+        val dateIsApprox = random.nextBoolean()
+        val repliesToMe = !isMe && random.nextInt(5) == 0
         return PromptMessage(
-            message =
-                ChatMessage(
-                    sender = if (isMe) null else senders.random(random),
-                    text = texts.random(random),
-                    timeShown = time,
-                    isMe = isMe,
-                ),
-            date = if (random.nextBoolean()) sent.toLocalDate() else null,
-            dateIsApprox = random.nextBoolean(),
-            repliesToMe = !isMe && random.nextInt(5) == 0,
+            message = ChatMessage(sender, text, time, isMe, repliesToMe = repliesToMe),
+            date = date,
+            dateIsApprox = dateIsApprox,
             firstSeenAt = if (random.nextBoolean()) sent.toInstant().plusSeconds(random.nextLong(0, 120)) else null,
         )
     }

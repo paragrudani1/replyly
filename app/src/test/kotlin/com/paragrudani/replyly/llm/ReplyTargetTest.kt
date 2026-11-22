@@ -31,7 +31,7 @@ class ReplyTargetTest {
         text: String = "hi",
         sender: String = "Ravi",
         repliesToMe: Boolean = false,
-    ) = PromptMessage(ChatMessage(sender, text, null, isMe = false), repliesToMe = repliesToMe)
+    ) = PromptMessage(ChatMessage(sender, text, null, isMe = false, repliesToMe = repliesToMe))
 
     private fun decide(
         vararg messages: PromptMessage,

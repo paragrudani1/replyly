@@ -4,6 +4,8 @@ import com.google.common.truth.Truth.assertThat
 import com.paragrudani.replyly.history.HistoryRepository
 import com.paragrudani.replyly.history.InMemoryContactNoteStore
 import com.paragrudani.replyly.history.InMemoryHistoryRepository
+import com.paragrudani.replyly.history.StoredMessage
+import com.paragrudani.replyly.parser.ChatKey
 import com.paragrudani.replyly.parser.ChatMessage
 import com.paragrudani.replyly.parser.ParsedChat
 import com.paragrudani.replyly.security.DatabaseKeyUnavailableException
@@ -34,7 +36,8 @@ class HistorySuggestionRequestAssemblerTest {
         packageName: String = "com.whatsapp",
         messages: List<ChatMessage>,
         historyApplies: Boolean = true,
-    ) = ParsedChat(packageName, title, isGroup = false, messages = messages, historyApplies = historyApplies)
+        isGroup: Boolean = false,
+    ) = ParsedChat(packageName, title, isGroup = isGroup, messages = messages, historyApplies = historyApplies)
 
     @Test
     fun `merges the screen first, then reads the last N messages`() =
@@ -62,43 +65,163 @@ class HistorySuggestionRequestAssemblerTest {
             assertThat(request.instruction).isEqualTo("say I'll call at 6")
         }
 
+    // --- Dates and replies to me (prompt v2 on #26 PR 1's fields)
+
+    private val kolkata = ZoneId.of("Asia/Kolkata")
+
+    // Sunday 22 Nov 2026, 11:08 am in Kolkata.
+    private val now = Instant.parse("2026-11-22T05:38:00Z")
+
+    // 22:30 on Saturday 21 Nov in Kolkata.
+    private val seenAt = Instant.parse("2026-11-21T17:00:00Z")
+
+    private fun datedAssembler(
+        stored: HistoryRepository = InMemoryHistoryRepository(Clock.fixed(seenAt, kolkata)),
+        myNames: String = "",
+    ) = HistorySuggestionRequestAssembler(
+        stored,
+        notes,
+        InMemorySettingsRepository(ReplylySettings(myNames = myNames)),
+        clock = Clock.fixed(now, ZoneOffset.UTC),
+        zone = { kolkata },
+        is24Hour = { true },
+    )
+
+    private fun conversation(request: SuggestionRequest): String =
+        PromptBuilder
+            .build(request)
+            .user
+            .substringAfter("<conversation>\n")
+            .substringAfter("\n") // the Chat: line
+            .substringBefore("\n</conversation>")
+
+    private fun replyTo(request: SuggestionRequest): String =
+        PromptBuilder
+            .build(request)
+            .user
+            .substringAfter("<reply_to>\n")
+            .substringBefore("\n</reply_to>")
+
     @Test
-    fun `history messages get the approx local date of firstSeenAt, on-screen ones none (until PR 1)`() =
+    fun `history messages carry their stored date, exact or approx, into the day headers`() =
         runBlocking {
-            // Seen at 17:00 UTC on 21 Nov = 22:30 on 21 Nov in Kolkata.
-            val seenAt = Instant.parse("2026-11-21T17:00:00Z")
-            val stored = InMemoryHistoryRepository(Clock.fixed(seenAt, ZoneOffset.UTC))
-            val now = Instant.parse("2026-11-22T05:38:00Z")
-            val kolkata = ZoneId.of("Asia/Kolkata")
-            val dated =
-                HistorySuggestionRequestAssembler(
-                    stored,
-                    notes,
-                    InMemorySettingsRepository(ReplylySettings(myNames = " Parag, Paru ,, parag ")),
-                    clock = Clock.fixed(now, ZoneOffset.UTC),
-                    zone = { kolkata },
-                    is24Hour = { true },
+            val screen =
+                listOf(
+                    // Under a "FRIDAY" separator: history stores the exact date.
+                    ChatMessage("Ravi", "parso wala plan?", "9:40 pm", false, date = LocalDate.of(2026, 11, 20)),
+                    // No separator above it: history stores the day it was first seen, approx.
+                    ChatMessage("Ravi", "kal milte?", "10:20 pm", false),
                 )
 
-            val request = dated.assemble(chat(messages = listOf(them("kal milte?"))), instruction = null)
+            val request = datedAssembler().assemble(chat(messages = screen), instruction = null)
+
+            val (exact, approx) = request.history
+            assertThat(exact.date).isEqualTo(LocalDate.of(2026, 11, 20))
+            assertThat(exact.dateIsApprox).isFalse()
+            assertThat(approx.date).isEqualTo(LocalDate.of(2026, 11, 21))
+            assertThat(approx.dateIsApprox).isTrue()
+            assertThat(request.history.map { it.firstSeenAt }).containsExactly(seenAt, seenAt)
+            assertThat(conversation(request))
+                .isEqualTo(
+                    "— Friday · 20 Nov —\n" +
+                        "[9:40 pm] Ravi: parso wala plan?\n" +
+                        "— Yesterday · Sat 21 Nov (approx) —\n" +
+                        "[10:20 pm] Ravi: kal milte?",
+                )
+            assertThat(request.now).isEqualTo(now.atZone(kolkata))
+            assertThat(request.is24Hour).isTrue()
+            assertThat(request.followUpAnyway).isFalse()
+        }
+
+    @Test
+    fun `the stored date wins over the local day of firstSeenAt`() =
+        runBlocking {
+            // First seen at 01:30 on 22 Nov in Kolkata, but history stored 21 Nov (approx).
+            val late = Instant.parse("2026-11-21T20:00:00Z")
+            val stored =
+                object : HistoryRepository by history {
+                    override suspend fun merge(chat: ParsedChat): Int = 0
+
+                    override suspend fun lastMessages(
+                        chatKey: ChatKey,
+                        limit: Int,
+                    ) = listOf(
+                        StoredMessage(chatKey, them("so gaye?"), late, LocalDate.of(2026, 11, 21), dateIsApprox = true),
+                    )
+                }
+
+            val request = datedAssembler(stored).assemble(chat(messages = listOf(them("so gaye?"))), null)
 
             val message = request.history.single()
             assertThat(message.date).isEqualTo(LocalDate.of(2026, 11, 21))
             assertThat(message.dateIsApprox).isTrue()
-            assertThat(message.firstSeenAt).isEqualTo(seenAt)
-            assertThat(message.repliesToMe).isFalse()
-            assertThat(request.now).isEqualTo(now.atZone(kolkata))
-            assertThat(request.is24Hour).isTrue()
-            assertThat(request.myNames).containsExactly("Parag", "Paru").inOrder()
-            assertThat(request.followUpAnyway).isFalse()
+            assertThat(message.firstSeenAt).isEqualTo(late)
+            assertThat(conversation(request)).isEqualTo("— Yesterday · Sat 21 Nov (approx) —\nRavi: so gaye?")
+        }
 
-            val generic =
-                dated.assemble(
-                    chat(packageName = "com.slack", messages = listOf(them("hi")), historyApplies = false),
-                    null,
+    @Test
+    fun `on-screen-only messages keep the date their separator showed, exact, or none`() =
+        runBlocking {
+            val screen =
+                listOf(
+                    // Above the first separator on screen: no date.
+                    ChatMessage("Ravi", "pehle wala", null, false),
+                    ChatMessage("Ravi", "aaj 6 baje?", "10:50 am", false, date = LocalDate.of(2026, 11, 22)),
                 )
-            assertThat(generic.history.single().date).isNull()
-            assertThat(generic.history.single().firstSeenAt).isNull()
+
+            val request =
+                datedAssembler().assemble(
+                    chat(packageName = "com.slack", messages = screen, historyApplies = false),
+                    instruction = null,
+                )
+
+            val (undated, dated) = request.history
+            assertThat(undated.date).isNull()
+            assertThat(undated.dateIsApprox).isFalse()
+            assertThat(undated.firstSeenAt).isNull()
+            assertThat(dated.date).isEqualTo(LocalDate.of(2026, 11, 22))
+            assertThat(dated.dateIsApprox).isFalse()
+            assertThat(dated.firstSeenAt).isNull()
+            assertThat(conversation(request))
+                .isEqualTo(
+                    "— Date not shown —\n" +
+                        "Ravi: pehle wala\n" +
+                        "— Today · Sun 22 Nov —\n" +
+                        "[10:50 am] Ravi: aaj 6 baje?",
+                )
+        }
+
+    @Test
+    fun `a reply to me is ranked first in a group, from history and from the screen`() =
+        runBlocking {
+            val screen =
+                listOf(
+                    ChatMessage(null, "kaun aa raha hai?", null, true),
+                    ChatMessage("Amit", "main bhi", null, false),
+                    ChatMessage("Neha", "haan pakka", null, false, repliesToMe = true),
+                )
+            val assembler = datedAssembler(myNames = " Parag, Paru ,, parag ")
+
+            for (historyApplies in listOf(true, false)) {
+                val packageName = if (historyApplies) "com.whatsapp" else "com.slack"
+                val request =
+                    assembler.assemble(
+                        chat(
+                            title = "College gang",
+                            packageName = packageName,
+                            messages = screen,
+                            historyApplies = historyApplies,
+                            isGroup = true,
+                        ),
+                        instruction = null,
+                    )
+
+                assertThat(request.history.map { it.repliesToMe }).containsExactly(false, false, true).inOrder()
+                assertThat(request.myNames).containsExactly("Parag", "Paru").inOrder()
+                assertThat(replyTo(request).lines())
+                    .containsExactly("Neha (replies to me): haan pakka", "Amit: main bhi")
+                    .inOrder()
+            }
         }
 
     @Test
