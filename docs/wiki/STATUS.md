@@ -2,10 +2,10 @@
 
 Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECISIONS](../DECISIONS.md).
 
-## 2026-11-22: #27 in fix round 2
+## 2026-11-22: #27 under round-3 review
 
 **Merged.** v1 (#8–#16), polish (#19, #21–#24), profiles (#20), docs (#25), and #29 (signing-key rotation).
-- `main` is at `1254a71` plus the wiki docs PRs #31–#34.
+- `main` is at `1254a71` plus the wiki docs PRs #31–#35.
 - `latest-debug` is versionCode 55, with certificate SHA-256 `2a5421c6…2737d6` (the new key).
 - Parag must uninstall the old app once first (DEVICE_CHECKLIST 2.0).
 
@@ -28,12 +28,18 @@ Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECIS
     - Round-1 fixes hold: 0 invariant-1 failures in 200,000 fresh merge seeds (500000–519999) and 120,000 parser screens; gate 905 tests.
     - S1 (regression from `main`): an edit re-read on a later day stores the whole screen again (`HistoryMerge.kt:931`, `read.date ?: today`). CoS: fix in this PR.
     - S2: DECISIONS entries for PR 1 are missing. S3: a duplicate date pill drops every date on a screen.
-  - **Open subagent: "Fix PR #27 round 2"**, working in worktree `t3-bdc5acab-c3bf153cc79d182f`.
-    - Brief: `/root/.t3/cos/replyly/v2-pr1-fix2-brief.md`.
-    - taskId `node:delegated-task:command%3Amcp%3A4e3523b1-9a3a-4a48-833b-3145de91d414%3Adelegate-task%3Abe92552e-2cfd-4e4b-8e01-7fed8f5ae186`
-    - thread `thread:delegated-task:command%3Amcp%3A4e3523b1-9a3a-4a48-833b-3145de91d414%3Adelegate-task%3Abe92552e-2cfd-4e4b-8e01-7fed8f5ae186`
+  - **Fix round 2 is done:** head `4259b13` (includes one merge of `origin/main` for a DECISIONS conflict), CI run 45066263323 green, local gate 915 tests.
+    - S1 fixed: an undated read's day is only an upper bound; cases D1–D5 now give 6/6/6/7/6 rows (before: D2, D4, D5 gave 12). New edit generator in `HistoryMergePropertyTest`; 0 invariant-1 failures in 15 configs × 20,000 seeds.
+    - New narrow rule: a read that could be an edit of its neighbour inside a run of equal messages is never an edit (seeds 500331, 516434).
+    - S2 (six DECISIONS entries, ARCHITECTURE line), S3 (duplicate pill counts once) and the nits are done.
+    - New contracts (additive): `ChatAssembler.checkDates(bubblesAbove=)`, `GeometryReader.Result.separatorBubblesAbove`.
+    - New known limit: an undated edit re-read on a later day next to a short twin ("ok") still stores the screen again.
+  - **Open subagent: "Review PR #27 round 3"** (fix range `2522486..4259b13` only).
+    - Brief: `/root/.t3/cos/replyly/v2-pr1-review3-brief.md`. Writes `/root/.t3/cos/replyly/reviews/pr27-r3.md`.
+    - taskId `node:delegated-task:command%3Amcp%3A1f185f96-d0ab-47eb-a6aa-d986679975cc%3Adelegate-task%3A241df1d7-ecd3-41fe-9eae-a247291944c9`
+    - thread `thread:delegated-task:command%3Amcp%3A1f185f96-d0ab-47eb-a6aa-d986679975cc%3Adelegate-task%3A241df1d7-ecd3-41fe-9eae-a247291944c9`
     - If it has finished, read its result with `task_status`.
-  - **Next:** check the report against the brief's bar (D2/D4/D5 ≤ 1–2 extra rows, seeds 104828/103811 clean, 0 invariant-1 failures, DECISIONS written). Then a short round-3 re-check of the fix range only (new delegate), and merge on green CI.
+  - **Next:** if r3 says merge (or only nits the CoS can fix inline), merge #27 on green CI, update this file, post a short status, then start #28. Otherwise a short fix round 3 in worktree `t3-bdc5acab-c3bf153cc79d182f`.
 - **#28 (`v2-prompt`, head `abb5c50`, CI green): prompt v2.**
   - The r1 fixes are done.
   - **Next, after #27 merges:**
@@ -54,14 +60,14 @@ Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECIS
 
 **Decisions not yet in DECISIONS.md** (record them with the #26 PRs):
 - Prompt v2: "Names people call me" setting; caching only on api.anthropic.com; static system prompt.
-- PR 1: dates are stored as epoch days (fix round 2 writes the PR 1 entries into DECISIONS).
 - PR 2: its 14 decisions are in the #28 PR body.
 - Rule: no merge without green CI. The local-gate fallback is withdrawn, per Parag.
 
 **Cleanup after #28 merges.** Remove these stale worktrees:
 - `t3-632194cb…`, `t3-66c2f1ae…`, `t3-b1162e5a…`, `t3-4e030bc2…` (its apparent changes are only the branch having moved under it);
 - `/root/local-dev/tmp-replyly-base`;
-- `/root/local-dev/replyly-audit` (scan output only).
+- `/root/local-dev/replyly-audit` (scan output only);
+- `t3-632194cb…` also has `v2-dates` checked out (at `2522486`); scratch dirs `/tmp/replyly-fuzz`, `/tmp/replyly-s1-fuzz`.
 
 **How the CoS works.**
 - **GitHub token:** `GH_TOKEN="$(cat /root/.config/replyly/gh_token)" gh … -R paragrudani1/replyly`. Never print it. The T3 PR and issue tools use another login and fail for this repo.
