@@ -1024,3 +1024,66 @@ model, and tap Save without typing a key. **See:** the key field opens with "Ent
 this provider" and nothing is saved. Tap Cancel. Then edit it again, tap "Remove" next to the
 saved key, then Cancel, and edit again. **See:** "API key: saved ••••••••" is still there.
 **Send:** pass/fail.
+
+## 13. Message dates (issue #26, PR 1)
+
+The parsers now read date separators ("TODAY", "YESTERDAY", "THURSDAY", "21 NOVEMBER 2026",
+"21/11/2026") and give each message below one that date. Telegram also reads the day from each
+cell's last line ("Received yesterday at 9:15 PM"). The debug screen does not print a date per
+message yet; it prints one **Notes** line per dump, for example:
+`date separators: 2 (2026-11-21, 2026-11-22), 7 of 9 messages dated, 1 replies to me`.
+The dates in brackets are the separators read, top to bottom; `?` is a separator whose text the
+parser could not turn into a date. All formats below are guesses from public knowledge: the
+S23 (One UI, Indian English) decides.
+
+How to take and send a dump: [PARSER_FIXTURES.md](PARSER_FIXTURES.md), section 1. Use a test
+chat and share with **scramble off** for these steps: scramble keeps "TODAY"-style separators but
+scrambles month names inside Telegram's "Received Nov 19 at …" lines, which hides what 13.6 checks.
+
+13.1 **Do:** open a WhatsApp 1:1 chat with messages from today and yesterday, scroll so both the
+"YESTERDAY" and "TODAY" separators are on screen, and take a dump. **See:** the Notes line says
+`date separators: 2 (<yesterday>, <today>)` with the right dates, and "N of N messages dated"
+except for messages above the first separator. **Send:** the dump, and the exact separator text
+WhatsApp shows (capitals, spacing).
+
+13.2 **Do:** in the same chat scroll up to messages older than a week, so a separator with a full
+date is on screen; dump. Then scroll to messages 2 to 6 days old (weekday separators); dump.
+**See:** the separators show up in the Notes line with the right dates (a weekday is the most
+recent past one). **Send:** both dumps, and the exact text of the full-date separator (for example
+"21 NOVEMBER 2026", "21 Nov 2026" or "21/11/2026").
+
+13.3 **Do:** scroll slowly in the middle of a long chat and watch the top of the list: WhatsApp
+shows a floating date pill there while scrolling. Dump while it is visible (start the dump, then
+keep scrolling a little until the countdown ends). **See:** no message line has the pill's text
+as its text. The Notes line counts the pill only if it uses the separator's view id
+(`conversation_row_date_divider`) or has no id; either way its date must be the top messages'
+date. **Send:** the dump; say whether the pill was on screen when the toast came.
+
+13.4 **Do:** repeat 13.1 in WhatsApp Business. **See:** the same as 13.1, `Parser:
+whatsapp:view-ids`. **Send:** the dump.
+
+13.5 **Do:** in a WhatsApp group, long-press one of your messages → Reply, and ask someone to reply
+to it by quoting it (or use a second phone). Dump the chat with their reply on screen. **See:**
+the Notes line says `1 replies to me` (one per quoted reply of yours on screen); a reply that quotes
+someone else does not count. **Send:** the dump, and what the quote's author line says on screen
+("You"?).
+
+13.6 **Do:** open a Telegram chat with messages from today, yesterday and more than a week ago;
+dump once per day range. **See:** `Parser: telegram:cell-descriptions`, a line
+`N cells dated by their own text` equal to the message count, and the date headers ("Today",
+"November 19") in the Notes line. **Send:** the dumps (scramble off), and the last line of one
+older cell as you read it with TalkBack, word for word.
+
+13.7 **Do:** in Telegram, reply to someone's message, and have them reply to one of yours. Dump
+with both on screen. **See:** for now the Notes line says `0 replies to me` (the reply header's
+accessibility text is not known yet). **Send:** the dump (scramble off): it shows where Telegram
+puts the reply header, so the parser can learn it.
+
+13.8 **Do:** install this build over the previous one (history kept), open a chat that has
+history, and open the debug screen. **See:** the app opens normally, no crash, and the panel still
+shows suggestions in that chat (the history DB moved to version 2). **Send:** pass/fail; a crash
+report or `adb logcat -v time | grep -i -E "room|migration|replyly"` output if it fails.
+
+13.9 **Do:** just after midnight, open a chat with messages from before and after midnight on
+screen; dump. **See:** the messages before midnight are under "YESTERDAY" with yesterday's date,
+those after under "TODAY" with today's. **Send:** the dump and the time you took it.

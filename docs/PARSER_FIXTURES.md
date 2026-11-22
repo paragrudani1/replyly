@@ -55,7 +55,8 @@ Send it to the CoS with one line: which app, which case (1:1, group, same text t
    jq -r '.. | objects | select(.text? or .contentDescription?) | "\(.bounds)\t\(.viewId // "-")\t\(.text // .contentDescription)"' \
      app/src/test/resources/fixtures/whatsapp/group.json
    ```
-4. Write the test next to the synthetic one (`app/src/test/kotlin/.../parser/<app>/`): load the dump with `Fixtures.snapshot("whatsapp/group.json")` and assert the full message list (`sender`, `text`, `timeShown`, `isMe`), in order. For a scrambled dump, the expected texts are the scrambled strings (copy them from the debug screen summary or the JSON).
+4. Write the test next to the synthetic one (`app/src/test/kotlin/.../parser/<app>/`): load the dump with `Fixtures.snapshot("whatsapp/group.json")` and assert the full message list (`sender`, `text`, `timeShown`, `isMe`, and `date` and `repliesToMe` where they are set), in order. For a scrambled dump, the expected texts are the scrambled strings (copy them from the debug screen summary or the JSON).
+   Dates: "Today", "Yesterday" and weekday separators resolve against the dump's `capturedAt` in the parser's zone. Build the parser with an explicit zone (`WhatsAppParser(ZoneId.of("Asia/Kolkata"))`, `Parsers.registry(zone)`), never the default, so the test does not depend on the machine's zone. A synthetic screen sets its own capture time with `captured=` in `gen.py` (the date fixtures do: a midnight rollover is only a rollover in India).
 5. When a real dump covers the same case as a synthetic one, delete the synthetic fixture and point its test at the real one. Keep the assertions about the tricky parts (the comment in each synthetic test says what it checks).
 6. Run `./gradlew testDebugUnitTest --tests '*WhatsAppParserTest'`, then `scripts/check.sh`.
 
@@ -72,6 +73,8 @@ Capture a dump of the broken chat (section 1) and read its summary line `Parser:
 | Telegram shows `telegram:geometry` or no messages | The cell description lost its last line `Sent/Received ... <time>` (new wording or language) | `CellDescription` in `parser/telegram/TelegramParser.kt` |
 | Mine and theirs swapped, or a wide bubble on the wrong side | Bubble boxes changed (new margins, avatar column) | Look at the `bounds` of bubbles; rules in `Sides.resolve` (`parser/generic/ChatLayout.kt`) |
 | A banner, date or notice shows up as a message | New chrome text | `ChatText` (`isDateSeparator`, `isAlwaysChrome`, `isBubbleLabel`) |
+| Notes line shows `?` among the date separators, or messages are not dated | New separator wording or language | `ChatDates` in `parser/generic/ChatDates.kt`; WhatsApp divider id `WhatsAppIds.DATE_DIVIDER` |
+| Telegram cells not dated by their own text | New wording of the last line's day ("today", "Nov 19", "21.11.25") | `ChatDates.fromStatusLine` |
 | A real message is missing | Chrome rule too broad, or a new id for that message type | `ChatText`, or add the id to `WhatsAppIds.MESSAGE_TEXTS` |
 | `Not recognised as a chat.` on a chat | No input field found in the lower 70% of the screen, and no ids | `ChatLayout.detect` |
 
