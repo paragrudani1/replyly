@@ -4,11 +4,6 @@ import com.paragrudani.replyly.cost.CostGuard
 import com.paragrudani.replyly.settings.ApiFormat
 import com.paragrudani.replyly.settings.ProfileRepository
 import com.paragrudani.replyly.settings.ProviderConfig
-import com.paragrudani.replyly.settings.SettingsRepository
-import com.paragrudani.replyly.settings.current
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import java.util.concurrent.ConcurrentHashMap
@@ -49,16 +44,14 @@ interface ConnectionTester {
  *
  * Order: active profile, API key (trimmed; visible ASCII only), endpoint (must be https: the key
  * and chat text never go over cleartext), [CostGuard.tryAcquire], then the call(s), then
- * [CostGuard.recordUsage] with whatever usage came back (also on bad output). One call asks for 3
- * suggestions; with [com.paragrudani.replyly.settings.ReplylySettings.useParallelCalls] it makes 3
- * concurrent calls, one per [FixedIntent], which together count as 1 request.
+ * [CostGuard.recordUsage] with whatever usage came back (also on bad output). One call per tap
+ * asks for the analysis and 3 suggestions ([PromptBuilder], prompt v2).
  *
  * JSON mode (OpenAI `response_format`, Anthropic `output_config`) is on by default; if the provider
  * rejects it for a model, the call is retried once without it and that endpoint+model skips it for
  * the rest of the process.
  */
 class LlmReplyGenerator(
-    private val settings: SettingsRepository,
     private val profiles: ProfileRepository,
     private val costGuard: CostGuard,
     http: OkHttpClient = defaultHttpClient(),
@@ -78,45 +71,32 @@ class LlmReplyGenerator(
                 is Prepared.Fail -> return prepared.failure
                 is Prepared.Ready -> prepared.target
             }
-        val parallel = settings.current().useParallelCalls
         if (!costGuard.tryAcquire()) {
             return SuggestionResult.Failure.LimitReached(costGuard.status.value.dailyRequestLimit)
         }
         val started = timeSource.markNow()
-        val tasks =
-            if (parallel) {
-                FixedIntent.entries.map {
-                    PromptTask.Single(
-                        it,
-                    )
-                }
-            } else {
-                listOf(PromptTask.ThreeSuggestions)
-            }
-        val prompts = tasks.map { PromptBuilder.build(request, it, promptLimits) }
-        val outcomes =
-            coroutineScope {
-                tasks
-                    .zip(prompts)
-                    .map { (task, prompt) -> async { target.run(prompt, target.maxTokens ?: maxTokens(task)) } }
-                    .awaitAll()
-            }
+        val prompt = PromptBuilder.build(request, promptLimits)
+        val outcome = target.run(prompt, target.maxTokens ?: MAX_TOKENS)
         val latency = started.elapsedNow()
 
-        val usage = outcomes.mapNotNull { (it as? CallOutcome.Ok)?.usage }.fold(TokenUsage(0, 0), ::plus)
-        if (usage.totalTokens > 0) costGuard.recordUsage(usage)
+        val usage = (outcome as? CallOutcome.Ok)?.usage
+        if (usage != null && usage.totalTokens > 0) costGuard.recordUsage(usage)
 
-        val suggestions = mutableListOf<Suggestion>()
-        for ((task, outcome) in tasks.zip(outcomes)) {
-            when (val parsed = parse(task, outcome)) {
-                is Parsed.Fail -> return parsed.failure
-                is Parsed.Ok -> suggestions += parsed.suggestions
+        val parsed =
+            when (val result = parse(outcome)) {
+                is Parsed.Fail -> return result.failure
+                is Parsed.Ok -> result
             }
-        }
-        val promptSent =
-            PromptBuilder.SYSTEM_PROMPT + "\n\n" + prompts.joinToString(PARALLEL_PROMPT_SEPARATOR) { it.user }
-        val model = outcomes.firstNotNullOfOrNull { (it as? CallOutcome.Ok)?.model } ?: target.model
-        return SuggestionResult.Success(suggestions, usage, latency, model, promptSent)
+        val model = (outcome as? CallOutcome.Ok)?.model ?: target.model
+        return SuggestionResult.Success(
+            suggestions = parsed.suggestions,
+            usage = usage ?: TokenUsage(0, 0),
+            latency = latency,
+            model = model,
+            promptSent = prompt.fullText,
+            analysis = parsed.analysis,
+            promptVersion = PromptBuilder.VERSION,
+        )
     }
 
     override suspend fun testConnection(profileId: String): ConnectionTestResult {
@@ -183,6 +163,7 @@ class LlmReplyGenerator(
     private sealed interface Parsed {
         data class Ok(
             val suggestions: List<Suggestion>,
+            val analysis: String,
         ) : Parsed
 
         data class Fail(
@@ -190,10 +171,7 @@ class LlmReplyGenerator(
         ) : Parsed
     }
 
-    private fun parse(
-        task: PromptTask,
-        outcome: CallOutcome,
-    ): Parsed {
+    private fun parse(outcome: CallOutcome): Parsed {
         val content =
             when (outcome) {
                 is CallOutcome.Failed -> {
@@ -205,21 +183,9 @@ class LlmReplyGenerator(
                         ?: return Parsed.Fail(badOutput("empty reply", outcome))
                 }
             }
-        val expected = if (task is PromptTask.Single) 1 else 3
-        return when (val parsed = SuggestionOutputParser.parse(content, expected)) {
-            is ParsedSuggestions.Invalid -> {
-                Parsed.Fail(badOutput(parsed.reason, outcome))
-            }
-
-            is ParsedSuggestions.Ok -> {
-                Parsed.Ok(
-                    if (task is PromptTask.Single) {
-                        parsed.suggestions.map { it.copy(intent = task.intent.id) }
-                    } else {
-                        parsed.suggestions
-                    },
-                )
-            }
+        return when (val parsed = SuggestionOutputParser.parse(content)) {
+            is ParsedSuggestions.Invalid -> Parsed.Fail(badOutput(parsed.reason, outcome))
+            is ParsedSuggestions.Ok -> Parsed.Ok(parsed.suggestions, parsed.analysis)
         }
     }
 
@@ -272,21 +238,21 @@ class LlmReplyGenerator(
         const val APP_REFERER = "https://github.com/paragrudani1/replyly"
         const val APP_TITLE = "Replyly"
 
-        /** Generous for short chat replies, and leaves room for models that reason before answering. */
-        private const val MAX_TOKENS_THREE = 1_024
-        private const val MAX_TOKENS_SINGLE = 512
+        /**
+         * Default output budget when the profile sets none. Prompt v2 adds the analysis (~60 words,
+         * ~100 tokens) before the 3 replies (~150 tokens), and models that think before answering
+         * spend part of it on thinking: 1,536 leaves room for both.
+         */
+        const val MAX_TOKENS = 1_536
 
         /** Test connection: enough for "OK" and small enough to cost nothing. */
         internal const val TEST_MAX_TOKENS = 16
         internal val TEST_PROMPT = ChatPrompt(system = "Reply with the single word OK.", user = "Connection test.")
 
-        private const val PARALLEL_PROMPT_SEPARATOR = "\n\n---\n\n"
         private const val CUT_OFF = "reply cut off at the token limit"
         private const val REFUSED = "the model declined to answer"
         private val VISIBLE_ASCII = '!'..'~'
         private val PROFILE_MISSING = SuggestionResult.Failure.Network("This profile no longer exists.")
-
-        private fun maxTokens(task: PromptTask) = if (task is PromptTask.Single) MAX_TOKENS_SINGLE else MAX_TOKENS_THREE
 
         fun defaultHttpClient(timeouts: LlmTimeouts = LlmTimeouts()): OkHttpClient =
             OkHttpClient
@@ -296,10 +262,5 @@ class LlmReplyGenerator(
                 .writeTimeout(timeouts.connectMillis, TimeUnit.MILLISECONDS)
                 .callTimeout(timeouts.callMillis, TimeUnit.MILLISECONDS)
                 .build()
-
-        private fun plus(
-            a: TokenUsage,
-            b: TokenUsage,
-        ) = TokenUsage(a.promptTokens + b.promptTokens, a.completionTokens + b.completionTokens)
     }
 }

@@ -13,6 +13,10 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import java.io.IOException
 import java.time.Clock
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZoneOffset
 
 class HistorySuggestionRequestAssemblerTest {
     private val history = InMemoryHistoryRepository(Clock.systemUTC())
@@ -39,7 +43,7 @@ class HistorySuggestionRequestAssemblerTest {
 
             val request = assembler.assemble(chat(messages = listOf(them("new 1"), them("new 2"))), instruction = null)
 
-            assertThat(request.history.map { it.text }).containsExactly("old 2", "new 1", "new 2").inOrder()
+            assertThat(request.history.map { it.message.text }).containsExactly("old 2", "new 1", "new 2").inOrder()
         }
 
     @Test
@@ -56,6 +60,45 @@ class HistorySuggestionRequestAssemblerTest {
             assertThat(request.aboutMe).isEqualTo("I'm Parag")
             assertThat(request.contactNote).isEqualTo("Cricket friend")
             assertThat(request.instruction).isEqualTo("say I'll call at 6")
+        }
+
+    @Test
+    fun `history messages get the approx local date of firstSeenAt, on-screen ones none (until PR 1)`() =
+        runBlocking {
+            // Seen at 17:00 UTC on 21 Nov = 22:30 on 21 Nov in Kolkata.
+            val seenAt = Instant.parse("2026-11-21T17:00:00Z")
+            val stored = InMemoryHistoryRepository(Clock.fixed(seenAt, ZoneOffset.UTC))
+            val now = Instant.parse("2026-11-22T05:38:00Z")
+            val kolkata = ZoneId.of("Asia/Kolkata")
+            val dated =
+                HistorySuggestionRequestAssembler(
+                    stored,
+                    notes,
+                    InMemorySettingsRepository(ReplylySettings(myNames = " Parag, Paru ,, parag ")),
+                    clock = Clock.fixed(now, ZoneOffset.UTC),
+                    zone = { kolkata },
+                    is24Hour = { true },
+                )
+
+            val request = dated.assemble(chat(messages = listOf(them("kal milte?"))), instruction = null)
+
+            val message = request.history.single()
+            assertThat(message.date).isEqualTo(LocalDate.of(2026, 11, 21))
+            assertThat(message.dateIsApprox).isTrue()
+            assertThat(message.firstSeenAt).isEqualTo(seenAt)
+            assertThat(message.repliesToMe).isFalse()
+            assertThat(request.now).isEqualTo(now.atZone(kolkata))
+            assertThat(request.is24Hour).isTrue()
+            assertThat(request.myNames).containsExactly("Parag", "Paru").inOrder()
+            assertThat(request.followUpAnyway).isFalse()
+
+            val generic =
+                dated.assemble(
+                    chat(packageName = "com.slack", messages = listOf(them("hi")), historyApplies = false),
+                    null,
+                )
+            assertThat(generic.history.single().date).isNull()
+            assertThat(generic.history.single().firstSeenAt).isNull()
         }
 
     @Test
@@ -91,7 +134,7 @@ class HistorySuggestionRequestAssemblerTest {
             val request = assembler.assemble(generic, instruction = null)
 
             assertThat(request.appLabel).isEqualTo("Label(com.slack)")
-            assertThat(request.history.map { it.text }).containsExactly("b", "c", "d").inOrder()
+            assertThat(request.history.map { it.message.text }).containsExactly("b", "c", "d").inOrder()
             assertThat(request.styleExamples).containsExactly("b", "d").inOrder()
             assertThat(history.lastMessages(generic.chatKey, 10)).isEmpty()
         }

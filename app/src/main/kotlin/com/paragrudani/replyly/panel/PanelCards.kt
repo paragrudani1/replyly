@@ -308,6 +308,67 @@ internal fun ErrorState(
 
 private val ERROR_ICON_BUBBLE: Dp = 48.dp
 
+/**
+ * My message is the last one and nothing needs an answer (issue #26). Opening the panel in this
+ * state made no LLM call; the button makes exactly one, for 3 follow-ups.
+ */
+@Composable
+internal fun NothingToReplyState(onSuggestFollowUps: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .clip(MaterialTheme.shapes.medium)
+            .background(colors.surfaceContainerHigh)
+            .padding(horizontal = Spacing.L, vertical = Spacing.L),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Spacing.S),
+    ) {
+        Column(
+            Modifier.semantics(mergeDescendants = true) { liveRegion = LiveRegionMode.Polite },
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(Spacing.XS),
+        ) {
+            Box(
+                Modifier.size(ERROR_ICON_BUBBLE).clip(CircleShape).background(colors.secondaryContainer),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painterResource(R.drawable.ic_panel_check),
+                    contentDescription = null,
+                    tint = colors.onSecondaryContainer,
+                    modifier = Modifier.size(24.dp),
+                )
+            }
+            Spacer(Modifier.height(Spacing.XS))
+            Text(
+                NOTHING_TO_REPLY_TITLE,
+                style = MaterialTheme.typography.titleMedium,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.semantics { heading() },
+            )
+            Text(
+                "Your message is the last one in this chat.",
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
+        Button(onClick = onSuggestFollowUps, contentPadding = ButtonDefaults.ButtonWithIconContentPadding) {
+            Icon(
+                painterResource(R.drawable.ic_sparkle),
+                contentDescription = null,
+                modifier = Modifier.size(ButtonDefaults.IconSize),
+            )
+            Spacer(Modifier.width(ButtonDefaults.IconSpacing))
+            Text(SUGGEST_FOLLOW_UPS)
+        }
+    }
+}
+
+internal const val NOTHING_TO_REPLY_TITLE = "Nothing to reply to"
+internal const val SUGGEST_FOLLOW_UPS = "Suggest follow-ups anyway"
+
 private fun ErrorKind.icon(): Int =
     when (this) {
         ErrorKind.Key -> R.drawable.ic_panel_key

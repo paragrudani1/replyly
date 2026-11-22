@@ -20,10 +20,10 @@ data class ReplylySettings(
     val dailyRequestLimit: Int = 200,
     val retentionDays: Int = 60,
     /**
-     * Spec 6 latency fallback: 3 concurrent single-suggestion calls (agree / decline / ask)
-     * instead of one call for 3. Counts as 1 request against the daily limit.
+     * "Names people call me", comma-separated (issue #26). Only used to rank group messages that
+     * mention me; may be empty. See [myNameList].
      */
-    val useParallelCalls: Boolean = false,
+    val myNames: String = "",
     /** Material You: colours from the wallpaper instead of the Replyly brand colours. */
     val useDynamicColor: Boolean = false,
 ) {
@@ -43,6 +43,14 @@ interface SettingsRepository {
 }
 
 suspend fun SettingsRepository.current(): ReplylySettings = settings.first()
+
+/** [ReplylySettings.myNames] split on commas, trimmed, without blanks or repeats (any case). */
+fun ReplylySettings.myNameList(): List<String> =
+    myNames
+        .split(',')
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .distinctBy { it.lowercase() }
 
 /**
  * The OpenRouter (or compatible) API key. Ticket #6 stores it with a Keystore key in encrypted

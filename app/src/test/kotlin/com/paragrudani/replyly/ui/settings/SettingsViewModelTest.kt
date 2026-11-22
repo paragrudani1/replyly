@@ -14,6 +14,7 @@ import com.paragrudani.replyly.settings.InMemorySettingsRepository
 import com.paragrudani.replyly.settings.ReplylySettings
 import com.paragrudani.replyly.settings.SettingsRepository
 import com.paragrudani.replyly.settings.current
+import com.paragrudani.replyly.settings.myNameList
 import com.paragrudani.replyly.testing.MutableClock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -83,20 +84,30 @@ class SettingsViewModelTest {
         }
 
     @Test
-    fun `the parallel calls switch is saved with the form`() =
+    fun `names people call me are saved with the form, cleaned`() =
         runTest {
             val vm = viewModel()
             assertThat(
                 vm.state.value.draft
-                    ?.useParallelCalls,
-            ).isFalse()
+                    ?.myNames,
+            ).isEmpty()
 
-            vm.editDraft { it.copy(useParallelCalls = true) }
+            vm.editDraft { it.copy(myNames = " Parag ,  Paru,, ") }
             assertThat(vm.state.value.dirty).isTrue()
             vm.save()
 
-            assertThat(settings.current().useParallelCalls).isTrue()
-            assertThat(vm.state.value.dirty).isFalse()
+            assertThat(settings.current().myNames).isEqualTo("Parag, Paru")
+            assertThat(settings.current().myNameList()).containsExactly("Parag", "Paru").inOrder()
+        }
+
+    @Test
+    fun `too many name characters are an error`() =
+        runTest {
+            val vm = viewModel()
+            vm.editDraft { it.copy(myNames = "a".repeat(SettingsValidator.MAX_MY_NAMES + 1)) }
+            vm.save()
+            assertThat(vm.state.value.errors).containsKey(SettingsField.MyNames)
+            assertThat(settings.current().myNames).isEmpty()
         }
 
     @Test

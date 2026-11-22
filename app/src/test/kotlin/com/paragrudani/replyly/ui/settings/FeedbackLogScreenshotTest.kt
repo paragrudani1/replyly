@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.ui.settings
 
 import com.paragrudani.replyly.feedback.FeedbackEntry
+import com.paragrudani.replyly.feedback.PromptVersionStats
 import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.parser.ChatKey
 import com.paragrudani.replyly.testing.ScreenshotRule
@@ -88,11 +89,13 @@ class FeedbackLogScreenshotTest {
         entries: List<FeedbackEntry>,
         error: String? = null,
         today: LocalDate = this.today,
+        stats: List<PromptVersionStats> = emptyList(),
     ) = FeedbackLogScreen(
         entries,
         error,
         onClear = {},
         onBack = {},
+        stats = stats,
         zone = zone,
         today = today,
         use24Hour = false,
@@ -101,6 +104,26 @@ class FeedbackLogScreenshotTest {
 
     @Test
     fun timeline() = shots.screen("feedback/timeline") { Log(entries) }
+
+    /** Issue #26: insert rate and edit amount per prompt version above the timeline. */
+    @Test
+    fun stats() =
+        shots.screen("feedback/stats") {
+            Log(
+                entries.map { it.copy(promptVersion = 2, analysis = "") },
+                stats =
+                    listOf(
+                        PromptVersionStats(
+                            1,
+                            panels = 42,
+                            panelsWithInsert = 19,
+                            editsMeasured = 12,
+                            averageEdit = 0.31,
+                        ),
+                        PromptVersionStats(2, panels = 3, panelsWithInsert = 2, editsMeasured = 1, averageEdit = 0.07),
+                    ),
+            )
+        }
 
     /** Seen a day later: the 21st reads "Yesterday", the 20th gets a dated header. */
     @Test

@@ -92,6 +92,49 @@ class RoomFeedbackLogTest {
         }
 
     @Test
+    fun `stores prompt version, analysis and panel id`() =
+        runBlocking<Unit> {
+            val id =
+                log.record(
+                    chat,
+                    "m",
+                    "p",
+                    three,
+                    analysis = "Riya asks kal = Sun 22 Nov.",
+                    promptVersion = 2,
+                    panelId = "P1",
+                )
+            val withoutAnalysis = log.record(chat, "m", "p", three, analysis = "", promptVersion = 2, panelId = "P1")
+
+            val recent = log.observeRecent(10).first().associateBy { it.id }
+            with(recent.getValue(id)) {
+                assertThat(promptVersion).isEqualTo(2)
+                assertThat(analysis).isEqualTo("Riya asks kal = Sun 22 Nov.")
+                assertThat(panelId).isEqualTo("P1")
+            }
+            assertThat(recent.getValue(withoutAnalysis).analysis).isEmpty()
+        }
+
+    @Test
+    fun `stats count panels and edits per prompt version from the stored rows`() =
+        runBlocking<Unit> {
+            val a1 = log.record(chat, "m", "p", three, promptVersion = 2, panelId = "A")
+            val a2 = log.record(chat, "m", "p", three, promptVersion = 2, panelId = "A")
+            log.record(chat, "m", "p", three, promptVersion = 2, panelId = "B")
+            log.markInserted(a2, 0)
+            log.attachFinalMessage(chat, "Haan, 6 baje milte hain")
+            log.markInserted(a1, 2)
+
+            val v2 = log.observeStats().first().single()
+
+            assertThat(v2.promptVersion).isEqualTo(2)
+            assertThat(v2.panels).isEqualTo(2)
+            assertThat(v2.panelsWithInsert).isEqualTo(1)
+            assertThat(v2.editsMeasured).isEqualTo(1)
+            assertThat(v2.averageEdit).isEqualTo(0.0)
+        }
+
+    @Test
     fun `observeRecent honours the limit`() =
         runBlocking<Unit> {
             repeat(5) { log.record(chat, "m", "p$it", three) }

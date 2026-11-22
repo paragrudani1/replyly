@@ -59,6 +59,9 @@ class RoomFeedbackLog(
         model: String,
         prompt: String,
         suggestions: List<Suggestion>,
+        analysis: String?,
+        promptVersion: Int,
+        panelId: String?,
     ): Long {
         purgeIfDue()
         return dao().insert(
@@ -74,6 +77,9 @@ class RoomFeedbackLog(
                             StoredSuggestion(it.intent, it.text)
                         },
                     ),
+                promptVersion = promptVersion,
+                analysis = analysis,
+                panelId = panelId,
             ),
         )
     }
@@ -94,6 +100,24 @@ class RoomFeedbackLog(
             rows.map {
                 it.toEntry()
             }
+        }
+
+    override fun observeStats(): Flow<List<PromptVersionStats>> =
+        flow { emitAll(dao().observeStatsColumns()) }.map { rows ->
+            FeedbackStats.compute(
+                rows.map { row ->
+                    FeedbackStatsRow(
+                        id = row.id,
+                        promptVersion = row.promptVersion,
+                        panelId = row.panelId,
+                        insertedText =
+                            row.insertedIndex?.let { index ->
+                                decodeSuggestions(row.suggestionsJson).getOrNull(index)?.text
+                            },
+                        finalSentText = row.finalSentText,
+                    )
+                },
+            )
         }
 
     override suspend fun purgeOlderThan(cutoff: Instant): Int = dao().deleteOlderThan(cutoff.toEpochMilli())
@@ -122,15 +146,16 @@ class RoomFeedbackLog(
             createdAt = Instant.ofEpochMilli(createdAt),
             model = model,
             prompt = prompt,
-            suggestions =
-                json
-                    .decodeFromString(
-                        suggestionListSerializer,
-                        suggestionsJson,
-                    ).map { Suggestion(it.intent, it.text) },
+            suggestions = decodeSuggestions(suggestionsJson),
             insertedIndex = insertedIndex,
             finalSentText = finalSentText,
+            promptVersion = promptVersion,
+            analysis = analysis,
+            panelId = panelId,
         )
+
+    private fun decodeSuggestions(suggestionsJson: String): List<Suggestion> =
+        json.decodeFromString(suggestionListSerializer, suggestionsJson).map { Suggestion(it.intent, it.text) }
 
     @Serializable
     private data class StoredSuggestion(

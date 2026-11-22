@@ -119,6 +119,7 @@ private fun SettingsRouteContent(
         // Bumping retry drops the old collection and subscribes again, so "Try again" re-reads the DB.
         var retry by rememberSaveable { mutableIntStateOf(0) }
         val entries by key(retry) { vm.feedbackEntries.collectAsStateWithLifecycle(initialValue = emptyList()) }
+        val stats by key(retry) { vm.feedbackStats.collectAsStateWithLifecycle(initialValue = emptyList()) }
         val state by vm.state.collectAsStateWithLifecycle()
         val today by rememberToday(graph.clock)
         FeedbackLogScreen(
@@ -126,6 +127,7 @@ private fun SettingsRouteContent(
             error = state.storageError,
             onClear = vm::clearFeedbackLog,
             onBack = closeFeedbackLog,
+            stats = stats,
             onRetry = {
                 vm.dismissStorageError()
                 retry++
@@ -157,7 +159,7 @@ private fun SettingsRouteContent(
  * The settings screen, in sections: AI provider, Your style, Privacy, Limits and usage,
  * Appearance, About.
  *
- * @param aiProvider the content of the "AI provider" section above the parallel-calls switch.
+ * @param aiProvider the content of the "AI provider" section.
  *   The route passes the provider profiles; tests pass a fixed-state list.
  * @param onOpenWhatsNew null hides the "What's new" row (no notes in this build).
  * @param appVersion shown under About; tests pass a fixed value so screenshots do not change
@@ -221,15 +223,6 @@ fun SettingsScreen(
             item(key = "ai") {
                 SettingsSection("AI provider") {
                     aiProvider()
-                    SettingsDivider()
-                    SettingsSwitchRow(
-                        label = "3 parallel calls",
-                        supporting =
-                            "Faster on slow models: one call per reply instead of one for all 3. " +
-                                "Still counts as 1 request.",
-                        checked = draft.useParallelCalls,
-                        onCheckedChange = { v -> vm.editDraft { it.copy(useParallelCalls = v) } },
-                    )
                 }
             }
             item(key = "style") {
@@ -245,6 +238,15 @@ fun SettingsScreen(
                                 "${draft.aboutMe.trim().length} / ${SettingsValidator.MAX_ABOUT_ME}. " +
                                     "Who you are and how you write.",
                             capitalization = KeyboardCapitalization.Sentences,
+                        )
+                        ValidatedField(
+                            label = "Names people call me",
+                            value = draft.myNames,
+                            error = state.errors[SettingsField.MyNames],
+                            onValueChange = { v -> vm.editDraft { it.copy(myNames = v) } },
+                            supporting =
+                                "Optional, comma-separated. Group messages that mention you are answered first.",
+                            capitalization = KeyboardCapitalization.Words,
                         )
                         ValidatedField(
                             label = "History messages in the prompt (N)",

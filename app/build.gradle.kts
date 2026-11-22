@@ -65,6 +65,13 @@ android {
         compose = true
     }
 
+    // Room's MigrationTestHelper reads the exported schemas from assets, and Robolectric only sees
+    // the debug variant's merged assets (src/test assets are ignored). So the debug APK carries the
+    // schema JSON too (a few KB, no data); release builds do not.
+    sourceSets {
+        getByName("debug") { assets.directories.add("$projectDir/schemas") }
+    }
+
     testOptions {
         unitTests {
             isIncludeAndroidResources = true

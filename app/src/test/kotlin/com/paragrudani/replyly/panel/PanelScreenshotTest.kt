@@ -58,6 +58,10 @@ class PanelScreenshotTest {
     }
 
     @Test
+    fun nothingToReply() =
+        shot("panel/nothing_to_reply", PanelUiState(suggestions = SuggestionsUi.NothingToReply, generation = 1))
+
+    @Test
     fun copied() = shot("panel/copied", ready.copy(copied = true))
 
     @Test

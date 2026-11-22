@@ -1,10 +1,13 @@
 package com.paragrudani.replyly.settings
 
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import com.google.common.truth.Truth.assertThat
 import com.paragrudani.replyly.testing.TestDataStores
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Rule
@@ -44,12 +47,29 @@ class DataStoreSettingsRepositoryTest {
                     blockedPackages = setOf("com.google.android.apps.messaging"),
                     dailyRequestLimit = 50,
                     retentionDays = 30,
-                    useParallelCalls = true,
+                    myNames = "Parag, Paru",
                     useDynamicColor = true,
                 )
             DataStoreSettingsRepository(stores.open("settings")).update { changed }
 
             assertThat(DataStoreSettingsRepository(stores.reopen("settings")).current()).isEqualTo(changed)
+        }
+
+    @Test
+    fun `the migration deletes the removed parallel-mode key and keeps the rest`() =
+        runBlocking<Unit> {
+            // A store written by the old app: parallel mode on, plus a normal setting.
+            stores.open("settings").edit {
+                it[SettingsMigrations.PARALLEL_CALLS] = true
+                it[intPreferencesKey("daily_request_limit")] = 77
+            }
+
+            val migrated = stores.reopen("settings", SettingsMigrations.ALL)
+            val prefs = migrated.data.first()
+
+            assertThat(prefs.contains(SettingsMigrations.PARALLEL_CALLS)).isFalse()
+            assertThat(DataStoreSettingsRepository(migrated).current().dailyRequestLimit).isEqualTo(77)
+            assertThat(SettingsMigrations.DropParallelCalls.shouldMigrate(prefs)).isFalse()
         }
 
     @Test

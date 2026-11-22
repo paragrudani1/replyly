@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.di
 
 import android.app.Application
+import android.text.format.DateFormat
 import com.paragrudani.replyly.cost.CostGuard
 import com.paragrudani.replyly.cost.PersistentCostGuard
 import com.paragrudani.replyly.feedback.FeedbackLog
@@ -45,6 +46,7 @@ import com.paragrudani.replyly.settings.EncryptedProfileSecretStore
 import com.paragrudani.replyly.settings.ProfileRepository
 import com.paragrudani.replyly.settings.ProfileSecretStore
 import com.paragrudani.replyly.settings.ReplylyDataStores
+import com.paragrudani.replyly.settings.SettingsMigrations
 import com.paragrudani.replyly.settings.SettingsRepository
 import com.paragrudani.replyly.ui.theme.ThemeSettings
 import kotlinx.coroutines.CoroutineScope
@@ -52,6 +54,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.map
 import java.time.Clock
+import java.time.ZoneId
 
 /**
  * Manual DI: one binding per interface. A ticket replaces only its own bindings' right-hand side
@@ -112,19 +115,22 @@ class AppGraph(
 
     // Issue #18: the same generator, typed, for "Test connection".
     val llmReplyGenerator: LlmReplyGenerator by lazy {
-        LlmReplyGenerator(settingsRepository, profileRepository, costGuard)
+        LlmReplyGenerator(profileRepository, costGuard)
     }
 
     // Issue #18
     val connectionTester: ConnectionTester by lazy { llmReplyGenerator }
 
-    // Ticket #4
+    // Ticket #4 (issue #26: the prompt's "Now" header follows the current zone and 12/24-hour setting)
     val suggestionRequestAssembler: SuggestionRequestAssembler by lazy {
         HistorySuggestionRequestAssembler(
             historyRepository,
             contactNoteStore,
             settingsRepository,
             packageManagerAppLabel(app.packageManager),
+            clock = clock,
+            zone = { ZoneId.systemDefault() },
+            is24Hour = { DateFormat.is24HourFormat(app) },
         )
     }
 
@@ -142,9 +148,11 @@ class AppGraph(
         )
     }
 
-    // Ticket #6
+    // Ticket #6 (issue #26: migrations drop removed settings such as parallel mode)
     val settingsRepository: SettingsRepository by lazy {
-        DataStoreSettingsRepository(ReplylyDataStores.create(app, ReplylyDataStores.SETTINGS))
+        DataStoreSettingsRepository(
+            ReplylyDataStores.create(app, ReplylyDataStores.SETTINGS, SettingsMigrations.ALL),
+        )
     }
 
     // Ticket #6 (issue #18: now the active profile's key, so onboarding's "key saved" check follows profiles)

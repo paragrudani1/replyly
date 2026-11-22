@@ -6,7 +6,6 @@ import com.paragrudani.replyly.parser.ChatMessage
 import com.paragrudani.replyly.settings.ApiFormat
 import com.paragrudani.replyly.settings.InMemoryProfileRepository
 import com.paragrudani.replyly.settings.InMemoryProfileSecretStore
-import com.paragrudani.replyly.settings.InMemorySettingsRepository
 import com.paragrudani.replyly.settings.ProviderProfile
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -28,6 +27,8 @@ import okio.Buffer
 import org.junit.After
 import org.junit.Before
 import org.junit.Test
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import java.util.concurrent.TimeUnit
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -36,7 +37,6 @@ class AnthropicFormatGeneratorTest {
     private val server = MockWebServer()
     private val secrets = InMemoryProfileSecretStore()
     private val costGuard = InMemoryCostGuard(dailyRequestLimit = 50)
-    private val settings = InMemorySettingsRepository()
     private lateinit var profiles: InMemoryProfileRepository
 
     private val request =
@@ -45,14 +45,20 @@ class AnthropicFormatGeneratorTest {
             appLabel = "WhatsApp",
             chatTitle = "Ravi",
             isGroup = false,
-            history = listOf(ChatMessage("Ravi", "Kal cricket?", "6:40 pm", false)),
+            history = listOf(PromptMessage(ChatMessage("Ravi", "Kal cricket?", "6:40 pm", false))),
             aboutMe = "",
             contactNote = null,
             styleExamples = emptyList(),
             instruction = null,
+            now = ZonedDateTime.of(2026, 11, 22, 19, 5, 0, 0, ZoneId.of("Asia/Kolkata")),
         )
 
     private val threeJson =
+        """{"analysis":"Ravi asks about cricket kal = Mon 23 Nov.",""" +
+            """"suggestions":[{"intent":"agree","text":"Haan pakka"},{"intent":"decline","text":"Kal nahi yaar"},""" +
+            """{"intent":"ask","text":"Kitne baje?"}]}"""
+
+    private val threeWithoutAnalysis =
         """{"suggestions":[{"intent":"agree","text":"Haan pakka"},{"intent":"decline","text":"Kal nahi yaar"},""" +
             """{"intent":"ask","text":"Kitne baje?"}]}"""
 
@@ -86,7 +92,7 @@ class AnthropicFormatGeneratorTest {
     private fun generator(
         timeouts: LlmTimeouts = LlmTimeouts(),
         http: OkHttpClient = LlmReplyGenerator.defaultHttpClient(timeouts),
-    ) = LlmReplyGenerator(settings, profiles, costGuard, http, requireHttps = false)
+    ) = LlmReplyGenerator(profiles, costGuard, http, requireHttps = false)
 
     private fun generate(timeouts: LlmTimeouts = LlmTimeouts()) = runBlocking { generator(timeouts).generate(request) }
 
@@ -146,11 +152,18 @@ class AnthropicFormatGeneratorTest {
         assertThat(sent.headers["HTTP-Referer"]).isNull()
         val body = sent.json()
         assertThat(body["model"]!!.jsonPrimitive.content).isEqualTo("claude-haiku-5-5")
-        assertThat(body["max_tokens"]!!.jsonPrimitive.content).isEqualTo("1024")
+        assertThat(body["max_tokens"]!!.jsonPrimitive.content).isEqualTo(LlmReplyGenerator.MAX_TOKENS.toString())
+        // Not api.anthropic.com: a plain string, no cache_control (another vendor may reject it).
         assertThat(body["system"]!!.jsonPrimitive.content).isEqualTo(PromptBuilder.SYSTEM_PROMPT)
+        assertThat(sent.headers["anthropic-beta"]).isNull()
         val messages = body["messages"]!!.jsonArray.map { it.jsonObject }
         assertThat(messages.map { it["role"]!!.jsonPrimitive.content }).containsExactly("user")
-        assertThat(messages[0]["content"]!!.jsonPrimitive.content).contains("them: Kal cricket?")
+        assertThat(messages[0]["content"]!!.jsonPrimitive.content).contains("Ravi: Kal cricket?")
+        assertThat(
+            messages[0]["content"]!!.jsonPrimitive.content,
+        ).contains("Now: Sunday, 22 Nov 2026, 7:05 pm (evening)")
+        assertThat(result.analysis).isEqualTo("Ravi asks about cricket kal = Mon 23 Nov.")
+        assertThat(result.promptVersion).isEqualTo(PromptBuilder.VERSION)
         val format = body["output_config"]!!.jsonObject["format"]!!.jsonObject
         assertThat(format["type"]!!.jsonPrimitive.content).isEqualTo("json_schema")
         assertThat(format).isEqualTo(AnthropicMessagesClient.SUGGESTIONS_FORMAT)
@@ -323,24 +336,6 @@ class AnthropicFormatGeneratorTest {
     }
 
     @Test
-    fun `parallel mode makes 3 Messages calls and counts 1 request`() {
-        runBlocking { settings.update { it.copy(useParallelCalls = true) } }
-        server.dispatcher =
-            object : Dispatcher() {
-                override fun dispatch(request: RecordedRequest): MockResponse {
-                    val body = request.json()
-                    assertThat(body["max_tokens"]!!.jsonPrimitive.content).isEqualTo("512")
-                    return ok(message("""{"suggestions":[{"intent":"x","text":"fine"}]}""", 100, 10))
-                }
-            }
-        val result = generate() as SuggestionResult.Success
-        assertThat(result.suggestions.map { it.intent }).containsExactly("agree", "decline", "ask").inOrder()
-        assertThat(server.requestCount).isEqualTo(3)
-        assertThat(costGuard.status.value.requestsToday).isEqualTo(1)
-        assertThat(costGuard.status.value.totalTokensThisMonth).isEqualTo(330)
-    }
-
-    @Test
     fun `api_anthropic_com gets low effort with the schema`() {
         val bodies = mutableListOf<String>()
         val urls = mutableListOf<String>()
@@ -361,13 +356,65 @@ class AnthropicFormatGeneratorTest {
                         .build()
                 }.build()
         updateProfile { it.copy(baseUrl = "https://api.anthropic.com") }
-        val result = runBlocking { LlmReplyGenerator(settings, profiles, costGuard, fake).generate(request) }
+        val result = runBlocking { LlmReplyGenerator(profiles, costGuard, fake).generate(request) }
 
         assertThat(result).isInstanceOf(SuggestionResult.Success::class.java)
         assertThat(urls).containsExactly("https://api.anthropic.com/v1/messages")
         val config = Json.parseToJsonElement(bodies.single()).jsonObject["output_config"]!!.jsonObject
         assertThat(config["effort"]!!.jsonPrimitive.content).isEqualTo("low")
         assertThat(config.containsKey("format")).isTrue()
+    }
+
+    @Test
+    fun `api_anthropic_com caches the system prompt with cache_control and no beta header`() {
+        val bodies = mutableListOf<String>()
+        val headers = mutableListOf<okhttp3.Headers>()
+        val fake =
+            OkHttpClient
+                .Builder()
+                .addInterceptor { chain ->
+                    val sent = chain.request()
+                    headers += sent.headers
+                    bodies += Buffer().also { sent.body!!.writeTo(it) }.readUtf8()
+                    Response
+                        .Builder()
+                        .request(sent)
+                        .protocol(Protocol.HTTP_1_1)
+                        .code(200)
+                        .message("OK")
+                        .body(message(threeJson).toResponseBody("application/json".toMediaType()))
+                        .build()
+                }.build()
+        updateProfile { it.copy(baseUrl = "https://api.anthropic.com") }
+        val result = runBlocking { LlmReplyGenerator(profiles, costGuard, fake).generate(request) }
+
+        assertThat(result).isInstanceOf(SuggestionResult.Success::class.java)
+        val system = Json.parseToJsonElement(bodies.single()).jsonObject["system"]!!.jsonArray
+        assertThat(system).hasSize(1)
+        val block = system.single().jsonObject
+        assertThat(block["type"]!!.jsonPrimitive.content).isEqualTo("text")
+        assertThat(block["text"]!!.jsonPrimitive.content).isEqualTo(PromptBuilder.SYSTEM_PROMPT)
+        assertThat(block["cache_control"]!!.jsonObject["type"]!!.jsonPrimitive.content).isEqualTo("ephemeral")
+        // Prompt caching is GA: no beta header, and the user message (which changes) is not cached.
+        assertThat(headers.single()["anthropic-beta"]).isNull()
+        assertThat(bodies.single().split("cache_control")).hasSize(2)
+    }
+
+    @Test
+    fun `the schema asks for analysis first, then exactly the suggestions`() {
+        val schema = AnthropicMessagesClient.SUGGESTIONS_FORMAT["schema"]!!.jsonObject
+        assertThat(schema["properties"]!!.jsonObject.keys).containsExactly("analysis", "suggestions").inOrder()
+        assertThat(schema["required"]!!.jsonArray.map { it.jsonPrimitive.content })
+            .containsExactly("analysis", "suggestions")
+        assertThat(schema["additionalProperties"]!!.jsonPrimitive.content).isEqualTo("false")
+    }
+
+    @Test
+    fun `a reply without analysis still succeeds, with an empty analysis`() {
+        server.enqueue(ok(message(threeWithoutAnalysis)))
+        val result = generate() as SuggestionResult.Success
+        assertThat(result.suggestions).hasSize(3)
+        assertThat(result.analysis).isEmpty()
     }
 
     @Test
@@ -406,13 +453,13 @@ class AnthropicFormatGeneratorTest {
             .isEqualTo(ConnectionTestResult.Failed(SuggestionResult.Failure.NoApiKey))
 
         runBlocking { secrets.setApiKey(PID, "sk-ant-test-key") }
-        val strict = LlmReplyGenerator(settings, profiles, costGuard, LlmReplyGenerator.defaultHttpClient())
+        val strict = LlmReplyGenerator(profiles, costGuard, LlmReplyGenerator.defaultHttpClient())
         assertThat(runBlocking { strict.testConnection(PID) })
             .isEqualTo(ConnectionTestResult.Failed(SuggestionResult.Failure.InsecureEndpoint))
 
         val spent = InMemoryCostGuard(dailyRequestLimit = 1).also { runBlocking { it.tryAcquire() } }
         val http = LlmReplyGenerator.defaultHttpClient()
-        val limited = LlmReplyGenerator(settings, profiles, spent, http, requireHttps = false)
+        val limited = LlmReplyGenerator(profiles, spent, http, requireHttps = false)
         assertThat(runBlocking { limited.testConnection(PID) })
             .isEqualTo(ConnectionTestResult.Failed(SuggestionResult.Failure.LimitReached(1)))
 

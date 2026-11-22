@@ -3,18 +3,26 @@ package com.paragrudani.replyly.llm
 import android.content.pm.PackageManager
 import com.paragrudani.replyly.history.ContactNoteStore
 import com.paragrudani.replyly.history.HistoryRepository
+import com.paragrudani.replyly.history.StoredMessage
 import com.paragrudani.replyly.parser.ChatMessage
 import com.paragrudani.replyly.parser.ParsedChat
 import com.paragrudani.replyly.parser.TargetApps
 import com.paragrudani.replyly.security.DatabaseKeyUnavailableException
 import com.paragrudani.replyly.settings.SettingsRepository
 import com.paragrudani.replyly.settings.current
+import com.paragrudani.replyly.settings.myNameList
+import java.time.Clock
+import java.time.ZoneId
 
 /**
  * Builds the [SuggestionRequest] (spec 6). Merges the on-screen chat into history first, then
  * reads the last N messages, the contact note, About me and the style examples. Generic apps
  * have no history: they use the visible messages only. If the encrypted DB's key is unavailable
  * for a moment, it throws [SuggestionFailureException] with [SuggestionResult.Failure.StorageLocked].
+ *
+ * Message dates (until PR 1 of issue #26 stores real ones): a history message gets the local date
+ * of its `firstSeenAt`, marked approx; an on-screen-only message gets no date. `repliesToMe` is
+ * false for now.
  */
 class HistorySuggestionRequestAssembler(
     private val history: HistoryRepository,
@@ -22,6 +30,11 @@ class HistorySuggestionRequestAssembler(
     private val settings: SettingsRepository,
     /** Label for apps outside [TargetApps]; see [packageManagerAppLabel]. */
     private val appLabelOf: (String) -> String = { it },
+    private val clock: Clock = Clock.systemDefaultZone(),
+    /** Read per request, so the "Now" header follows a time zone change without a restart. */
+    private val zone: () -> ZoneId = { ZoneId.systemDefault() },
+    /** The phone's 12/24-hour setting (`DateFormat.is24HourFormat`), read per request. */
+    private val is24Hour: () -> Boolean = { false },
 ) : SuggestionRequestAssembler {
     override suspend fun assemble(
         chat: ParsedChat,
@@ -45,10 +58,15 @@ class HistorySuggestionRequestAssembler(
         val n = current.historyMessageCount.coerceAtLeast(1)
         val key = chat.chatKey
 
-        val messages: List<ChatMessage>
+        val zoneNow = zone()
+        val messages: List<PromptMessage>
         val styleExamples: List<String>
         if (chat.historyApplies) {
-            messages = history.lastMessages(key, n).map { it.message }.ifEmpty { chat.messages.takeLast(n) }
+            messages =
+                history
+                    .lastMessages(key, n)
+                    .map { it.toPromptMessage(zoneNow) }
+                    .ifEmpty { chat.messages.takeLast(n).map(::onScreen) }
             val mineHere =
                 history
                     .lastMessages(key, STYLE_SCAN_MESSAGES)
@@ -57,7 +75,7 @@ class HistorySuggestionRequestAssembler(
             val mineElsewhere = history.recentOwnMessagesInOtherChats(chat.packageName, key, STYLE_FROM_OTHER_CHATS)
             styleExamples = (mineHere + mineElsewhere).map { it.message.text }
         } else {
-            messages = chat.messages.takeLast(n)
+            messages = chat.messages.takeLast(n).map(::onScreen)
             styleExamples = chat.messages.filter { it.isMe }.map { it.text }
         }
 
@@ -71,8 +89,22 @@ class HistorySuggestionRequestAssembler(
             contactNote = notes.get(key)?.takeIf { it.isNotBlank() },
             styleExamples = styleExamples,
             instruction = instruction?.trim()?.takeIf { it.isNotEmpty() },
+            now = clock.instant().atZone(zoneNow),
+            is24Hour = is24Hour(),
+            myNames = current.myNameList(),
         )
     }
+
+    private fun StoredMessage.toPromptMessage(zone: ZoneId) =
+        PromptMessage(
+            message = message,
+            date = firstSeenAt.atZone(zone).toLocalDate(),
+            dateIsApprox = true,
+            repliesToMe = false,
+            firstSeenAt = firstSeenAt,
+        )
+
+    private fun onScreen(message: ChatMessage) = PromptMessage(message)
 
     companion object {
         /** How far back to look for the user's own messages in this chat. */

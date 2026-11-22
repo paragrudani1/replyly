@@ -12,12 +12,18 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Transaction
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import androidx.sqlite.db.SupportSQLiteOpenHelper
 import com.paragrudani.replyly.security.DatabaseKeyProvider
 import kotlinx.coroutines.flow.Flow
 import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 
-/** One feedback log row. [suggestionsJson] is a JSON array of `{intent, text}`. */
+/**
+ * One feedback log row. [suggestionsJson] is a JSON array of `{intent, text}`. Version 2 added
+ * [promptVersion] (rows from before are prompt v1), [analysis] (the model's reasoning, local only)
+ * and [panelId] (one id per panel open, for the insert rate per panel).
+ */
 @Entity(
     tableName = "feedback_entries",
     indices = [Index("chat_key"), Index("created_at")],
@@ -32,6 +38,19 @@ data class FeedbackEntryEntity(
     @ColumnInfo(name = "suggestions_json") val suggestionsJson: String,
     @ColumnInfo(name = "inserted_index") val insertedIndex: Int? = null,
     @ColumnInfo(name = "final_sent_text") val finalSentText: String? = null,
+    @ColumnInfo(name = "prompt_version", defaultValue = "1") val promptVersion: Int = 1,
+    val analysis: String? = null,
+    @ColumnInfo(name = "panel_id") val panelId: String? = null,
+)
+
+/** The columns the quality stats need: no prompt, analysis or chat key. */
+data class FeedbackStatsColumns(
+    val id: Long,
+    @ColumnInfo(name = "prompt_version") val promptVersion: Int,
+    @ColumnInfo(name = "panel_id") val panelId: String?,
+    @ColumnInfo(name = "suggestions_json") val suggestionsJson: String,
+    @ColumnInfo(name = "inserted_index") val insertedIndex: Int?,
+    @ColumnInfo(name = "final_sent_text") val finalSentText: String?,
 )
 
 @Dao
@@ -74,6 +93,12 @@ interface FeedbackDao {
     @Query("SELECT * FROM feedback_entries ORDER BY id DESC LIMIT :limit")
     fun observeRecent(limit: Int): Flow<List<FeedbackEntryEntity>>
 
+    @Query(
+        "SELECT id, prompt_version, panel_id, suggestions_json, inserted_index, final_sent_text " +
+            "FROM feedback_entries ORDER BY id",
+    )
+    fun observeStatsColumns(): Flow<List<FeedbackStatsColumns>>
+
     @Query("DELETE FROM feedback_entries WHERE created_at < :cutoffMillis")
     suspend fun deleteOlderThan(cutoffMillis: Long): Int
 
@@ -85,7 +110,7 @@ interface FeedbackDao {
  * The feedback log's own encrypted DB file (`feedback.db`), separate from #3's history DB so the
  * two Room schemas never touch. Opened with SQLCipher and the shared [DatabaseKeyProvider].
  */
-@Database(entities = [FeedbackEntryEntity::class], version = 1, exportSchema = true)
+@Database(entities = [FeedbackEntryEntity::class], version = 2, exportSchema = true)
 abstract class FeedbackDatabase : RoomDatabase() {
     abstract fun feedbackDao(): FeedbackDao
 
@@ -105,7 +130,18 @@ abstract class FeedbackDatabase : RoomDatabase() {
             Room
                 .databaseBuilder(context.applicationContext, FeedbackDatabase::class.java, name)
                 .openHelperFactory(openHelperFactory(keyProvider.getOrCreatePassphrase()))
+                .addMigrations(MIGRATION_1_2)
                 .build()
+
+        /** Prompt v2 (issue #26): old rows are prompt v1, without analysis or panel id. */
+        val MIGRATION_1_2: Migration =
+            object : Migration(1, 2) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE feedback_entries ADD COLUMN prompt_version INTEGER NOT NULL DEFAULT 1")
+                    db.execSQL("ALTER TABLE feedback_entries ADD COLUMN analysis TEXT")
+                    db.execSQL("ALTER TABLE feedback_entries ADD COLUMN panel_id TEXT")
+                }
+            }
 
         private fun sqlCipherFactory(passphrase: ByteArray): SupportSQLiteOpenHelper.Factory {
             System.loadLibrary("sqlcipher")

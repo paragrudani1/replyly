@@ -1,5 +1,6 @@
 package com.paragrudani.replyly.testing
 
+import androidx.datastore.core.DataMigration
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
@@ -24,21 +25,29 @@ class TestDataStores(
     private val scopes = mutableMapOf<String, CoroutineScope>()
 
     /** Opens the first store for [name]. Use [reopen] to simulate a restart. */
-    fun open(name: String): DataStore<Preferences> {
+    fun open(
+        name: String,
+        migrations: List<DataMigration<Preferences>> = emptyList(),
+    ): DataStore<Preferences> {
         check(name !in scopes) { "$name is already open; use reopen()" }
         val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
         scopes[name] = scope
-        return PreferenceDataStoreFactory.create(scope = scope) { File(dir, "$name.preferences_pb") }
+        return PreferenceDataStoreFactory.create(migrations = migrations, scope = scope) {
+            File(dir, "$name.preferences_pb")
+        }
     }
 
     /** Simulates a process restart: fully shuts down the current store of [name], then opens a new one. */
-    suspend fun reopen(name: String): DataStore<Preferences> {
+    suspend fun reopen(
+        name: String,
+        migrations: List<DataMigration<Preferences>> = emptyList(),
+    ): DataStore<Preferences> {
         scopes
             .remove(name)
             ?.coroutineContext
             ?.get(Job)
             ?.cancelAndJoin()
-        return open(name)
+        return open(name, migrations)
     }
 
     fun file(name: String): File = File(dir, "$name.preferences_pb")

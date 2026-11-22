@@ -163,6 +163,7 @@ class ComposeReplyPanel(
                         onClose = { currentOnClose() },
                         onInstructionChange = state::onInstructionChange,
                         onRegenerate = state::regenerate,
+                        onSuggestFollowUps = state::suggestFollowUpsAnyway,
                         onInsert = state::insert,
                         onCopy = state::copy,
                         onToggleChip = state::toggleChip,
@@ -212,6 +213,7 @@ internal class PanelActions(
     val onClose: () -> Unit = {},
     val onInstructionChange: (String) -> Unit = {},
     val onRegenerate: () -> Unit = {},
+    val onSuggestFollowUps: () -> Unit = {},
     val onInsert: (Int) -> Unit = {},
     val onCopy: (Int) -> Unit = {},
     val onToggleChip: (QuickInstruction) -> Unit = {},
@@ -363,6 +365,10 @@ private sealed interface BodyKey {
     data class Error(
         val generation: Int,
     ) : BodyKey
+
+    data class NothingToReply(
+        val generation: Int,
+    ) : BodyKey
 }
 
 @Composable
@@ -409,6 +415,10 @@ private fun SuggestionsBody(
             is SuggestionsUi.Error -> {
                 ErrorState(suggestions.error, actions.onOpenSettings, actions.onRegenerate)
             }
+
+            SuggestionsUi.NothingToReply -> {
+                NothingToReplyState(actions.onSuggestFollowUps)
+            }
         }
     }
 }
@@ -418,6 +428,7 @@ private fun PanelUiState.bodyKey(): BodyKey =
         SuggestionsUi.Loading -> BodyKey.Loading(regenerating = generation > 1)
         is SuggestionsUi.Ready -> BodyKey.Ready(generation)
         is SuggestionsUi.Error -> BodyKey.Error(generation)
+        SuggestionsUi.NothingToReply -> BodyKey.NothingToReply(generation)
     }
 
 @Composable

@@ -12,7 +12,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 
-/** [SettingsRepository] on a Preferences DataStore. A missing key reads as the spec default. */
+/**
+ * [SettingsRepository] on a Preferences DataStore. A missing key reads as the spec default.
+ * Open the store with [SettingsMigrations.ALL] (AppGraph does).
+ */
 class DataStoreSettingsRepository(
     private val dataStore: DataStore<Preferences>,
 ) : SettingsRepository {
@@ -34,7 +37,7 @@ class DataStoreSettingsRepository(
             blockedPackages = this[BLOCKED_PACKAGES] ?: defaults.blockedPackages,
             dailyRequestLimit = this[DAILY_LIMIT] ?: defaults.dailyRequestLimit,
             retentionDays = this[RETENTION_DAYS] ?: defaults.retentionDays,
-            useParallelCalls = this[PARALLEL_CALLS] ?: defaults.useParallelCalls,
+            myNames = this[MY_NAMES] ?: defaults.myNames,
             useDynamicColor = this[DYNAMIC_COLOR] ?: defaults.useDynamicColor,
         )
     }
@@ -48,7 +51,7 @@ class DataStoreSettingsRepository(
         this[BLOCKED_PACKAGES] = settings.blockedPackages
         this[DAILY_LIMIT] = settings.dailyRequestLimit
         this[RETENTION_DAYS] = settings.retentionDays
-        this[PARALLEL_CALLS] = settings.useParallelCalls
+        this[MY_NAMES] = settings.myNames
         this[DYNAMIC_COLOR] = settings.useDynamicColor
     }
 
@@ -61,7 +64,7 @@ class DataStoreSettingsRepository(
         val BLOCKED_PACKAGES = stringSetPreferencesKey("blocked_packages")
         val DAILY_LIMIT = intPreferencesKey("daily_request_limit")
         val RETENTION_DAYS = intPreferencesKey("retention_days")
-        val PARALLEL_CALLS = booleanPreferencesKey("use_parallel_calls")
+        val MY_NAMES = stringPreferencesKey("my_names")
         val DYNAMIC_COLOR = booleanPreferencesKey("use_dynamic_color")
     }
 }

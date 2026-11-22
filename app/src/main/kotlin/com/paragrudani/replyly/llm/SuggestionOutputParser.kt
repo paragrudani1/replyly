@@ -10,6 +10,8 @@ import kotlinx.serialization.json.JsonPrimitive
 sealed interface ParsedSuggestions {
     data class Ok(
         val suggestions: List<Suggestion>,
+        /** The model's short reasoning; empty when it is missing or not a string (tolerated). */
+        val analysis: String = "",
     ) : ParsedSuggestions
 
     /** [reason] is fixed wording plus counts: it never quotes the model output (chat text). */
@@ -19,11 +21,15 @@ sealed interface ParsedSuggestions {
 }
 
 /**
- * Reads the model's `{"suggestions":[{"intent","text"}]}` reply. Tolerates code fences and prose
- * around the JSON. Skips items with a blank text, a missing intent or a repeated intent, then
- * keeps the first [expected] valid ones; fewer than [expected] is [ParsedSuggestions.Invalid].
+ * Reads the model's `{"analysis":"...","suggestions":[{"intent","text"}]}` reply (prompt v2).
+ * Tolerates code fences and prose around the JSON, and a missing `analysis` (read as empty, capped
+ * at [MAX_ANALYSIS_CHARS]). Skips items with a blank text, a missing intent or a repeated intent,
+ * then keeps the first [expected] valid ones; fewer than [expected] is [ParsedSuggestions.Invalid].
  */
 object SuggestionOutputParser {
+    /** The prompt asks for at most ~60 words; this only bounds what the feedback log stores. */
+    const val MAX_ANALYSIS_CHARS = 1_000
+
     @OptIn(ExperimentalSerializationApi::class)
     private val json =
         Json {
@@ -48,7 +54,14 @@ object SuggestionOutputParser {
             valid += Suggestion(intent, text)
         }
         return if (valid.size == expected) {
-            ParsedSuggestions.Ok(valid)
+            ParsedSuggestions.Ok(
+                valid,
+                root
+                    .string("analysis")
+                    ?.trim()
+                    ?.take(MAX_ANALYSIS_CHARS)
+                    .orEmpty(),
+            )
         } else {
             ParsedSuggestions.Invalid("${valid.size} valid suggestions of ${items.size}, expected $expected")
         }

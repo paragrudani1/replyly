@@ -36,7 +36,7 @@ data class ProviderProfile(
     val model: String,
     /** Names of the extra headers whose values are stored encrypted. */
     val extraHeaderNames: List<String> = emptyList(),
-    /** Null: the generator's default (1024 for 3 suggestions, 512 per parallel call). */
+    /** Null: the generator's default ([com.paragrudani.replyly.llm.LlmReplyGenerator.MAX_TOKENS]). */
     val maxTokens: Int? = null,
     /** Null: not sent. Only the OpenAI format sends it (Anthropic API version 2026-10-21 rejects it). */
     val temperature: Double? = null,

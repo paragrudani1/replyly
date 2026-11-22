@@ -36,6 +36,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.paragrudani.replyly.llm.LlmReplyGenerator
 import com.paragrudani.replyly.llm.ProviderUrls
 import com.paragrudani.replyly.settings.ApiFormat
 import com.paragrudani.replyly.ui.settings.ModelPickerList
@@ -136,7 +137,7 @@ fun ProfileEditor(
                 label = "Max tokens (optional)",
                 value = draft.maxTokens,
                 error = errors[ProfileField.MaxTokens],
-                supporting = "Empty: 1024, or 512 per call in parallel mode.",
+                supporting = "Empty: ${LlmReplyGenerator.MAX_TOKENS}, enough for the analysis and 3 replies.",
                 keyboardType = KeyboardType.Number,
             ) { v -> change { it.copy(maxTokens = v) } }
             if (draft.format == ApiFormat.OpenAi) {
