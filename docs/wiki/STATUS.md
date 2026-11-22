@@ -2,11 +2,10 @@
 
 Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECISIONS](../DECISIONS.md).
 
-## 2026-11-22: #27 under round-3 review
+## 2026-11-22: #27 merged; #28 rebasing onto real dates
 
-**Merged.** v1 (#8–#16), polish (#19, #21–#24), profiles (#20), docs (#25), and #29 (signing-key rotation).
-- `main` is at `1254a71` plus the wiki docs PRs #31–#35.
-- `latest-debug` is versionCode 55, with certificate SHA-256 `2a5421c6…2737d6` (the new key).
+**Merged.** v1 (#8–#16), polish (#19, #21–#24), profiles (#20), docs (#25), #29 (signing-key rotation), **#27 (message dates, `624939c`)**, and the wiki docs PRs #31–#36.
+- `latest-debug` is versionCode 69 (built from `624939c`), signed with the new key (certificate SHA-256 `2a5421c6…2737d6`).
 - Parag must uninstall the old app once first (DEVICE_CHECKLIST 2.0).
 
 **Repo.** Public since 2026-11-22. The pre-public audit was clean; details are in DECISIONS.
@@ -14,47 +13,26 @@ Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECIS
 - Signing secrets: `REPLYLY_SIGNING_KEYSTORE_B64` and `REPLYLY_SIGNING_PASSWORD`.
 - The key is stored root-only at `/root/.config/replyly/signing/`. Parag should keep an offline backup.
 
-**In flight: issue #26, prompt v2 (2 PRs).** Issue: https://github.com/paragrudani1/replyly/issues/26
-- **#27 (`v2-dates`): message dates in the parsers and history.**
-  - Review r1 (`/root/.t3/cos/replyly/reviews/pr27-r1.md`) blocked it on B1: the merge wrote an exact date onto the wrong twin row.
-  - The CoS also put S1 (plausibility check), S2 (unreadable separator) and S3 (cross-day edit overwrite) in this round.
-  - **Fix round 1 is done:** head `2522486`, CI run 45052430977 green, local gate 905 tests. The resume agent's report, in brief:
-    - B1, S1 (`ChatAssembler.checkDates`), S2, S3 (`StoredRow.date`) and the nits are fixed.
-    - 0 invariant-1 failures at 20,000 seeds in every dated config.
-    - Additive contract changes: `StoredRow.date`/`dateIsApprox`, `HistoryMerge.plan(today=)`, `ChatAssembler.dateNote(dropped=)`.
-    - Not merged with `main`, because there are no conflicts and PR CI builds the merge anyway.
-    - Decisions to record: an edit of a message from another day is stored as new; fixtures are captured at 23:45 IST.
-  - **Review r2 is done** (`/root/.t3/cos/replyly/reviews/pr27-r2.md`): merge after should-fixes.
-    - Round-1 fixes hold: 0 invariant-1 failures in 200,000 fresh merge seeds (500000–519999) and 120,000 parser screens; gate 905 tests.
-    - S1 (regression from `main`): an edit re-read on a later day stores the whole screen again (`HistoryMerge.kt:931`, `read.date ?: today`). CoS: fix in this PR.
-    - S2: DECISIONS entries for PR 1 are missing. S3: a duplicate date pill drops every date on a screen.
-  - **Fix round 2 is done:** head `4259b13` (includes one merge of `origin/main` for a DECISIONS conflict), CI run 45066263323 green, local gate 915 tests.
-    - S1 fixed: an undated read's day is only an upper bound; cases D1–D5 now give 6/6/6/7/6 rows (before: D2, D4, D5 gave 12). New edit generator in `HistoryMergePropertyTest`; 0 invariant-1 failures in 15 configs × 20,000 seeds.
-    - New narrow rule: a read that could be an edit of its neighbour inside a run of equal messages is never an edit (seeds 500331, 516434).
-    - S2 (six DECISIONS entries, ARCHITECTURE line), S3 (duplicate pill counts once) and the nits are done.
-    - New contracts (additive): `ChatAssembler.checkDates(bubblesAbove=)`, `GeometryReader.Result.separatorBubblesAbove`.
-    - New known limit: an undated edit re-read on a later day next to a short twin ("ok") still stores the screen again.
-  - **Open subagent: "Review PR #27 round 3"** (fix range `2522486..4259b13` only).
-    - Brief: `/root/.t3/cos/replyly/v2-pr1-review3-brief.md`. Writes `/root/.t3/cos/replyly/reviews/pr27-r3.md`.
-    - taskId `node:delegated-task:command%3Amcp%3A1f185f96-d0ab-47eb-a6aa-d986679975cc%3Adelegate-task%3A241df1d7-ecd3-41fe-9eae-a247291944c9`
-    - thread `thread:delegated-task:command%3Amcp%3A1f185f96-d0ab-47eb-a6aa-d986679975cc%3Adelegate-task%3A241df1d7-ecd3-41fe-9eae-a247291944c9`
+**In flight: issue #26, prompt v2.** Issue: https://github.com/paragrudani1/replyly/issues/26
+- **#27 is done.** 3 review rounds (`/root/.t3/cos/replyly/reviews/pr27-r1.md`, `-r2.md`, `-r3.md`). The CoS applied r3's two should-fixes itself (the reviewer had tested both), plus pinned seeds 500331, 516434 and 617554. Gate 919 tests; 0 invariant-1 failures at fresh seeds 700000–709999. DECISIONS has the PR 1 entries and accepted limits.
+- **#28 (`v2-prompt`, head `abb5c50` before the rebase): prompt v2.**
+  - **Open subagent: "Rebase PR #28 onto main with real dates"**, working in worktree `t3-f24e6775-b855e9cd9242b6bb`.
+    - Brief: `/root/.t3/cos/replyly/v2-pr2-rebase-brief.md` (rebase, wire `date`/`dateIsApprox`/`repliesToMe`, one `SchemaAssets`, docs, gate, force-with-lease push, CI).
+    - taskId `node:delegated-task:command%3Amcp%3A334b0d3f-4292-46aa-a114-dfd1b720a456%3Adelegate-task%3Af8bb14d6-d15c-4e5c-b2cf-f937d3b9ed3f`
+    - thread `thread:delegated-task:command%3Amcp%3A334b0d3f-4292-46aa-a114-dfd1b720a456%3Adelegate-task%3Af8bb14d6-d15c-4e5c-b2cf-f937d3b9ed3f`
     - If it has finished, read its result with `task_status`.
-  - **Next:** if r3 says merge (or only nits the CoS can fix inline), merge #27 on green CI, update this file, post a short status, then start #28. Otherwise a short fix round 3 in worktree `t3-bdc5acab-c3bf153cc79d182f`.
-- **#28 (`v2-prompt`, head `abb5c50`, CI green): prompt v2.**
-  - The r1 fixes are done.
-  - **Next, after #27 merges:**
-    1. Rebase onto `main`.
-    2. Wire the assembler to the real date fields and keep one `SchemaAssets`.
-    3. Run a combined re-review.
-    4. Post `PromptBuilder.SYSTEM_PROMPT` verbatim in the thread.
-    5. Merge on green CI.
+  - **Next:**
+    1. Check the rebase report.
+    2. Run a combined re-review (new delegate): r1 fixes (`reviews/pr28-r1.md`) plus the date wiring.
+    3. Post `PromptBuilder.SYSTEM_PROMPT` verbatim in the thread.
+    4. Merge on green CI, update this file, post a short status.
 
 **Queued: issue #30** (X reply and quote posts). Starts after #28 merges. Plan: parser and detection first; then prompt mode, settings and counter; 1–2 PRs.
 
-**Briefs and reviews.** In `/root/.t3/cos/replyly/`: `v2-*.md`, `issue-*.md`, and `reviews/pr27-r1.md`, `pr27-r2.md` and `pr28-r1.md`.
+**Briefs and reviews.** In `/root/.t3/cos/replyly/`: `v2-*.md`, `issue-*.md`, and `reviews/pr27-r1.md` to `pr27-r3.md` and `pr28-r1.md`.
 
 **Open risks**
-- Every date-separator format is a guess until there are S23 dumps (DEVICE_CHECKLIST 13).
+- Every date-separator format is a guess until there are S23 dumps (DEVICE_CHECKLIST 13). 13.10 (chat open across midnight) decides whether the merge needs a rule for stale screens.
 - The history merge's identical-short-message limit is documented: about 0.05–0.25% on `main`.
 - Parag's commit email is public in the git history; he accepted this by asking for the repo to go public.
 
@@ -67,7 +45,7 @@ Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECIS
 - `t3-632194cb…`, `t3-66c2f1ae…`, `t3-b1162e5a…`, `t3-4e030bc2…` (its apparent changes are only the branch having moved under it);
 - `/root/local-dev/tmp-replyly-base`;
 - `/root/local-dev/replyly-audit` (scan output only);
-- `t3-632194cb…` also has `v2-dates` checked out (at `2522486`); scratch dirs `/tmp/replyly-fuzz`, `/tmp/replyly-s1-fuzz`.
+- `t3-bdc5acab…` and `t3-632194cb…` (both have the merged `v2-dates` checked out); scratch files `/tmp/replyly-fuzz`, `/tmp/replyly-s1-fuzz`, `/tmp/replyly-r3-*`, `/tmp/pr27-body.md`.
 
 **How the CoS works.**
 - **GitHub token:** `GH_TOKEN="$(cat /root/.config/replyly/gh_token)" gh … -R paragrudani1/replyly`. Never print it. The T3 PR and issue tools use another login and fail for this repo.
