@@ -31,7 +31,18 @@ internal class FakeHistory(
             }
         plan.moves.forEach { move -> update(move.id) { it.copy(position = move.position) } }
         plan.gapsCleared.forEach { id -> update(id) { it.copy(gapBefore = false) } }
-        plan.edits.forEach { edit -> update(edit.id) { it.copy(message = edit.message) } }
+        // As RoomHistoryRepository: an edit's null date leaves the saved one, metadata after edits.
+        plan.edits.forEach { edit ->
+            update(edit.id) {
+                it.copy(message = edit.message.copy(date = edit.message.date ?: it.message.date))
+            }
+        }
+        plan.metaUpdates.forEach { meta ->
+            update(meta.id) {
+                val m = it.message
+                it.copy(message = m.copy(date = meta.date ?: m.date, repliesToMe = m.repliesToMe || meta.repliesToMe))
+            }
+        }
         lastInsertedIds =
             plan.inserts.map { insert ->
                 val id = nextId++

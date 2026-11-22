@@ -2,6 +2,7 @@ package com.paragrudani.replyly.history
 
 import com.paragrudani.replyly.parser.ChatMessage
 import java.security.MessageDigest
+import java.time.LocalDate
 import kotlin.math.abs
 
 /** A saved message as the merge sees it: its row id, its ordering key, and its content. */
@@ -9,6 +10,10 @@ data class StoredRow(
     val id: Long,
     /** Orders the rows of one chat. Only the order matters; values have gaps between them. */
     val position: Long,
+    /**
+     * The saved content. Its [ChatMessage.date] is the exact date only (from a separator), `null`
+     * when the row has none or only an approximate one.
+     */
     val message: ChatMessage,
     /**
      * True on the first row of a block that was stored without overlapping the rows above it: the
@@ -27,11 +32,22 @@ data class PlannedInsert(
 
 /**
  * A saved row whose content changed on screen (an edited or deleted-for-everyone message), or that
- * gets a sender or time it was stored without.
+ * gets a sender or time it was stored without. [message] keeps the saved row's date and reply flag
+ * when the read did not show them; a `null` date leaves the saved one as it is.
  */
 data class PlannedEdit(
     val id: Long,
     val message: ChatMessage,
+)
+
+/**
+ * A saved row that the read lined up with and that learns metadata it lacked: an exact [date]
+ * (`null`: unchanged), or that it replies to me (never cleared).
+ */
+data class PlannedMeta(
+    val id: Long,
+    val date: LocalDate?,
+    val repliesToMe: Boolean,
 )
 
 /** A saved row that needs a new [position] because there was no room left for an insert. */
@@ -61,8 +77,13 @@ data class MergePlan(
      * null when it is stored as a new row (one of [inserts]).
      */
     val matchedRowIds: List<Long?> = emptyList(),
+    /** Metadata the read adds to rows it lined up with. Apply after [edits]. */
+    val metaUpdates: List<PlannedMeta> = emptyList(),
 ) {
-    val isNoOp: Boolean get() = inserts.isEmpty() && edits.isEmpty() && moves.isEmpty() && gapsCleared.isEmpty()
+    val isNoOp: Boolean
+        get() =
+            inserts.isEmpty() && edits.isEmpty() && moves.isEmpty() && gapsCleared.isEmpty() &&
+                metaUpdates.isEmpty()
 
     /**
      * The new current position: the saved row id of the read's last message, or null when that
@@ -71,7 +92,7 @@ data class MergePlan(
     val currentRowId: Long? get() = matchedRowIds.lastOrNull()
 }
 
-/** The identity hash of a message: (isMe, sender, text, time shown), spec 5. */
+/** The identity hash of a message: (isMe, sender, text, time shown), spec 5. The date is not part of it. */
 object MessageHash {
     fun of(message: ChatMessage): String {
         val fields =
@@ -91,6 +112,13 @@ object MessageHash {
 /**
  * Merges one screen read of a chat into its saved history (spec 5). Pure logic: the caller loads
  * the chat's saved rows, asks for a [MergePlan] and applies it.
+ *
+ * **Dates** ([ChatMessage.date], issue #26) are metadata, not identity: every comparison below
+ * ignores them and [ChatMessage.repliesToMe], with one exception. Two messages whose dates are
+ * both known (exact) and differ are never equal, exactly equal or an edit of one another: "gm
+ * 9:00 am" yesterday and today are two messages once a separator shows it. A saved row the read
+ * lines up with takes a date or a reply flag it lacked ([MergePlan.metaUpdates]); an edit keeps
+ * the saved ones the read does not show.
  *
  * A screen read shows a contiguous window of the chat, oldest first. Message identity is the
  * [MessageHash] of (isMe, sender, text, time shown). The same message can legitimately appear
@@ -305,8 +333,27 @@ object HistoryMerge {
         val edits =
             read.indices
                 .filter { alignment.edited[it] }
-                .map { PlannedEdit(stored[alignment.counterpart[it]].id, read[it]) } +
-                fills(stored, read, alignment.pairs)
+                .map { i ->
+                    val saved = stored[alignment.counterpart[i]]
+                    val m = read[i]
+                    PlannedEdit(
+                        saved.id,
+                        m.copy(
+                            date = m.date ?: saved.message.date,
+                            repliesToMe =
+                                m.repliesToMe || saved.message.repliesToMe,
+                        ),
+                    )
+                } + fills(stored, read, alignment.pairs)
+        val metaUpdates =
+            read.indices.mapNotNull { i ->
+                val j = alignment.counterpart[i]
+                if (j < 0 || alignment.edited[i]) return@mapNotNull null
+                val saved = stored[j].message
+                val date = read[i].date?.takeIf { saved.date == null }
+                val replies = read[i].repliesToMe && !saved.repliesToMe
+                if (date == null && !replies) null else PlannedMeta(stored[j].id, date, replies)
+            }
 
         // Read messages without a saved counterpart, grouped by the saved index they go before.
         val groups = sortedMapOf<Int, MutableList<ChatMessage>>()
@@ -342,7 +389,7 @@ object HistoryMerge {
         val placed = placeWithoutMoving(stored, groups, gapGroup)
         return when {
             placed != null -> {
-                MergePlan(placed, edits, emptyList(), alignment.anchored, newAtEnd, gapsCleared, matched)
+                MergePlan(placed, edits, emptyList(), alignment.anchored, newAtEnd, gapsCleared, matched, metaUpdates)
             }
 
             tailOnly -> {
@@ -351,7 +398,7 @@ object HistoryMerge {
 
             else -> {
                 renumber(stored, groups, gapGroup, edits, alignment.anchored, newAtEnd, gapsCleared)
-                    .copy(matchedRowIds = matched)
+                    .copy(matchedRowIds = matched, metaUpdates = metaUpdates)
             }
         }
     }
@@ -383,8 +430,8 @@ object HistoryMerge {
         /** For each saved index, the index of its segment in [segments]. */
         private val segmentOf = IntArray(stored.size)
 
-        // Candidates share everything but the sender; exactMatch then checks the sender.
-        private val byMessage = saved.indices.groupBy { saved[it].copy(sender = null) }
+        // Candidates share everything but the sender (and the metadata); exactMatch checks those.
+        private val byMessage = saved.indices.groupBy { candidateKey(saved[it]) }
 
         init {
             val starts = stored.indices.filter { it == 0 || stored[it].gapBefore }
@@ -477,7 +524,7 @@ object HistoryMerge {
         ): Pair<Int, Int>? {
             val votes = HashMap<Pair<Int, Int>, Int>()
             for (i in range) {
-                byMessage[read[i].copy(sender = null)]
+                byMessage[candidateKey(read[i])]
                     ?.filter { j -> segmentOf[j] in allowed && exactMatch(read[i], saved[j]) }
                     ?.forEach { j -> votes.merge(segmentOf[j] to j - i, 1, Int::plus) }
             }
@@ -536,7 +583,7 @@ object HistoryMerge {
                 return oneAtEndAllowed &&
                     i == 0 &&
                     j == currentEnd &&
-                    read[i] == saved[j] &&
+                    sameIdentity(read[i], saved[j]) &&
                     distinctive(read[i]) &&
                     !matchesElsewhere(j)
             }
@@ -593,7 +640,7 @@ object HistoryMerge {
          */
         private fun matchesElsewhere(anchor: Int): Boolean =
             read.indices.any { i ->
-                byMessage[read[i].copy(sender = null)].orEmpty().any { j ->
+                byMessage[candidateKey(read[i])].orEmpty().any { j ->
                     j != anchor && exactMatch(read[i], saved[j]) && fitsAt(j - i, segments[segmentOf[j]])
                 }
             }
@@ -610,6 +657,7 @@ object HistoryMerge {
             val sameShown =
                 top.isMe == last.isMe &&
                     top.text == last.text &&
+                    !datesDiffer(top, last) &&
                     distinctive(top) &&
                     top.sender == last.sender &&
                     (top.isMe || top.sender != null)
@@ -676,7 +724,7 @@ object HistoryMerge {
                 val fidelity =
                     when {
                         !exactMatch(read[i], saved[j]) -> 0
-                        read[i] == saved[j] && (read[i].isMe || read[i].sender != null) -> 2
+                        sameIdentity(read[i], saved[j]) && (read[i].isMe || read[i].sender != null) -> 2
                         else -> 1
                     }
                 val bonus = (if (distinctive(read[i])) DISTINCTIVE_WEIGHT else 0L) + fidelity * FIDELITY_WEIGHT
@@ -725,11 +773,28 @@ object HistoryMerge {
         a: ChatMessage,
         b: ChatMessage,
     ): Boolean {
-        if (a.timeShown == null || a.timeShown != b.timeShown) return false
-        if (a == b) return true
+        if (a.timeShown == null || a.timeShown != b.timeShown || datesDiffer(a, b)) return false
+        if (sameIdentity(a, b)) return true
         if (a.isMe || b.isMe || a.text != b.text) return false
         return a.sender == null || b.sender == null
     }
+
+    /** Both dates are known and differ: never the same message, whatever else they share. */
+    private fun datesDiffer(
+        a: ChatMessage,
+        b: ChatMessage,
+    ): Boolean = a.date != null && b.date != null && a.date != b.date
+
+    /** Equal in every identity field (author, sender, text, time shown) and not on two known days. */
+    private fun sameIdentity(
+        a: ChatMessage,
+        b: ChatMessage,
+    ): Boolean =
+        a.isMe == b.isMe && a.sender == b.sender && a.text == b.text && a.timeShown == b.timeShown && !datesDiffer(a, b)
+
+    /** The lookup key of [Aligner]'s candidates: the message without sender and metadata. */
+    private fun candidateKey(message: ChatMessage): ChatMessage =
+        message.copy(sender = null, date = null, repliesToMe = false)
 
     /** Long enough that a lone pair is unlikely to be a coincidence. */
     private fun distinctive(message: ChatMessage): Boolean = message.text.trim().length >= DISTINCTIVE_LENGTH
@@ -739,7 +804,7 @@ object HistoryMerge {
         a: ChatMessage,
         b: ChatMessage,
     ): Boolean {
-        if (a.isMe != b.isMe || a.text != b.text) return false
+        if (a.isMe != b.isMe || a.text != b.text || datesDiffer(a, b)) return false
         val senderOk = a.isMe || a.sender == null || b.sender == null || a.sender == b.sender
         val timeOk = a.timeShown == null || b.timeShown == null || a.timeShown == b.timeShown
         return senderOk && timeOk
@@ -750,7 +815,7 @@ object HistoryMerge {
         read: ChatMessage,
         saved: ChatMessage,
     ): Boolean {
-        if (read.isMe != saved.isMe || read.text == saved.text) return false
+        if (read.isMe != saved.isMe || read.text == saved.text || datesDiffer(read, saved)) return false
         if (read.timeShown == null || read.timeShown != saved.timeShown) return false
         return read.isMe || (read.sender != null && read.sender == saved.sender)
     }
