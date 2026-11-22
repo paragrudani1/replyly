@@ -113,8 +113,9 @@ One lazy binding per interface, all real implementations:
   and "me", `[media]` for a message without text; the reply target; my instruction; the task.
   Chat-derived text cannot open or close `<conversation>` or `<reply_to>`.
 - **Messages** reach the prompt as `PromptMessage` (message plus `date`, `dateIsApprox`,
-  `repliesToMe`, `firstSeenAt`). Until history stores real dates (issue #26 PR 1) the assembler
-  gives history messages the local date of `firstSeenAt`, approx, and on-screen-only ones no date.
+  `firstSeenAt`; `repliesToMe` is read from the message). A history message gets its stored date
+  and `dateIsApprox` from `history.db`; an on-screen-only one (generic apps, or a chat with no
+  history yet) gets `ChatMessage.date`, exact, or no date.
 - **Reply target** (`ReplyTarget.decide`, pure): `Reply` with every text message from others after
   my last one (in groups, mentions of me — a whole-word match of "Names people call me" — and
   replies to me first). Media (blank text) count as turns but are never targets: their photo after

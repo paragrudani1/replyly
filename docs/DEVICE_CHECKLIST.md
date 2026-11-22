@@ -1152,7 +1152,8 @@ check the newest entry again. **See:** the same header with `19:05`-style time a
 friend, or use a chat where that is the last message), tap the button. **See:** no card says "good
 morning"; cards that greet use an evening greeting or none. In "Show details" the conversation
 lines use the contact's name (e.g. `[7:02 pm] Riya: Good evening`), never "them", and a day header
-like `— Today · Sun 22 Nov (approx) —` above them. Then in a group where someone greets the group
+like `— Today · Sun 22 Nov —` above them (`(approx)` after it only if no "TODAY" separator was on
+screen when Replyly read those messages). Then in a group where someone greets the group
 ("Good evening all"), tap the button. **See:** no card greets anyone by a name you do not use in
 your own messages in that group (no "Hi Priya!" if you never write names). **Send:** the 3 cards and
 the analysis text of both chats.
@@ -1165,10 +1166,12 @@ date (tomorrow's date, e.g. "Mon 23 Nov"). **Send:** the 3 cards and the analysi
 14.5b **Do:** in the evening, before midnight, have the other person send "kal 5 baje milte hai?"
 and open that chat once so Replyly sees it. The next morning, open the chat and tap the button.
 **See:** the analysis resolves kal to **today's** date (the message was sent yesterday), and the
-cards say "aaj" or today, not tomorrow. Until PR 1's dates are wired the day header is approx: if it
-reads `— Yesterday · … (approx) —` the result above is expected; if Replyly first saw the message
-after midnight it reads `— Today · … (approx) —` and kal may resolve to tomorrow (a known gap, note
-it). **Send:** the day header line, the analysis and the cards.
+cards say "aaj" or today, not tomorrow. The day header above the message reads
+`— Yesterday · … —`, with `(approx)` if no date separator was on screen when Replyly read it. Variant:
+have a "kal" message sent before midnight that Replyly has never seen, and open the chat for the
+first time after midnight with the "YESTERDAY" separator on screen. **See:** the header still reads
+`— Yesterday · … —`, with no `(approx)`, and kal resolves to today. **Send:** the day header line,
+the analysis and the cards, for both.
 
 14.6 **Do:** in a chat, send a short message yourself that is not a question (e.g. "ok done"), then
 right away tap the button. **See:** the panel shows "Nothing to reply to", "Your message is the last
@@ -1196,7 +1199,8 @@ for over 2 hours`. **Send:** pass/fail for each.
 14.8b **Do:** first open of an old chat: find a chat whose last message is yours, not a question,
 more than 2 hours old, and that you have not opened since installing this build (so Replyly has
 never seen it). Open it and tap the button. **See:** follow-ups straight away, with the prompt line
-`has had no answer for over 2 hours` (the bubble time is used even though the date is only approx).
+`has had no answer for over 2 hours` (the bubble time is used whether the date came from a separator
+or is only approx).
 It must **not** show "Nothing to reply to". **Send:** the message's bubble time, the time you tapped,
 and pass/fail.
 
