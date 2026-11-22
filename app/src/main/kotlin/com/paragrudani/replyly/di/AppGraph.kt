@@ -52,7 +52,9 @@ import com.paragrudani.replyly.ui.theme.ThemeSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
 import java.time.Clock
 import java.time.ZoneId
 
@@ -91,8 +93,12 @@ class AppGraph(
         })
     }
 
-    // Ticket #2: register parsers in parser/Parsers.kt, not here.
-    val chatParserRegistry: ChatParserRegistry by lazy { Parsers.registry() }
+    // Ticket #2: register parsers in parser/Parsers.kt, not here. Issue #30: "My X handle", kept hot
+    // so a parse reads it without waiting (an empty value until the store loads: the composer's account).
+    val chatParserRegistry: ChatParserRegistry by lazy {
+        val myXHandle = settingsRepository.settings.map { it.myXHandle }.stateIn(appScope, SharingStarted.Eagerly, "")
+        Parsers.registry(myXHandle = { myXHandle.value })
+    }
 
     // Ticket #3: passive capture.
     val captureComponent: AccessibilityComponent by lazy { PassiveCaptureComponent.create(this) }

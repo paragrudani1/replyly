@@ -38,6 +38,7 @@ class DataStoreSettingsRepository(
             dailyRequestLimit = this[DAILY_LIMIT] ?: defaults.dailyRequestLimit,
             retentionDays = this[RETENTION_DAYS] ?: defaults.retentionDays,
             myNames = this[MY_NAMES] ?: defaults.myNames,
+            myXHandle = this[MY_X_HANDLE] ?: defaults.myXHandle,
             useDynamicColor = this[DYNAMIC_COLOR] ?: defaults.useDynamicColor,
         )
     }
@@ -52,6 +53,7 @@ class DataStoreSettingsRepository(
         this[DAILY_LIMIT] = settings.dailyRequestLimit
         this[RETENTION_DAYS] = settings.retentionDays
         this[MY_NAMES] = settings.myNames
+        this[MY_X_HANDLE] = settings.myXHandle
         this[DYNAMIC_COLOR] = settings.useDynamicColor
     }
 
@@ -65,6 +67,7 @@ class DataStoreSettingsRepository(
         val DAILY_LIMIT = intPreferencesKey("daily_request_limit")
         val RETENTION_DAYS = intPreferencesKey("retention_days")
         val MY_NAMES = stringPreferencesKey("my_names")
+        val MY_X_HANDLE = stringPreferencesKey("my_x_handle")
         val DYNAMIC_COLOR = booleanPreferencesKey("use_dynamic_color")
     }
 }
