@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.ui.debug
 
 import com.paragrudani.replyly.parser.generic.ChatText
+import com.paragrudani.replyly.parser.x.XText
 import com.paragrudani.replyly.screen.ScreenNode
 import com.paragrudani.replyly.screen.ScreenSnapshot
 import java.security.SecureRandom
@@ -24,6 +25,15 @@ import javax.crypto.spec.SecretKeySpec
  *   unread banners, deleted placeholders, bubble labels), and the last line of a Telegram cell when
  *   it is exactly a status line ("Sent today at 6:42 PM, Read"). Words inside a message are never
  *   kept, whatever they are.
+ * - X (issue #30): post times ("2h", "Nov 19", "6:42 PM · 21 Nov 26 · 1,204 Views"), counts
+ *   ("1.2K", "48 Likes"), the composer hints ("Post your reply", "Add a comment"...) and X's fixed UI
+ *   words ("Reply", "Follow", "Show more"...; a message that is exactly such a word stays too) and the
+ *   description of an image without alt text ("Image", "Photo") stay whole.
+ *   A header line "Name @handle · 2h" keeps its "·" and time, and a "Replying to @a and @b" line its
+ *   words, with each name and handle scrambled on its own, so a handle scrambles the same in a
+ *   header, a "Replying to" line, the "@handle" node and any other text that mentions it (the
+ *   rest of that text is scrambled as one string). A card's "From " stays before its domain.
+ *   Post text, alt text and link titles are scrambled like any text.
  * - View ids, class names, bounds, flags and the package name are never touched.
  */
 class Scrambler(
@@ -42,6 +52,7 @@ class Scrambler(
     fun scrambleText(text: String): String {
         if (isKeptWhole(text)) return text
         telegramCell(text)?.let { return it }
+        xLine(text)?.let { return it }
         activeName.matchEntire(text)?.let { m -> return scrambleWith(m.groupValues[1]) + m.groupValues[2] }
         memberList(text)?.let { return it }
         return scrambleWith(text)
@@ -74,6 +85,32 @@ class Scrambler(
     private fun scrambleLine(line: String): String {
         val m = forwarded.matchEntire(line) ?: return scrambleWith(line)
         return m.groupValues[1] + scrambleWith(m.groupValues[2])
+    }
+
+    /** X lines with structure the parser reads: "Replying to @a and @b", "Name @handle · 2h", "From x.com". */
+    private fun xLine(text: String): String? {
+        replyingTo.matchEntire(text)?.let {
+            return handleToken.replace(text) { m -> scrambleWith(m.value) }
+        }
+        XText.header(text)?.takeIf { it.time != null }?.let { h ->
+            val name = h.name?.let { scrambleWith(it) + " " }.orEmpty()
+            return "$name${scrambleWith("@" + h.handle)} · ${h.time}"
+        }
+        fromDomain.matchEntire(text)?.let { m -> return m.groupValues[1] + scrambleWith(m.groupValues[2]) }
+        timePart.matchEntire(text)?.takeIf { XText.isPostTime(it.groupValues[1]) }?.let { return text }
+        if (handleToken.containsMatchIn(text)) {
+            // "Account @kiran_test", "Thanks @ravi_k": each handle on its own, the rest piece by piece.
+            val out = StringBuilder()
+            var at = 0
+            handleToken.findAll(text).forEachIndexed { i, m ->
+                out.append(scrambleWith(text.substring(at, m.range.first), seed = "$text\u0000$i"))
+                out.append(scrambleWith(m.value))
+                at = m.range.last + 1
+            }
+            out.append(scrambleWith(text.substring(at), seed = "$text\u0000end"))
+            return out.toString()
+        }
+        return null
     }
 
     /** WhatsApp's group subtitle "Asha, Ravi, +91 98765 43210, You": each name on its own, "You" kept. */
@@ -182,6 +219,30 @@ class Scrambler(
                 Regex("""^\d{1,2}/\d{1,2}/\d{2,4}$"""),
                 Regex("""^\d{4}-\d{2}-\d{2}$"""),
             )
+        private const val HANDLE = """@[A-Za-z0-9_]{1,15}"""
+        private val handleToken = Regex("""(?<![A-Za-z0-9_@])$HANDLE(?![A-Za-z0-9_])""")
+        private val replyingTo =
+            Regex("""^Replying to $HANDLE(?:(?:, | and )$HANDLE)*(?: and \d+ others?)?$""")
+        private val fromDomain = Regex("""^(From )([a-z0-9-]+(?:\.[a-z0-9-]+)+)$""")
+        private val timePart = Regex("""^·\s?(.+)$""")
+
+        /** The X composer hints, exactly (lower case): the parser tells a reply from a new post by them. */
+        private val xHints =
+            setOf(
+                "post your reply",
+                "tweet your reply",
+                "add a comment",
+                "add a comment…",
+                "add a comment...",
+                "what’s happening?",
+                "what's happening?",
+                "what is happening?!",
+                "start a message",
+                "start a new message",
+                "search",
+                "search x",
+            )
+
         private val activeName = Regex("""^(.+?)( (?:is|are) (?:typing|recording audio)(?:…|\.\.\.)?)$""")
 
         /** Whole strings that hold no private content and that the parsers need to read. */
@@ -189,7 +250,11 @@ class Scrambler(
             val s = ChatText.squash(text).lowercase()
             return ChatText.isTime(text) || separators.any { it.matches(s) } || ChatText.isUnreadBanner(text) ||
                 ChatText.isBubbleLabel(text) || s in deleted || s in encryptionNotices || online.matches(s) ||
-                lastSeen.matches(s) || members.matches(s) || typing.matches(s)
+                lastSeen.matches(s) || members.matches(s) || typing.matches(s) || s in xHints ||
+                XText.isPostTime(
+                    text,
+                ) || XText.isAbsoluteTime(text) || XText.isCount(text) || XText.isChromeWord(text) ||
+                XText.altText(text) == null
         }
 
         private fun randomKey(): ByteArray = ByteArray(32).also(SecureRandom()::nextBytes)
