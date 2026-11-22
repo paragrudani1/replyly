@@ -226,6 +226,45 @@ class HistoryMergeTest {
     }
 
     @Test
+    fun `a typo fix right after a run of equal messages is stored as a new message, not the whole screen`() {
+        // PR #27 review round 3, S1: the "haan" pair could move one row along the run and leave the
+        // fix an edit of the second "haan", so it is not an edit; the rest of the screen still lines up.
+        val history =
+            historyOf(
+                them("are you coming tonight", "9:00 pm"),
+                me("haan", "9:01 pm"),
+                me("haan", "9:01 pm"),
+                me("reaching by 10 pn", "9:01 pm"),
+                them("great see you then", "9:03 pm"),
+                me("bring the charger pls", "9:04 pm"),
+            )
+
+        val plan =
+            history.merge(
+                listOf(
+                    them("are you coming tonight", "9:00 pm"),
+                    me("haan", "9:01 pm"),
+                    me("haan", "9:01 pm"),
+                    me("reaching by 10 pm", "9:01 pm"),
+                    them("great see you then", "9:03 pm"),
+                    me("bring the charger pls", "9:04 pm"),
+                ),
+            )
+
+        assertThat(plan.anchored).isTrue()
+        assertThat(history.texts())
+            .containsExactly(
+                "are you coming tonight",
+                "haan",
+                "haan",
+                "reaching by 10 pn",
+                "reaching by 10 pm",
+                "great see you then",
+                "bring the charger pls",
+            ).inOrder()
+    }
+
+    @Test
     fun `a distinctive message wins the pairing over an identical short one next to it`() {
         // An earlier read missed the first "ok". The read shows "ok", "message 12"; the saved side
         // has "message 12", "ok": pair "message 12", and the "ok" goes before it.

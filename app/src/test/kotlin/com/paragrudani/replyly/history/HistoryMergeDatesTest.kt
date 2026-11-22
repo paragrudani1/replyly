@@ -153,9 +153,7 @@ class HistoryMergeDatesTest {
      */
     private fun editReRead(
         times: List<String> = listOf("9:00 am", "9:02 am", "9:03 am", "9:05 am", "9:06 am", "9:08 am"),
-        reRead: (List<ChatMessage>) -> Pair<List<ChatMessage>, LocalDate>,
-    ): List<String> {
-        val texts =
+        texts: List<String> =
             listOf(
                 "good morning everyone",
                 "are we still on for lunch",
@@ -163,12 +161,15 @@ class HistoryMergeDatesTest {
                 "great, booking a table",
                 "see you there then",
                 "leaving the office now",
-            )
+            ),
+        newText: String = "yes at the new place",
+        reRead: (List<ChatMessage>) -> Pair<List<ChatMessage>, LocalDate>,
+    ): List<String> {
         val screen =
             texts.zip(times).mapIndexed { k, (text, time) -> if (k % 2 == 0) them(text, time) else me(text, time) }
         val history = FakeHistory()
         history.merge(screen, today = nov20)
-        val edited = screen.mapIndexed { k, m -> if (k == 2) m.copy(text = "yes at the new place") else m }
+        val edited = screen.mapIndexed { k, m -> if (k == 2) m.copy(text = newText) else m }
         val (read, today) = reRead(edited)
         history.merge(read, today = today)
         return history.texts()
@@ -214,6 +215,38 @@ class HistoryMergeDatesTest {
         val times = listOf("11:50 pm", "11:51 pm", "11:52 pm", "11:54 pm", "11:55 pm", "11:56 pm")
 
         assertThat(editReRead(times) { it to nov21 }).containsExactlyElementsIn(editedTexts).inOrder()
+    }
+
+    /** PR #27 review round 3, S2: the edited message sits between two short replies. */
+    private val hinglish =
+        listOf("kal ka plan kya hai", "haan", "movie at 7 then dinner", "acha", "ok", "book kar de tickets")
+
+    private val hinglishEdited = hinglish.mapIndexed { k, t -> if (k == 2) "movie at 8 then dinner" else t }
+
+    @Test
+    fun `an edit between short replies re-read the next day without a separator is applied`() {
+        // Both neighbours are exact pairs and the new text is distinctive: the slot is the row's own.
+        assertThat(editReRead(texts = hinglish, newText = "movie at 8 then dinner") { it to nov21 })
+            .containsExactlyElementsIn(hinglishEdited)
+            .inOrder()
+    }
+
+    @Test
+    fun `an edit between short replies re-read the next day above a TODAY separator is applied`() {
+        val texts =
+            editReRead(texts = hinglish, newText = "movie at 8 then dinner") { read ->
+                read.drop(1) + them("tickets booked for 8", "8:50 am", nov21) to nov21
+            }
+
+        assertThat(texts).containsExactlyElementsIn(hinglishEdited + "tickets booked for 8").inOrder()
+    }
+
+    @Test
+    fun `a short edit between short replies re-read the next day is not applied`() {
+        // "ok" at the old message's time may be a daily habit: the saved text is never overwritten.
+        val texts = editReRead(texts = hinglish, newText = "ok") { it to nov21 }
+
+        assertThat(texts).contains("movie at 7 then dinner")
     }
 
     @Test

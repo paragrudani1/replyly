@@ -167,7 +167,9 @@ class HistoryMergePropertyTest {
      * stamped onto another day's twin: 104437 (1:1 dates), 118281 (group dates), 115704 (1:1
      * midnight), 113270 (group midnight). A daily "gm" at 9:00 am taken for an edit of another
      * day's message at 9:00 am (104828), and a sender filled into a saved run of "ok"s (103811),
-     * both group midnight. Each may stop at a documented limit, never at a broken invariant.
+     * both group midnight. A short edit ("ok" to "ok!") taken for an edit of the run's other
+     * "ok", lined up one row off (500331 and 516434, 1:1 edits; 617554, group edits). Each may stop
+     * at a documented limit, never at a broken invariant.
      */
     @Test
     fun `seeds that once overwrote a saved row stay fixed`() {
@@ -179,6 +181,9 @@ class HistoryMergePropertyTest {
             midnight to 113270L,
             midnight to 104828L,
             midnight to 103811L,
+            edits[0].first to 500331L,
+            edits[0].first to 516434L,
+            edits[1].first to 617554L,
         ).forEach { (config, seed) ->
             val result = MergeFuzz.run(config, seed..seed)
             println(result.summary())
@@ -271,7 +276,10 @@ internal object MergeFuzz {
         val dateUpgrades: Int = 0,
         /** Edits made in the true chats. */
         val edits: Int = 0,
-        /** Saved rows holding an edited message's current text when the seed ended. */
+        /**
+         * Saved rows holding an edited message's current text when the seed ended, copies in a
+         * read stored again after a gap included (so a higher count is not by itself better).
+         */
         val editsApplied: Int = 0,
         /** Rows that stand for a true message another row also stands for, when the seed ended. */
         val duplicateRows: Int = 0,

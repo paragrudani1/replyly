@@ -200,7 +200,7 @@ object MessageHash {
  *    before or after the slot could move into it (a neighbour equals the other side's message:
  *    then the read message may be new and the saved row one this read skipped), or could move one
  *    row along a run of equal messages and leave the read message an edit of the row it frees
- *    (then step 3 does not accept the slot either). The saved row keeps its place and gets the new
+ *    (the read message is then stored as new in the slot). The saved row keeps its place and gets the new
  *    content. Pairing stops at the first slot that does not
  *    qualify. *One day* ([Days]): a read message without a date is only known to be from the
  *    capture day or earlier (before the day of the first dated message below it on screen), and
@@ -211,9 +211,9 @@ object MessageHash {
  *    - Days that may differ (a read message without a date captured on a later day than the row
  *      was first seen, or one dated before that day): the shared time may be a daily habit ("gm"
  *      at 9:00 am every day), so the slot must look like an edit on its own: a [DISTINCTIVE_LENGTH]
- *      new text, and both neighbours distinctive exact pairs. With such neighbours but a short
- *      new text, step 3 accepts the slot and the read message is stored as a new message there;
- *      without them, step 3 does not accept the slot.
+ *      new text, and both neighbours exact pairs (short ones too). With distinctive exact
+ *      neighbours but a short new text, step 3 accepts the slot and the read message is stored
+ *      as a new message there; otherwise step 3 does not accept the slot.
  *    - Otherwise (the same exact date, a read dated the day the row was first seen, an undated
  *      read on that day, or a day unknown): as above.
  *    So yesterday's edit re-read today without a separator is applied, and a "gm" at the old
@@ -261,12 +261,14 @@ object MessageHash {
  *   it shares with the history are stored twice, in two segments. The same happens to an edit of
  *   the first or last visible message.
  * - An edit right after or before a message equal to the edited one as shown (the second of two
- *   "ok"s), or in an alignment of short messages only, is stored as a new message next to the old
- *   one.
- * - An edit read on a later day than the row was first seen, without a date on screen, next to a
- *   short message ("ok" right above it): nothing tells it from a daily habit, so the read is not
- *   accepted and is appended after a gap (the messages it shares with the history are stored
- *   twice, as for an edit at the edges).
+ *   "ok"s), right next to a run of two equal messages from its author in its minute ("haan",
+ *   "haan"), or in an alignment of short messages only, is stored as a new message next to the
+ *   old one.
+ * - An edit to a short text ("ok" to "okk") read on a later day than the row was first seen,
+ *   without a date on screen: nothing tells it from a daily habit. Between two distinctive exact
+ *   pairs it is stored as a new message next to the old one; next to a short neighbour the read
+ *   is not accepted and is appended after a gap (the messages it shares with the history are
+ *   stored twice, as for an edit at the edges).
  * - The read misses a message (a parser miss) in the slot where an earlier read missed another
  *   one. Nobody can tell their order; with the same author and minute the read one is taken for
  *   an edit of the saved one (it overwrites it), otherwise both are kept in a guessed order.
@@ -587,15 +589,23 @@ object HistoryMerge {
 
         /**
          * Step 5: on [Days.UNSURE] days, the slot looks like a real edit on its own: the new text
-         * is [distinctive] and both neighbours are distinctive exact pairs, so the slot sits
-         * between the right two messages. A daily "gm" at 9:00 am lined up with another day's
-         * message at 9:00 am has neither.
+         * is [distinctive] and both neighbours are exact pairs (short texts too: the alignment
+         * already has a distinctive exact anchor), so the slot sits between the right two
+         * messages. A daily "gm" at 9:00 am lined up with another day's message at 9:00 am has
+         * no distinctive new text.
          */
         private fun editOnItsOwn(
             i: Int,
             j: Int,
             pairs: Set<Pair<Int, Int>>,
-        ): Boolean = distinctive(read[i]) && slotBetweenSurePairs(i, j, pairs)
+        ): Boolean = distinctive(read[i]) && slotBetweenExactPairs(i, j, pairs)
+
+        /** The pairs right above and below slot ([i], [j]) are exact pairs. */
+        private fun slotBetweenExactPairs(
+            i: Int,
+            j: Int,
+            pairs: Set<Pair<Int, Int>>,
+        ): Boolean = listOf(i - 1 to j - 1, i + 1 to j + 1).all { (a, b) -> (a to b) in pairs && exact(a, b) }
 
         /** The pairs right above and below slot ([i], [j]) are exact pairs with a [distinctive] text. */
         private fun slotBetweenSurePairs(
@@ -716,7 +726,7 @@ object HistoryMerge {
                 editOfNeighbour(i, j)
 
         /**
-         * Steps 3 and 5: the pair before the slot could move one row up inside a run of equal
+         * Step 5: the pair before the slot could move one row up inside a run of equal
          * messages ("ok", "ok"), and the read message is then an edit of the row it frees (or the
          * same below the slot). The read missed a bubble, and the slot's saved row is that one:
          * taking the read message for an edit of it would overwrite another message ("ok" edited
@@ -822,13 +832,14 @@ object HistoryMerge {
                 val (i2, j2) = b
                 val (i, j) = i1 + 1 to j1 + 1
                 val editSlot =
-                    i2 - i1 == j2 - j1 && strongAnchor(pairs) && edit(i, j) && !editOfNeighbour(i, j) &&
+                    i2 - i1 == j2 - j1 && strongAnchor(pairs) && edit(i, j) &&
                         when (days(i, j)) {
                             Days.SAME -> true
 
-                            // Edit or not, the slot sits between two sure pairs: an edit the
-                            // days cannot confirm is stored as a new message there.
-                            Days.UNSURE -> slotBetweenSurePairs(i, j, pairSet)
+                            // Edit or not, the slot sits between two sure pairs, or looks like
+                            // an edit on its own: an edit the days cannot confirm is stored as a
+                            // new message there.
+                            Days.UNSURE -> slotBetweenSurePairs(i, j, pairSet) || editOnItsOwn(i, j, pairSet)
 
                             Days.DIFFERENT -> false
                         }
