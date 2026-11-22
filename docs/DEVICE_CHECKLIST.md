@@ -1121,3 +1121,83 @@ Two more variants, each on its own night:
   ("YESTERDAY" meaning the day before yesterday) is one day off, and nothing on screen shows it.
 **Send:** for each variant, the dump, the exact time you took it, and what the separators said on
 screen. These decide whether the merge needs a rule for stale screens without "TODAY".
+
+## 14. Prompt v2 (issue #26, PR 2)
+
+The prompt now has a "Now" header, day groups, names instead of "them", a reply target and an
+`analysis` field; parallel mode is gone. **Parallel mode is removed:** skip the parallel-calls
+parts of 8.10, 9.1, 9.4, 9.12 and 12.6. To read a prompt: Settings → Privacy → Feedback log →
+"Show details" on the newest entry (it shows the analysis, then the full prompt). Blur names and
+chat text in anything you send. Keep `adb logcat -v time | grep -i -E "analysis|Now:|conversation"`
+open during the whole section.
+
+14.1 **Do:** install over the previous build (parallel calls switched on there, if you can), open
+Settings. **See:** no "3 parallel calls" switch; under "Your style" a new field "Names people call
+me". Tap the button in a WhatsApp chat: 3 cards, and Usage "Requests today" goes up by exactly 1.
+**Send:** screenshot of "Your style"; the request count before and after.
+
+14.2 **Do:** phone Settings → General management → Date and time → "Use 24-hour format" **off**.
+In a chat where the last message is from the other person, tap the button, then open "Show
+details" on the newest feedback entry. **See:** the prompt starts with
+`Now: <weekday>, <d Mon yyyy>, <h:mm am/pm> (<time of day>), Asia/Kolkata`, e.g.
+`Now: Sunday, 22 Nov 2026, 7:05 pm (evening), Asia/Kolkata`, matching the phone's clock. **Send:**
+the Now line.
+
+14.3 **Do:** turn "Use 24-hour format" **on**, go back to the chat (no restart), tap the button and
+check the newest entry again. **See:** the same header with `19:05`-style time and no am/pm.
+**Send:** the Now line.
+
+14.4 **Do:** after 17:00, in a 1:1 chat where the other person just sent "Good evening" (ask a
+friend, or use a chat where that is the last message), tap the button. **See:** no card says "good
+morning"; cards that greet use an evening greeting or none. In "Show details" the conversation
+lines use the contact's name (e.g. `[7:02 pm] Riya: Good evening`), never "them", and a day header
+like `— Today · Sun 22 Nov (approx) —` above them. **Send:** the 3 cards and the analysis text.
+
+14.5 **Do:** in a Hinglish chat, have the other person send "kal 5 baje milte hai?" as the last
+message. Tap the button. **See:** one card says yes and one says no; the cards mention 5 baje or
+kal, not generic filler. In "Show details", the analysis names the resolved date (tomorrow's date,
+e.g. "Mon 23 Nov"). **Send:** the 3 cards and the analysis.
+
+14.6 **Do:** in a chat, send a short message yourself that is not a question (e.g. "ok done"), then
+right away tap the button. **See:** the panel shows "Nothing to reply to", "Your message is the last
+one in this chat." and a "Suggest follow-ups anyway" button; Usage "Requests today" did **not**
+change; no new feedback entry. Tap Regenerate once: still "Nothing to reply to", still no new
+request. **Send:** screenshot of the panel; the request count before and after.
+
+14.7 **Do:** on the panel from 14.6, tap "Suggest follow-ups anyway". **See:** loading, then 3
+follow-up cards; "Requests today" went up by exactly 1; the newest feedback entry's prompt has a
+line `Follow-up: my message is the last one, and I asked for follow-ups anyway.` Tap Regenerate:
+3 new follow-ups, +1 request. **Send:** the cards and the request counts.
+
+14.8 **Do:** in a chat, send a question yourself (e.g. "kab aa rahe ho?") and tap the button right
+away. **See:** 3 follow-up cards straight away, no "Nothing to reply to"; the prompt says `my last
+message asked a question that has no answer yet`. Then find a chat whose last message is yours and
+over 2 hours old; tap the button. **See:** follow-ups straight away, prompt line `has had no answer
+for over 2 hours`. **Send:** pass/fail for each.
+
+14.9 **Do:** Settings → "Names people call me" → your name as people write it (e.g. `Parag, Paru`)
+→ Save. In a group where you were mentioned (`@Parag …`) after your last message, with other
+messages around it, tap the button. **See:** in "Show details" the `Reply to` block lists the
+mention first, marked `(mentions me)`, then the others oldest first; the cards answer the mention.
+Clear the field and repeat: the mention is no longer first. **Send:** the Reply to block (blur
+names) and the cards.
+
+14.10 **Do:** with suggestions from a few chats, insert some, edit one before sending, leave one
+panel without inserting. Open Settings → Feedback log. **See:** a "Suggestion quality" card at the
+top with a "Prompt v2" row: "Inserted in X of Y panels (Z%) · edited N% on average (M sent)";
+older entries (from before this update) are counted under "Prompt v1". Regenerating inside one
+panel does not add panels. Each entry's subtitle ends in "prompt v2" (old ones "prompt v1").
+**Send:** screenshot of the card and your own count of panels and inserts to compare.
+
+14.11 **Do:** on a v2 entry tap "Show details"; on an old v1 entry too. **See:** v2: "Analysis
+(from the model, never shown in the panel)" with a short English text (at most about 60 words),
+then "Prompt". v1: no analysis, only the prompt. The analysis never appears in the reply panel.
+**Send:** one analysis text (blur names), pass/fail.
+
+14.12 **Do:** select the Anthropic profile (base URL `https://api.anthropic.com/v1`) and tap the
+button 3 times within a minute in different chats. If you can see the Anthropic Console usage
+page, look at the requests. **See:** 3 cards each time; the Console shows cache reads (cached
+input tokens) on the 2nd and 3rd requests. **Send:** latency per tap and whether cache reads show.
+
+14.13 **Do:** during the whole section, watch the logcat grep from the intro. **See:** no line with
+chat text, the analysis text or the prompt. **Send:** any line it prints (blur it).
