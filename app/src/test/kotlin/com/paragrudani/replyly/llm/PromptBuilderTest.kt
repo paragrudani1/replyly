@@ -158,6 +158,38 @@ class PromptBuilderTest {
     }
 
     @Test
+    fun `an approx message first seen after midnight is shown under the day its bubble time puts it`() {
+        // PR #28 review round 2, R2: "kal milte" sent 11:50 pm Saturday, first seen 00:10 Sunday with
+        // no separator on screen. Its approx date is Sunday, but it cannot be from later than 23:50
+        // Saturday, so "kal" must resolve from Saturday.
+        val afterMidnight = ZonedDateTime.of(2026, 11, 22, 0, 30, 0, 0, kolkata)
+        val seen = ZonedDateTime.of(2026, 11, 22, 0, 10, 0, 0, kolkata).toInstant()
+
+        fun ravi(
+            text: String,
+            time: String,
+        ) = PromptMessage(
+            ChatMessage("Ravi", text, time, isMe = false),
+            date = today,
+            dateIsApprox = true,
+            firstSeenAt = seen,
+        )
+
+        val text =
+            user(
+                request(
+                    history = listOf(ravi("kal milte", "11:50 pm"), ravi("bol na", "12:05 am")),
+                    now = afterMidnight,
+                ),
+            )
+
+        assertThat(text).contains(
+            "— Yesterday · Sat 21 Nov (approx) —\n[11:50 pm] Ravi: kal milte\n" +
+                "— Today · Sun 22 Nov (approx) —\n[12:05 am] Ravi: bol na",
+        )
+    }
+
+    @Test
     fun `no known dates means no day headers`() {
         val text = user(request(history = listOf(them("hi"), me("hey"), them("kya scene?"))))
         assertThat(
@@ -474,8 +506,12 @@ class PromptBuilderTest {
         assertThat(system).contains("emoji")
         assertThat(system).contains("For a yes/no question or decision, one card is agree and one is decline")
         assertThat(system).contains("My instruction overrides the intent rules")
-        assertThat(system).contains("With several messages to answer, answer the first one")
-        assertThat(system).contains("if unclear, assume future for plans")
+        assertThat(system).contains("oldest first; in a group, the ones that mention me or reply to me come first")
+        assertThat(system).contains("With several messages to answer, cover them all if one short message can")
+        assertThat(
+            system,
+        ).contains("If that day is (approx) or not shown, keep weekdays and dates out of the suggestions")
+        assertThat(system).contains("If unclear, assume future for plans")
         assertThat(system).contains("whom I answer (or why I follow up)")
         assertThat(system).contains("concrete detail")
         assertThat(system).contains("Never invent")

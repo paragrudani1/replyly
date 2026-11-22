@@ -102,7 +102,7 @@ sealed interface ReplyTarget {
         }
 
         /**
-         * When the message was sent, or null when unknown. Never later than the real send time, so a
+         * When the message was sent, or null when unknown. Never earlier than the real send time, so a
          * message is never called stale too early:
          * - exact date and a bubble time: that local date and time (the later instant if the clock
          *   was turned back and the time happened twice);
