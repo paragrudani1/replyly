@@ -60,6 +60,22 @@ class ChatDatesTest {
     }
 
     @Test
+    fun `a separator is never after the capture day, the other numeric order is tried first`() {
+        // Day first is 5 December, after today: month first, 12 May, is the reading.
+        assertResolves(date(2026, 5, 12), "05/12/2026", "05.12.26")
+        // Still a separator, though no reading fits today: it ends the date above it.
+        listOf("25/12/2026", "12/13/2026", "1 December 2026", "December 1, 2026", "2026-11-23", "23.11.26")
+            .forEach {
+                assertWithMessage(it).that(ChatDates.resolve(it, today)).isNull()
+                assertWithMessage(it).that(ChatText.isDateSeparator(it)).isTrue()
+            }
+        // The same texts read on a later day are dates again.
+        assertThat(ChatDates.resolve("25/12/2026", date(2027, 1, 2))).isEqualTo(date(2026, 12, 25))
+        assertThat(ChatDates.resolve("05/12/2026", date(2027, 1, 2))).isEqualTo(date(2026, 12, 5))
+        assertThat(ChatDates.fromStatusLine("Sent 23.11.26 at 18:02, Read", today)).isNull()
+    }
+
+    @Test
     fun `a date without a year is its most recent past occurrence`() {
         assertResolves(date(2026, 11, 21), "21 November", "November 21", "Nov 21", "Saturday, 21 November")
         assertResolves(date(2025, 12, 25), "25 December", "Dec 25")

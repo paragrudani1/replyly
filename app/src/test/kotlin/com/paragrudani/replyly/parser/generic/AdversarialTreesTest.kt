@@ -72,7 +72,7 @@ class AdversarialTreesTest {
             )
         return ScreenSnapshot(
             packageName = pkg,
-            capturedAt = Instant.parse("2026-11-21T10:15:30Z"),
+            capturedAt = Instant.parse("2026-11-21T21:15:30Z"),
             screenWidth = 1080,
             screenHeight = 2340,
             // Header after the list in tree order, like a toolbar drawn over a list that starts at y = 0.

@@ -19,7 +19,10 @@ import java.util.Locale
  * - Day and month names in either order, an optional weekday in front, an optional year. Without
  *   a year: the most recent past occurrence.
  * - Numbers: `d/m/y`, `d.m.y`, `d-m-y` (2- or 4-digit year) and `y-m-d`. Day first, as in Indian
- *   English; month first only when the day-first reading is not a date ("11/21/2026").
+ *   English; month first only when the day-first reading is not a date ("11/21/2026") or is after
+ *   `today` ("12/05/2026" read on 22 November 2026 is 5 December by day first, so 12 May).
+ * - Never a date after `today`: a separator cannot be later than the day it is read. A reading
+ *   after it, in either numeric order, gives `null`.
  * Month and day names are English and Hindi, from `java.time` plus common spellings. Any Unicode
  * digits count ("२१ नवंबर २०२६"). Every format is unverified on the phone: DEVICE_CHECKLIST.md 13.
  */
@@ -47,11 +50,18 @@ object ChatDates {
         val year: Int?,
     ) : Phrase {
         override fun resolve(today: LocalDate): LocalDate? {
-            if (year != null) return dateOrNull(year, month, day)
+            if (year != null) return dateOrNull(year, month, day)?.takeUnless { it.isAfter(today) }
             // Eight years back always reaches a leap year for 29 February.
             return (today.year downTo today.year - 8)
                 .firstNotNullOfOrNull { y -> dateOrNull(y, month, day)?.takeIf { !it.isAfter(today) } }
         }
+    }
+
+    /** `d/m/y` or else `m/d/y`: the first reading that is a date and not after `today`. */
+    private data class Numeric(
+        val readings: List<DayOfMonth>,
+    ) : Phrase {
+        override fun resolve(today: LocalDate): LocalDate? = readings.firstNotNullOfOrNull { it.resolve(today) }
     }
 
     private val locales = listOf(Locale.ENGLISH, Locale.forLanguageTag("en-IN"), Locale.forLanguageTag("hi-IN"))
@@ -121,7 +131,7 @@ object ChatDates {
         val month = months.getValue(monthToken)
         // The day must exist in some year (31 February never does).
         if (dateOrNull(2024, month, day) == null) return null
-        return DayOfMonth(month, day, year).takeIf { year == null || it.resolve(LocalDate.MIN) != null }
+        return DayOfMonth(month, day, year).takeIf { year == null || it.resolve(LocalDate.MAX) != null }
     }
 
     /** [text] as a separator resolved against [today], or `null` if it is not a date. */
@@ -145,13 +155,14 @@ object ChatDates {
             return c
                 .takeIf { it.length <= 2 }
                 ?.let { DayOfMonth(b.toInt(), it.toInt(), a.toInt()) }
-                ?.takeIf { it.resolve(LocalDate.MIN) != null }
+                ?.takeIf { it.resolve(LocalDate.MAX) != null }
         }
         if (c.length != 2 && c.length != 4) return null
         val year = c.toInt().let { if (c.length == 2) 2000 + it else it }
         val dayFirst = DayOfMonth(b.toInt(), a.toInt(), year)
         val monthFirst = DayOfMonth(a.toInt(), b.toInt(), year)
-        return listOf(dayFirst, monthFirst).firstOrNull { it.resolve(LocalDate.MIN) != null }
+        val readings = listOf(dayFirst, monthFirst).filter { it.resolve(LocalDate.MAX) != null }.distinct()
+        return if (readings.isEmpty()) null else Numeric(readings)
     }
 
     /** Single spaces, lower case, composed Unicode, ASCII digits. */

@@ -20,6 +20,7 @@ import com.paragrudani.replyly.parser.generic.union
 import com.paragrudani.replyly.screen.Bounds
 import com.paragrudani.replyly.screen.ScreenSnapshot
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 
 /**
@@ -34,7 +35,9 @@ import java.time.ZoneId
  * Dates: each date divider (`conversation_row_date_divider`, or a centred date text without an id)
  * gives its date to every message below it until the next one ([ChatDates]; relative names resolve
  * against the snapshot's capture day in [zone]). A divider that cannot be read ends the date above
- * it. An incoming bubble whose reply quote names "You" as its author replies to me.
+ * it. [ChatAssembler.checkDates] then drops every date of a screen whose dates do not add up (out
+ * of order, or a stale "TODAY" after midnight). An incoming bubble whose reply quote names "You"
+ * as its author replies to me.
  */
 class WhatsAppParser(
     private val zone: ZoneId = ZoneId.systemDefault(),
@@ -53,7 +56,13 @@ class WhatsAppParser(
             val subtitle = if (idTitle != null) idSubtitle else layout.subtitle
             val area = layout.list?.bounds ?: tree.screen
             val separators = separators(tree, area, messageNodes, today(snapshot))
-            val bubbles = readByIds(messageNodes, area, layout.list, separators)
+            val checked =
+                ChatAssembler.checkDates(
+                    readByIds(messageNodes, area, layout.list, separators),
+                    separators.map { it.second },
+                    now(snapshot),
+                )
+            val bubbles = checked.bubbles
             val isGroup = bubbles.any { it.label != null } || ChatText.groupHint(subtitle) == GroupHint.GROUP
             val chat = chat(snapshot, title, isGroup, bubbles)
             val notes =
@@ -61,7 +70,7 @@ class WhatsAppParser(
                     "title from ${if (idTitle != null) "view id" else "geometry"}",
                     "${messageNodes.size} message ids, ${bubbles.count { it.text == null }} placeholders dropped",
                     "list ${if (layout.list != null) "found" else "not found"}",
-                    ChatAssembler.dateNote(separators.map { it.second }, chat.messages),
+                    ChatAssembler.dateNote(separators.map { it.second }, chat.messages, checked.dropped),
                 )
             return ParseReport(chat, METHOD_VIEW_IDS, notes)
         }
@@ -75,19 +84,22 @@ class WhatsAppParser(
         val title = layout.title ?: return ParseReport(null, METHOD_GEOMETRY, listOf("no chat title"))
         val hint = ChatText.groupHint(layout.subtitle)
         val result = GeometryReader(GeometryReader.Mode.FULL).read(tree, layout, hint, today(snapshot))
+        val checked = ChatAssembler.checkDates(result.bubbles, result.separators, now(snapshot))
         val isGroup = hint == GroupHint.GROUP || result.labelsFound
-        val chat = chat(snapshot, title, isGroup, result.bubbles)
+        val chat = chat(snapshot, title, isGroup, checked.bubbles)
         val notes =
             listOf(
                 "no message ids: geometry fallback",
                 "list ${if (layout.list != null) "found" else "not found"}",
                 "${result.units} rows, ${result.bubbles.size} bubbles, ${result.skipped} skipped",
-                ChatAssembler.dateNote(result.separators, chat.messages),
+                ChatAssembler.dateNote(result.separators, chat.messages, checked.dropped),
             )
         return ParseReport(chat, METHOD_GEOMETRY, notes)
     }
 
-    private fun today(snapshot: ScreenSnapshot): LocalDate = snapshot.capturedAt.atZone(zone).toLocalDate()
+    private fun today(snapshot: ScreenSnapshot): LocalDate = now(snapshot).toLocalDate()
+
+    private fun now(snapshot: ScreenSnapshot): LocalDateTime = snapshot.capturedAt.atZone(zone).toLocalDateTime()
 
     /**
      * Date dividers in the list, as (top, date): every node with the divider id (a `null` date when

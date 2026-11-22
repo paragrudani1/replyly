@@ -12,7 +12,9 @@ import os
 import sys
 
 W, H = 1080, 2340
-CAPTURED = "2026-11-21T10:15:30Z"
+# 23:45:30 on Saturday 21 November 2026 in India: after every "today" message on the screens
+# (a capture never comes before a message it shows; ChatAssembler.checkDates relies on that).
+CAPTURED = "2026-11-21T18:15:30Z"
 NNBSP = " "  # Android 14+ puts a narrow no-break space before am/pm.
 NBSP = " "
 
@@ -362,6 +364,22 @@ WA_MIDNIGHT = [
     {"kind": "out", "text": "Thank you 😄", "time": "12:03 am", "status": "Read"},
 ]
 
+# A chat kept open across midnight (S1 of the PR #27 review), captured at 00:05 on Sunday 22
+# November 2026 in India, like WA_MIDNIGHT. WhatsApp does not redraw rows at midnight, so the divider
+# drawn on the 21st still says "TODAY" above that evening's messages: a stale "Today".
+WA_STALE_TODAY = [
+    {"kind": "divider", "text": "TODAY"},
+    {"kind": "in", "text": "Leaving the party now", "time": "11:48 pm"},
+    {"kind": "out", "text": "Message when you reach", "time": "11:50 pm", "status": "Read"},
+]
+
+# The same chat after a message arrived past midnight: WhatsApp adds a new "TODAY" divider below the
+# stale one, so the screen shows two "TODAY"s (separators out of order).
+WA_TWO_TODAYS = WA_STALE_TODAY + [
+    {"kind": "divider", "text": "TODAY"},
+    {"kind": "in", "text": "Reached home 🏠", "time": "12:02 am"},
+]
+
 # Hinglish, with day-first numeric separators (WhatsApp Business, Indian English).
 WA_NUMERIC = [
     {"kind": "divider", "text": "12/11/2026"},
@@ -647,6 +665,10 @@ def main(out_dir):
     write(out_dir, "whatsapp/synthetic-no_separator.json", wa.chat("Dad", "online", WA_NO_SEPARATOR, 1400))
     write(out_dir, "whatsapp/synthetic-midnight.json",
           wa.chat("Meera", "online", WA_MIDNIGHT, 900, captured=WA_MIDNIGHT_CAPTURED))
+    write(out_dir, "whatsapp/synthetic-stale_today.json",
+          wa.chat("Meera", "online", WA_STALE_TODAY, 1400, captured=WA_MIDNIGHT_CAPTURED))
+    write(out_dir, "whatsapp/synthetic-two_todays.json",
+          wa.chat("Meera", "online", WA_TWO_TODAYS, 1200, captured=WA_MIDNIGHT_CAPTURED))
     write(out_dir, "whatsapp/synthetic-dates-hindi.json", wa.chat("Rohan Bhai", "ऑनलाइन", WA_HINDI, 900))
     write(out_dir, "whatsapp_business/synthetic-dates-numeric.json",
           w4b.chat("Sharma Electronics", "Business account", WA_NUMERIC, 900))

@@ -102,6 +102,28 @@ class MessageDatesFixtureTest {
     }
 
     @Test
+    fun `whatsapp - a stale TODAY after midnight drops the screen's dates`() {
+        // Captured at 00:05 on 22 November in India; the divider drawn on the 21st still says TODAY.
+        val report = report("whatsapp/synthetic-stale_today.json")
+
+        assertThat(report.dates())
+            .containsExactly("Leaving the party now" to null, "Message when you reach" to null)
+            .inOrder()
+        assertThat(report.notes).contains(
+            "date separators: 1 (2026-11-22), 0 of 2 messages dated, 0 replies to me, dates dropped: stale today",
+        )
+    }
+
+    @Test
+    fun `whatsapp - two TODAY dividers on one screen drop the screen's dates`() {
+        // The stale TODAY above, and the new one WhatsApp added for a message after midnight.
+        val report = report("whatsapp/synthetic-two_todays.json")
+
+        assertThat(report.dates().map { it.second }).containsExactly(null, null, null)
+        assertThat(report.notes.last()).endsWith("dates dropped: separators out of order")
+    }
+
+    @Test
     fun `whatsapp - a hinglish chat with hindi separators`() {
         // Captured on Saturday 21 November 2026 in India.
         assertThat(report("whatsapp/synthetic-dates-hindi.json").dates())
