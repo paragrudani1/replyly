@@ -8,6 +8,9 @@ Personal Android app (sideloaded, Samsung S23): a floating button above the keyb
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Build: `scripts/check.sh` (what CI runs). Debug APK of `main`: the `latest-debug` release.
 
+This is a personal project, built for one person and one phone. The code is public to read, but
+there is no license: all rights reserved. Issues and pull requests from others are not expected.
+
 ## Using other providers
 
 Replyly talks to any service that speaks the **OpenAI Chat Completions** API or the **Anthropic

@@ -14,6 +14,11 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # SHA-256 of the Replyly signing certificate (public value; the key itself is a repo secret).
+  # Every APK published from main must carry it, or it would not install over Parag's app.
+  REPLYLY_CERT_SHA256: 2a5421c6e33e74b81564f46164c12b4e3da53062d550ead603fb171eaa2737d6
+
 jobs:
   check:
     name: Replyly checks (ktlint, lint, unit tests, debug APK)
@@ -36,8 +41,38 @@ jobs:
         with:
           cache-read-only: ${{ github.ref != 'refs/heads/main' }}
 
+      - name: Load the signing key (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          KEYSTORE_B64: ${{ secrets.REPLYLY_SIGNING_KEYSTORE_B64 }}
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::error::Secret REPLYLY_SIGNING_KEYSTORE_B64 is missing; refusing to build an APK that cannot update Parag's app."
+            exit 1
+          fi
+          f="$RUNNER_TEMP/replyly-signing.p12"
+          printf '%s' "$KEYSTORE_B64" | base64 -d > "$f"
+          echo "REPLYLY_SIGNING_STORE_FILE=$f" >> "$GITHUB_ENV"
+
       - name: Run all gates
+        env:
+          # Only used when the step above set REPLYLY_SIGNING_STORE_FILE (main); PR builds use the
+          # runner's throwaway debug key.
+          REPLYLY_SIGNING_PASSWORD: ${{ secrets.REPLYLY_SIGNING_PASSWORD }}
         run: scripts/check.sh
+
+      - name: Check the APK signing certificate (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          actual=$("$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --print-certs app/build/outputs/apk/debug/app-debug.apk \
+            | sed -n 's/^.*certificate SHA-256 digest: //p' | sort -u)
+          if [ "$actual" != "$REPLYLY_CERT_SHA256" ]; then
+            echo "::error::APK certificate $actual does not match REPLYLY_CERT_SHA256."
+            exit 1
+          fi
+          echo "Signed with the Replyly key ($actual)."
 
       - name: Upload screenshot diffs
         if: failure()

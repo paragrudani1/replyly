@@ -28,20 +28,28 @@ android {
         versionName = "0.1.$ciRunNumber"
     }
 
+    // Signing key for the APKs Parag installs. It is NOT in the repo (the repo is public): CI on main
+    // and VM builds pass it in through REPLYLY_SIGNING_* environment variables. Without them (PRs,
+    // forks, local tests) the debug build falls back to the SDK's per-machine debug key, and that
+    // APK cannot install over Parag's app. The CI release job checks the certificate fingerprint.
+    val signingStore = providers.environmentVariable("REPLYLY_SIGNING_STORE_FILE").orNull
     signingConfigs {
-        // Committed on purpose: a stable debug signature lets new CI APKs install over old ones
-        // (keeping the encrypted history). Never use it for anything but debug builds.
-        getByName("debug") {
-            storeFile = file("debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+        if (signingStore != null) {
+            create("replyly") {
+                storeFile = file(signingStore)
+                storeType = "pkcs12"
+                storePassword = providers.environmentVariable("REPLYLY_SIGNING_PASSWORD").get()
+                keyAlias = providers.environmentVariable("REPLYLY_SIGNING_KEY_ALIAS").getOrElse("replyly")
+                keyPassword = providers.environmentVariable("REPLYLY_SIGNING_PASSWORD").get()
+            }
         }
     }
 
     buildTypes {
         debug {
-            signingConfig = signingConfigs.getByName("debug")
+            if (signingStore != null) {
+                signingConfig = signingConfigs.getByName("replyly")
+            }
         }
         release {
             isMinifyEnabled = false
