@@ -1056,10 +1056,15 @@ recent past one). **Send:** both dumps, and the exact text of the full-date sepa
 shows a floating date pill there while scrolling. Dump while it is visible (start the dump, then
 keep scrolling a little until the countdown ends). **See:** no message line has the pill's text
 as its text. The Notes line counts the pill only if it uses the separator's view id
-(`conversation_row_date_divider`) or has no id; either way its date must be the top messages'
-date. **Send:** the dump; say whether the pill was on screen when the toast came. In the dump
-(scramble off), search for the pill's text and send the `viewId` of the node that holds it
-(or "none"), so the parser can ignore the pill by its id.
+(`conversation_row_date_divider`) or has no id. Then it lists the pill's date next to the inline
+divider's, the same date twice with no message between them, for example
+`date separators: 3 (2026-11-20, 2026-11-20, 2026-11-21), 6 of 6 messages dated`: the two count as
+one, and the messages keep their dates. If the Notes line ends with
+`dates dropped: separators out of order` and says `0 of N messages dated`, the pill showed a date
+that does not match the divider or sat below a message: send that dump. **Send:** the dump; say
+whether the pill was on screen when the toast came. In the dump (scramble off), search for the
+pill's text and send the `viewId` of the node that holds it (or "none"). Once that id is known,
+the parser ignores the pill by its id.
 
 13.4 **Do:** repeat 13.1 in WhatsApp Business. **See:** the same as 13.1, `Parser:
 whatsapp:view-ids`. **Send:** the dump.
@@ -1097,3 +1102,15 @@ evening's messages still says "TODAY", and whether a second "TODAY" appeared abo
 message. The Notes line should end with `dates dropped: stale today` (one "TODAY") or
 `dates dropped: separators out of order` (two), and say `0 of N messages dated`. **Send:** the
 dump, the exact time you took it, and what the separators said on screen.
+Two more variants, each on its own night:
+- **Locked overnight.** At about 23:55 open the chat, lock the phone with the chat on screen, and
+  leave it until the morning. Unlock and take a dump at once, without scrolling. **See:** whether
+  the separator above yesterday's messages now says "YESTERDAY" (WhatsApp redrew the rows on
+  resume) or still "TODAY". With a stale "TODAY" and every message on screen earlier in the day
+  than the capture time, the Notes line shows no `dates dropped`: the check cannot see it.
+- **Scrolled up.** At about 23:55 scroll up in the chat until no "TODAY" separator is on screen
+  (only older days, or no separator), keep it on screen past midnight, and dump at about 00:05
+  without scrolling. **See:** what the separators on screen say: a separator drawn before midnight
+  ("YESTERDAY" meaning the day before yesterday) is one day off, and nothing on screen shows it.
+**Send:** for each variant, the dump, the exact time you took it, and what the separators said on
+screen. These decide whether the merge needs a rule for stale screens without "TODAY".
