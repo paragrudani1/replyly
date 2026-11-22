@@ -1,7 +1,9 @@
 package com.paragrudani.replyly.llm
 
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.ZonedDateTime
 
 /** Why the model is asked for follow-ups to my own last message. */
@@ -45,16 +47,17 @@ sealed interface ReplyTarget {
             decide(request.history, request.now, request.isGroup, request.myNames, request.followUpAnyway)
 
         /**
-         * - Messages with blank text (media without a caption) are ignored.
-         * - Others wrote after my last message (or I never wrote): [Reply] with exactly those
-         *   messages. No messages at all: [NothingToReply].
+         * - A message with blank text (media without a caption) is a turn marker: it can be my last
+         *   message, and a photo they send after my message answers it. It is never a target.
+         * - Others wrote text after my last message (or I never wrote): [Reply] with exactly those
+         *   messages. No such messages and no message of mine: [NothingToReply].
+         * - Only their media after my last message: they answered, so [NothingToReply].
          * - My message is last: [FollowUp] when it is older than [FOLLOW_UP_AFTER] or is a question
-         *   ([isQuestion]); otherwise [NothingToReply], or [FollowUpReason.Asked] with
-         *   [followUpAnyway] (the "anyway" tap, which only ever turns NothingToReply into a call).
+         *   ([isQuestion]); otherwise [NothingToReply].
+         * - [followUpAnyway] (the "anyway" tap) only ever turns [NothingToReply] into
+         *   [FollowUpReason.Asked].
          *
-         * Age: the message's [PromptMessage.date] plus its bubble time when both are known and the
-         * date is exact; otherwise [PromptMessage.firstSeenAt]. With neither, the age is unknown and
-         * the message counts as recent.
+         * Age: see [sentAt]. With no known time the message counts as recent.
          */
         fun decide(
             messages: List<PromptMessage>,
@@ -63,18 +66,18 @@ sealed interface ReplyTarget {
             myNames: List<String> = emptyList(),
             followUpAnyway: Boolean = false,
         ): ReplyTarget {
-            val visible = messages.filter { it.message.text.isNotBlank() }
-            val lastMine = visible.indexOfLast { it.message.isMe }
-            val after = visible.drop(lastMine + 1)
-            if (after.isNotEmpty()) return Reply(rank(after, isGroup, myNames))
-            if (lastMine < 0) return if (followUpAnyway) FollowUp(FollowUpReason.Asked) else NothingToReply
-            val mine = visible[lastMine]
-            return when {
-                isOlderThan(mine, now, FOLLOW_UP_AFTER) -> FollowUp(FollowUpReason.Stale)
-                isQuestion(mine.message.text) -> FollowUp(FollowUpReason.UnansweredQuestion)
-                followUpAnyway -> FollowUp(FollowUpReason.Asked)
-                else -> NothingToReply
-            }
+            val lastMine = messages.indexOfLast { it.message.isMe }
+            val after = messages.drop(lastMine + 1)
+            val targets = after.filter { it.message.text.isNotBlank() }
+            if (targets.isNotEmpty()) return Reply(rank(targets, isGroup, myNames))
+            val decided =
+                when {
+                    lastMine < 0 || after.isNotEmpty() -> NothingToReply
+                    isOlderThan(messages[lastMine], now, FOLLOW_UP_AFTER) -> FollowUp(FollowUpReason.Stale)
+                    isQuestion(messages[lastMine].message.text) -> FollowUp(FollowUpReason.UnansweredQuestion)
+                    else -> NothingToReply
+                }
+            return if (decided == NothingToReply && followUpAnyway) FollowUp(FollowUpReason.Asked) else decided
         }
 
         /** Groups: mentions of me and replies to me first. Both parts keep their order. */
@@ -94,18 +97,44 @@ sealed interface ReplyTarget {
             now: ZonedDateTime,
             limit: Duration,
         ): Boolean {
-            val sent = sentAt(message, now) ?: return false
+            val sent = sentAt(message, now.zone) ?: return false
             return Duration.between(sent, now.toInstant()) > limit
         }
 
-        private fun sentAt(
+        /**
+         * When the message was sent, or null when unknown. Never later than the real send time, so a
+         * message is never called stale too early:
+         * - exact date and a bubble time: that local date and time (the later instant if the clock
+         *   was turned back and the time happened twice);
+         * - otherwise, with [PromptMessage.firstSeenAt] F and a bubble time t: the latest instant
+         *   at or before F whose local time is t. The real send time S is at or before F and has
+         *   local time t, so this is at or after S;
+         * - otherwise F itself.
+         */
+        fun sentAt(
             message: PromptMessage,
-            now: ZonedDateTime,
-        ) = message.date
-            ?.takeIf { !message.dateIsApprox }
-            ?.let { date -> parseBubbleTime(message.message.timeShown)?.let { date.atTime(it).atZone(now.zone) } }
-            ?.toInstant()
-            ?: message.firstSeenAt
+            zone: ZoneId,
+        ): Instant? {
+            val time = parseBubbleTime(message.message.timeShown)
+            val date = message.date
+            if (date != null && !message.dateIsApprox && time != null) {
+                return date
+                    .atTime(time)
+                    .atZone(zone)
+                    .withLaterOffsetAtOverlap()
+                    .toInstant()
+            }
+            val seen = message.firstSeenAt ?: return null
+            if (time == null) return seen
+            val day = seen.atZone(zone).toLocalDate()
+            return listOf(day, day.minusDays(1))
+                .flatMap { d ->
+                    val local = d.atTime(time).atZone(zone)
+                    listOf(local.withEarlierOffsetAtOverlap(), local.withLaterOffsetAtOverlap())
+                }.map { it.toInstant() }
+                .filter { it <= seen }
+                .maxOrNull() ?: seen
+        }
 
         private val TIME_12H =
             Regex("""(\d{1,2})[:.](\d{2})\s*([ap])\.?\s*m\.?""", RegexOption.IGNORE_CASE)
@@ -129,7 +158,7 @@ sealed interface ReplyTarget {
 
         /**
          * English, Hinglish and Gujlish question words (Latin letters), plus the common ones in
-         * Devanagari and Gujarati script. Only a message's first word is checked. Some English
+         * Devanagari and Gujarati script, checked as the first word of the last sentence. Some English
          * auxiliaries are left out on purpose: "will do" and "should be fine" are answers, and "is"
          * and "are" are everyday Hinglish ("is baar nahi", "are yaar").
          */
@@ -206,19 +235,56 @@ sealed interface ReplyTarget {
                 "કેવી",
             )
 
-        private val FIRST_WORD = Regex("""[\p{L}\p{M}']+""")
+        /**
+         * Words that make a statement a yes/no question when they end it: Hindi and Gujarati put
+         * the marker last ("khana khaya kya", "tu aa raha hai na", "aavse ke").
+         */
+        private val LAST_WORD_MARKERS = setOf("kya", "kyaa", "na", "ke", "ne", "क्या", "ना")
+
+        /** First words that ask only with a subject and a verb after them: "did it" and "can do" are statements. */
+        private val AUXILIARIES = setOf("did", "does", "can", "shall")
+
+        /** Exclamations that start with a question word: "kyun nahi, done", "what a match", "how cool is that". */
+        private val EXCLAMATION =
+            Regex(
+                """^(?:(?:kyun|kyu|kyon|why)\s+(?:nahi|nahin|not)\b|what\s+an?\b|how\s+\S+\s+(?:is|was)\s+(?:that|this)$)""",
+            )
+
+        private val WORD = Regex("""[\p{L}\p{M}']+""")
+
+        /** Sentence ends other than "?": the question mark itself stays inside its sentence. */
+        private val SENTENCE_END = Regex("""[.!！।\n]+""")
 
         /** Variation selector, zero-width joiner and the BMP symbols often sent as emoji. */
         private val EMOJI_TAIL = setOf('️', '‍', '☺', '♥', '❤', '✌', '☹', '✨')
 
-        /** Ends with a question mark, or starts with a question word ([QUESTION_WORDS]). */
+        /**
+         * True for a question, judged on the last sentence (text after the last ".", "!", "।" or
+         * line break), with trailing emoji ignored:
+         * - a message ending in "!" with no "?" anywhere is not a question ("kya baat hai!");
+         * - a "?" anywhere in the last sentence is ("aa raha hai? bata");
+         * - so is a last word from [LAST_WORD_MARKERS] ("kal free hai kya");
+         * - an [EXCLAMATION] is not ("what a match"), nor a 2-word [AUXILIARIES] start ("did it");
+         * - otherwise, a first word from [QUESTION_WORDS] is.
+         */
         fun isQuestion(text: String): Boolean {
             // Trailing emoji ("aa raha hai? 😅") do not hide the question mark.
             val trimmed = text.trim().trimEnd { it.isWhitespace() || it.isSurrogate() || it in EMOJI_TAIL }
-            if (trimmed.endsWith('?') || trimmed.endsWith('？')) return true
-            val first = FIRST_WORD.find(trimmed)?.value?.lowercase() ?: return false
-            return first in QUESTION_WORDS
+            val hasQuestionMark = trimmed.any { it == '?' || it == '？' }
+            if (!hasQuestionMark && (trimmed.endsWith('!') || trimmed.endsWith('！'))) return false
+            val last = trimmed.split(SENTENCE_END).lastOrNull { it.isNotBlank() }?.trim() ?: return false
+            if (last.any { it == '?' || it == '？' }) return true
+            val lower = last.lowercase()
+            val words = WORD.findAll(lower).map { it.value }.toList()
+            if (words.isEmpty()) return false
+            if (words.last() in LAST_WORD_MARKERS) return true
+            if (EXCLAMATION.containsMatchIn(words.joinToString(" "))) return false
+            if (words.first() in AUXILIARIES && words.size < 3) return false
+            return words.first() in QUESTION_WORDS
         }
+
+        /** A letter, a combining mark (Devanagari vowel signs), a digit or "_": part of a longer name. */
+        private const val NAME_CHAR = """[\p{L}\p{M}\p{N}_]"""
 
         /** A whole-word match of one of [myNames] (so "@Parag" counts too), any case. */
         fun mentionsMe(
@@ -229,7 +295,7 @@ sealed interface ReplyTarget {
                 .map { it.trim() }
                 .filter { it.isNotEmpty() }
                 .any { name ->
-                    Regex("""(?<![\p{L}\p{N}_])${Regex.escape(name)}(?![\p{L}\p{N}_])""", RegexOption.IGNORE_CASE)
+                    Regex("""(?<!$NAME_CHAR)${Regex.escape(name)}(?!$NAME_CHAR)""", RegexOption.IGNORE_CASE)
                         .containsMatchIn(text)
                 }
     }

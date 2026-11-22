@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.llm
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import com.paragrudani.replyly.parser.ChatMessage
 import org.junit.Test
 import java.time.Duration
@@ -53,10 +54,33 @@ class ReplyTargetTest {
     }
 
     @Test
-    fun `blank messages are ignored`() {
+    fun `blank messages are never targets`() {
         val text = them("kal?")
         assertThat(decide(me(), text, them("  "))).isEqualTo(ReplyTarget.Reply(listOf(text)))
-        assertThat(decide(them("hi"), me(), them(" "))).isEqualTo(ReplyTarget.NothingToReply)
+        assertThat(decide(them(" "), text)).isEqualTo(ReplyTarget.Reply(listOf(text)))
+        assertThat(decide(them(" "))).isEqualTo(ReplyTarget.NothingToReply)
+    }
+
+    @Test
+    fun `their photo after my question answers it`() {
+        // "photo bhej na?" then their photo: answered, not an unanswered question.
+        assertThat(decide(me("photo bhej na?", seen = Duration.ofMinutes(5)), them("")))
+            .isEqualTo(ReplyTarget.NothingToReply)
+        // Even when my message is old: no follow-up after their media, only with the anyway tap.
+        assertThat(decide(me("ok", seen = Duration.ofHours(5)), them(" ")))
+            .isEqualTo(ReplyTarget.NothingToReply)
+        assertThat(decide(me("ok", seen = Duration.ofHours(5)), them(" "), anyway = true))
+            .isEqualTo(ReplyTarget.FollowUp(FollowUpReason.Asked))
+    }
+
+    @Test
+    fun `my photo after their message answers it`() {
+        // "photo bhej" then my photo: nothing left to reply to.
+        assertThat(decide(them("photo bhej"), me("", seen = Duration.ofMinutes(5))))
+            .isEqualTo(ReplyTarget.NothingToReply)
+        // My photo still ages like any message of mine.
+        assertThat(decide(them("photo bhej"), me("", seen = Duration.ofHours(3))))
+            .isEqualTo(ReplyTarget.FollowUp(FollowUpReason.Stale))
     }
 
     @Test
@@ -80,15 +104,55 @@ class ReplyTargetTest {
     }
 
     @Test
-    fun `an approx date or a missing time falls back to firstSeenAt`() {
+    fun `an approx date uses the bubble time at or before firstSeenAt`() {
         val yesterday = now.toLocalDate().minusDays(1)
-        // The approx date says yesterday, but Replyly first saw it 10 minutes ago: recent.
-        assertThat(decide(me(time = "6:00 pm", date = yesterday, approx = true, seen = Duration.ofMinutes(10))))
+        // First seen 10 minutes ago (7:50 pm) with a 3:00 pm bubble: sent at the latest 3:00 pm today, 5 h ago.
+        assertThat(decide(me(time = "3:00 pm", date = yesterday, approx = true, seen = Duration.ofMinutes(10))))
+            .isEqualTo(ReplyTarget.FollowUp(FollowUpReason.Stale))
+        // A 7:00 pm bubble seen at 7:50 pm: 1 h ago, recent (the approx date is not trusted).
+        assertThat(decide(me(time = "7:00 pm", date = yesterday, approx = true, seen = Duration.ofMinutes(10))))
             .isEqualTo(ReplyTarget.NothingToReply)
+        // A bubble time after firstSeenAt's time is from the day before: 9:00 pm yesterday, 23 h ago.
+        assertThat(decide(me(time = "9:00 pm", approx = true, seen = Duration.ofMinutes(10))))
+            .isEqualTo(ReplyTarget.FollowUp(FollowUpReason.Stale))
+    }
+
+    @Test
+    fun `11 50 pm on an approx date first seen at 00 10 is 23 50 the day before`() {
+        val seen = ZonedDateTime.of(2026, 11, 23, 0, 10, 0, 0, zone)
+        val message =
+            PromptMessage(
+                ChatMessage(null, "theek hai", "11:50 pm", isMe = true),
+                date = seen.toLocalDate(),
+                dateIsApprox = true,
+                firstSeenAt = seen.toInstant(),
+            )
+        assertThat(ReplyTarget.sentAt(message, zone))
+            .isEqualTo(ZonedDateTime.of(2026, 11, 22, 23, 50, 0, 0, zone).toInstant())
+        // At 1:00 am the age is 1 h 10: recent. At 1:51 am it is over 2 h: stale.
+        val oneAm = ZonedDateTime.of(2026, 11, 23, 1, 0, 0, 0, zone)
+        assertThat(ReplyTarget.decide(listOf(message), oneAm, isGroup = false)).isEqualTo(ReplyTarget.NothingToReply)
+        assertThat(ReplyTarget.decide(listOf(message), oneAm.plusMinutes(51), isGroup = false))
+            .isEqualTo(ReplyTarget.FollowUp(FollowUpReason.Stale))
+    }
+
+    @Test
+    fun `a missing bubble time falls back to firstSeenAt`() {
+        val yesterday = now.toLocalDate().minusDays(1)
         assertThat(decide(me(time = null, date = yesterday, seen = Duration.ofMinutes(10))))
             .isEqualTo(ReplyTarget.NothingToReply)
         assertThat(decide(me(time = "6:00 pm", date = yesterday, seen = Duration.ofMinutes(10))))
             .isEqualTo(ReplyTarget.FollowUp(FollowUpReason.Stale))
+    }
+
+    @Test
+    fun `an exact time that happened twice takes the later one`() {
+        val newYork = ZoneId.of("America/New_York")
+        // 1 Nov 2026: clocks go from 2:00 EDT back to 1:00 EST, so 1:30 am happens twice.
+        val message =
+            PromptMessage(ChatMessage(null, "ok", "1:30 am", isMe = true), date = LocalDate.of(2026, 11, 1))
+        assertThat(ReplyTarget.sentAt(message, newYork))
+            .isEqualTo(ZonedDateTime.of(2026, 11, 1, 6, 30, 0, 0, ZoneId.of("UTC")).toInstant())
     }
 
     @Test
@@ -127,8 +191,42 @@ class ReplyTargetTest {
             "is baar nahi",
             "are yaar",
         ).forEach {
-            assertThat(ReplyTarget.isQuestion(it)).isFalse()
+            assertWithMessage(it).that(ReplyTarget.isQuestion(it)).isFalse()
         }
+    }
+
+    @Test
+    fun `questions marked at the end or with a question mark mid-message`() {
+        listOf(
+            "khana khaya kya",
+            "kal free hai kya",
+            "tu aa raha hai na",
+            "aavse ke",
+            "aavje ne",
+            "aa raha hai? bata",
+            "kya baat hai! kab aa rahe ho?",
+            "ok. kab aa rahe ho",
+            "तू आ रहा है ना",
+        ).forEach {
+            assertWithMessage(it).that(ReplyTarget.isQuestion(it)).isTrue()
+        }
+    }
+
+    @Test
+    fun `exclamations that start with a question word are not questions`() {
+        listOf(
+            "kya baat hai!",
+            "kyun nahi, done",
+            "what a match",
+            "how cool is that",
+            "did it 💪",
+            "kab aa gaya tu!",
+        ).forEach {
+            assertWithMessage(it).that(ReplyTarget.isQuestion(it)).isFalse()
+        }
+        assertThat(ReplyTarget.isQuestion("kya baat hai!?")).isTrue()
+        assertThat(ReplyTarget.isQuestion("did it work")).isTrue()
+        assertThat(ReplyTarget.isQuestion("how much is it")).isTrue()
     }
 
     @Test
@@ -166,6 +264,13 @@ class ReplyTargetTest {
         assertThat(ReplyTarget.mentionsMe("Parag_2", names)).isFalse()
         assertThat(ReplyTarget.mentionsMe("anything", emptyList())).isFalse()
         assertThat(ReplyTarget.mentionsMe("a.b (c)", listOf("(c)"))).isTrue()
+    }
+
+    @Test
+    fun `a name followed by a Devanagari vowel sign is a longer name`() {
+        assertThat(ReplyTarget.mentionsMe("राजा आ गया", listOf("राज"))).isFalse()
+        assertThat(ReplyTarget.mentionsMe("राज आ गया", listOf("राज"))).isTrue()
+        assertThat(ReplyTarget.mentionsMe("@राज, कल?", listOf("राज"))).isTrue()
     }
 
     @Test
