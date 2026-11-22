@@ -61,7 +61,7 @@ One lazy binding per interface, all real implementations:
 | `settingsRepository`, `costGuard` | DataStore-backed (`settings`, `cost`) | `settings` runs `SettingsMigrations.ALL` (drops `use_parallel_calls`). |
 | `profileRepository`, `profileSecretStore` | `DataStoreProfileRepository`, `EncryptedProfileSecretStore` | `profiles` (no secrets), `profile_secrets` (AES-GCM per profile id). Migrates the legacy config once. |
 | `apiKeyStore` | `ActiveProfileApiKeyStore` | The active profile's key, behind the old interface (onboarding uses it). The legacy `api_key` store is only read by the migration. |
-| `feedbackLog` | `RoomFeedbackLog` | `feedback.db` (schema 2: `prompt_version`, `analysis`, `panel_id`), opened on first use off the main thread. |
+| `feedbackLog` | `RoomFeedbackLog` | `feedback.db` (schema 2: `prompt_version`, `analysis`, `panel_id`, `cache_read_tokens`), opened on first use off the main thread. |
 | `themeSettings` | `ThemeSettings` | The "Material You colours" flag as a hot `StateFlow`, so overlay windows theme their first frame. |
 
 `InMemory…` classes next to the interfaces are test fakes. Add behaviour to the service as a new
@@ -106,28 +106,37 @@ One lazy binding per interface, all real implementations:
   examples), so it can be cached. Everything that changes is in the user message.
 - **User message**, in order: `Now:` header (phone clock and zone, 12/24-hour as the phone, a
   time-of-day word: late night 00-05, morning 05-12, afternoon 12-17, evening 17-21, night 21-24);
-  app and chat (`1:1 with <contact>` or group); About me, contact note, style examples; the
-  conversation in `<conversation>`, grouped by day (`— Yesterday · Sat 21 Nov —`, `(approx)` for
-  guessed dates), lines `[6:42 pm] Name: text` with the contact's name in 1:1 chats and "me"; the
-  reply target; my instruction; the task. Chat-derived text cannot open or close
-  `<conversation>` or `<reply_to>`.
+  app; About me, contact note, style examples; the conversation in `<conversation>`: first the
+  chat line (`Chat: <name> (1:1 with <contact>)` or `(group)`; the name is set by other people, so
+  it is inside the untrusted block), then the messages grouped by day (`— Yesterday · Sat 21 Nov —`,
+  `(approx)` for guessed dates), lines `[6:42 pm] Name: text` with the contact's name in 1:1 chats
+  and "me", `[media]` for a message without text; the reply target; my instruction; the task.
+  Chat-derived text cannot open or close `<conversation>` or `<reply_to>`.
 - **Messages** reach the prompt as `PromptMessage` (message plus `date`, `dateIsApprox`,
   `repliesToMe`, `firstSeenAt`). Until history stores real dates (issue #26 PR 1) the assembler
   gives history messages the local date of `firstSeenAt`, approx, and on-screen-only ones no date.
-- **Reply target** (`ReplyTarget.decide`, pure): `Reply` with every message from others after my
-  last one (in groups, mentions of me — a whole-word match of "Names people call me" — and replies
-  to me first); `FollowUp` when my message is last and over 2 hours old (exact date + bubble time,
-  else `firstSeenAt`) or a question (ends with "?" or starts with an English/Hinglish/Gujlish
-  question word); otherwise `NothingToReply`. The panel checks it after assembling and before any
-  call: `NothingToReply` shows "Nothing to reply to" with no call; "Suggest follow-ups anyway"
-  makes one (and later Regenerates in that panel stay follow-ups).
+- **Reply target** (`ReplyTarget.decide`, pure): `Reply` with every text message from others after
+  my last one (in groups, mentions of me — a whole-word match of "Names people call me" — and
+  replies to me first). Media (blank text) count as turns but are never targets: their photo after
+  my message means `NothingToReply`. `FollowUp` when my message is the very last one and over 2
+  hours old or a question; otherwise `NothingToReply`. Send time (`ReplyTarget.sentAt`, never later
+  than the real one): exact date + bubble time; else the latest instant at or before `firstSeenAt`
+  with the bubble's local time; else `firstSeenAt`. A question: a "?" in the last sentence, a
+  question word first or a marker last ("… kya", "… na"); not when it ends in "!" without "?", nor
+  exclamations like "kyun nahi" or "what a …". The panel checks it after assembling and before any
+  call: `NothingToReply` shows "Nothing to reply to" with no call; "Suggest follow-ups anyway",
+  Regenerate, or a chip tap that leaves an instruction makes one (each a user tap; later
+  generations in that panel stay follow-ups).
 - **Output**: `{"analysis": "...", "suggestions": [{"intent","text"} x3]}`. A missing analysis is
   read as empty. The analysis goes only to the feedback log, never to the panel or logcat.
-- **Feedback log**: each entry stores `prompt_version` (1 for entries from before v2), `analysis`
-  and a `panel_id` (one per panel open). The feedback screen shows, per prompt version, the insert
+- **Feedback log**: each entry stores `prompt_version` (1 for entries from before v2), `analysis`,
+  a `panel_id` (one per panel open) and `cache_read_tokens` (Anthropic's prompt-cache read count, a
+  number only, shown in the entry details). The feedback screen shows, per prompt version, the insert
   rate (panels with an inserted card / panels with suggestions) and the average edit amount
   (normalized edit distance between the inserted suggestion and the message sent, where history saw
-  it; `feedback/FeedbackStats`).
+  it; `feedback/FeedbackStats`). v1 entries have no panel id: entries of one chat within 2 minutes
+  of the previous one count as one panel, and the row is labelled "(estimated)". The stats are
+  computed on `Dispatchers.Default`.
 
 ## Provider profiles (`settings/ProviderProfiles.kt`, `llm/`, `ui/settings/profiles/`)
 

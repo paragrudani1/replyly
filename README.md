@@ -22,8 +22,12 @@ the local feedback log) and 3 replies with clearly different intents.
 
 If your own message is the last one, Replyly asks for follow-ups when it is over 2 hours old or an
 unanswered question. Otherwise the panel shows "Nothing to reply to" without calling the model;
-"Suggest follow-ups anyway" makes the one call. Settings → Feedback log shows the insert rate and
-how much you edit inserted replies, per prompt version.
+"Suggest follow-ups anyway", Regenerate or a quick-chip tap there makes the one call. Settings →
+Feedback log shows the insert rate and how much you edit inserted replies, per prompt version.
+
+**Upgrading from prompt v1:** the analysis comes out of the same output budget as the replies. The
+default is now 1,536 tokens. If a profile has an explicit max tokens of 1,024 or less (set under v1),
+raise it or clear the field, or replies get cut off more often, mostly on models that think first.
 
 ## Using other providers
 
