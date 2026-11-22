@@ -8,9 +8,11 @@ import com.paragrudani.replyly.history.StoredMessage
 import com.paragrudani.replyly.parser.ChatKey
 import com.paragrudani.replyly.parser.ChatMessage
 import com.paragrudani.replyly.parser.ParsedChat
+import com.paragrudani.replyly.parser.x.XParser
 import com.paragrudani.replyly.security.DatabaseKeyUnavailableException
 import com.paragrudani.replyly.settings.InMemorySettingsRepository
 import com.paragrudani.replyly.settings.ReplylySettings
+import com.paragrudani.replyly.testing.Fixtures
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import java.io.IOException
@@ -260,6 +262,24 @@ class HistorySuggestionRequestAssemblerTest {
             assertThat(request.history.map { it.message.text }).containsExactly("b", "c", "d").inOrder()
             assertThat(request.styleExamples).containsExactly("b", "d").inOrder()
             assertThat(history.lastMessages(generic.chatKey, 10)).isEmpty()
+        }
+
+    @Test
+    fun `X stores nothing and sends the thread on screen, labelled X`() =
+        runBlocking {
+            val chat = XParser { "kiran_test" }.parse(Fixtures.snapshot("x/synthetic-reply_thread.json"))!!
+
+            val request = assembler.assemble(chat, instruction = null)
+
+            assertThat(request.appLabel).isEqualTo("X")
+            assertThat(request.chatTitle).isEqualTo("Meera Iyer")
+            assertThat(request.isGroup).isFalse()
+            assertThat(request.history.map { it.message }).isEqualTo(chat.messages)
+            assertThat(history.lastMessages(chat.chatKey, 10)).isEmpty()
+            val prompt = PromptBuilder.build(request).user
+            assertThat(prompt).contains("Chat: Meera Iyer (1:1 with Meera Iyer)")
+            assertThat(prompt).contains("[5h] Meera Iyer: [by Ravi K (@ravi_k)] Shipping the offline mode")
+            assertThat(prompt).contains("[6:42 PM · 21 Nov 26] Meera Iyer: We tried last-write-wins")
         }
 
     @Test

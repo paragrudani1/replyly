@@ -196,6 +196,8 @@ class PassiveCaptureComponentTest {
             val capture = component()
 
             capture.onEvent(contentChanged("com.slack"), host)
+            // X has its own parser but no history (issue #30): never captured either.
+            capture.onEvent(contentChanged("com.twitter.android"), host)
             capture.onEvent(
                 AccessibilityEvent(AccessibilityEvent.TYPE_VIEW_FOCUSED).apply { packageName = whatsapp },
                 host,

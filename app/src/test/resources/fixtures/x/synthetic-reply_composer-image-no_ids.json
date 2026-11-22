@@ -1,0 +1,131 @@
+{
+  "formatVersion": 1,
+  "packageName": "com.twitter.android",
+  "capturedAt": "2026-11-21T18:15:30Z",
+  "screenWidth": 1080,
+  "screenHeight": 2340,
+  "root": {
+    "className": "android.widget.FrameLayout",
+    "bounds": "[0,0][1080,2340]",
+    "children": [
+      {
+        "className": "android.view.ViewGroup",
+        "bounds": "[0,110][1080,257]",
+        "children": [
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Cancel",
+            "bounds": "[0,120][110,247]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.Button",
+            "text": "Reply",
+            "bounds": "[840,140][1040,225]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "android.view.ViewGroup",
+        "bounds": "[0,270][1080,1465]",
+        "children": [
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Asha Dev",
+            "bounds": "[40,290][150,400]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "Asha Dev",
+            "bounds": "[180,290][356,345]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "@asha_dev",
+            "bounds": "[368,290][548,345]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "· 2h",
+            "bounds": "[560,290][670,345]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "Sketched the new data flow on the office whiteboard",
+            "bounds": "[180,355][1040,465]"
+          },
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "A whiteboard with boxes for screen, parser and panel joined by arrows",
+            "bounds": "[180,475][1040,895]"
+          },
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Image",
+            "bounds": "[180,925][1040,1345]"
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Reply",
+            "bounds": "[180,1375][250,1445]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "3",
+            "bounds": "[255,1383][340,1437]"
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Repost",
+            "bounds": "[400,1375][470,1445]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "12",
+            "bounds": "[475,1383][560,1437]"
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Like",
+            "bounds": "[620,1375][690,1445]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "48",
+            "bounds": "[695,1383][780,1437]"
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Share",
+            "bounds": "[960,1375][1030,1445]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "android.widget.TextView",
+        "text": "Replying to @asha_dev",
+        "bounds": "[180,1485][1040,1535]"
+      },
+      {
+        "className": "android.widget.ImageView",
+        "contentDescription": "Profile picture",
+        "bounds": "[40,1555][150,1665]"
+      },
+      {
+        "className": "android.widget.EditText",
+        "text": "Post your reply",
+        "hint": "Post your reply",
+        "bounds": "[180,1545][1040,1675]",
+        "editable": true,
+        "focused": true,
+        "clickable": true
+      }
+    ]
+  }
+}

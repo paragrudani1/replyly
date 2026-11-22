@@ -644,6 +644,279 @@ def generic_feed():
     ]))
 
 
+# ---------------------------------------------------------------- X (issue #30)
+#
+# Every view id below is a guess (parser/x/XIds.kt) until real dumps come back
+# (DEVICE_CHECKLIST 15). Handles are obviously fake; the text is made up.
+
+XPKG = "com.twitter.android"
+
+
+class X:
+    """Builds X screens. With ids=False every view id is left out (the geometry route); with
+    joined=True a compact header is one node: "Name @handle · 2h"."""
+
+    def __init__(self, ids=True, joined=False):
+        self.ids = ids
+        self.joined = joined
+
+    def vid(self, name):
+        return f"{XPKG}:id/{name}" if self.ids else None
+
+    def text(self, l, t, r, bot, text, vid=None, **flags):
+        return node("android.widget.TextView", b(l, t, r, bot), text=text, vid=self.vid(vid) if vid else None, **flags)
+
+    def header(self, x, y, name, handle, time):
+        """A compact header row at (x, y): name, @handle, "· time". Returns nodes."""
+        if self.joined:
+            line = f"{name} @{handle} · {time}"
+            return [self.text(x, y, min(1040, x + 22 * len(line)), y + 55, line)]
+        nw = 22 * len(name)
+        hw = 20 * (len(handle) + 1)
+        return [
+            self.text(x, y, x + nw, y + 55, name, "tweet_header_name"),
+            self.text(x + nw + 12, y, x + nw + 12 + hw, y + 55, "@" + handle, "tweet_header_username"),
+            self.text(x + nw + hw + 24, y, x + nw + hw + 24 + 110, y + 55, "· " + time, "tweet_header_timestamp"),
+        ]
+
+    def lines(self, text):
+        return max(1, math.ceil(len(text) / 38)) + text.count("\n")
+
+    def body(self, x, y, text, vid="tweet_content_text"):
+        h = 55 * self.lines(text)
+        return self.text(x, y, 1040, y + h, text, vid), y + h
+
+    def actions(self, x, y, counts=("3", "12", "48")):
+        kids = []
+        for i, (label, count) in enumerate(zip(("Reply", "Repost", "Like"), counts)):
+            left = x + i * 220
+            kids.append(node("android.widget.ImageButton", b(left, y, left + 70, y + 70), cd=label, clickable=True))
+            kids.append(self.text(left + 75, y + 8, left + 160, y + 62, count))
+        kids.append(node("android.widget.ImageButton", b(960, y, 1030, y + 70), cd="Share", clickable=True))
+        return kids, y + 80
+
+    def media(self, x, y, cd):
+        return node("android.widget.ImageView", b(x, y, 1040, y + 420), cd=cd, vid=self.vid("tweet_media")), y + 440
+
+    def card(self, x, y, title, domain):
+        kids = [
+            node("android.widget.ImageView", b(x, y, 1040, y + 300)),
+            self.text(x + 20, y + 310, 1020, y + 365, title, "card_title"),
+            self.text(x + 20, y + 370, 1020, y + 420, domain, "card_domain"),
+        ]
+        return node("android.view.ViewGroup", b(x, y, 1040, y + 430), clickable=True, children=kids), y + 450
+
+    def quote_card(self, x, y, name, handle, time, text):
+        hx = x + 100
+        kids = [node("android.widget.ImageView", b(x + 30, y + 20, x + 80, y + 70), cd=name)]
+        kids += self.header(hx, y + 18, name, handle, time)
+        t_node, end = self.body(x + 30, y + 85, text)
+        kids.append(t_node)
+        container = node("android.view.ViewGroup", b(x, y, 1040, end + 20), vid=self.vid("quote_tweet_view"),
+                         clickable=True, children=kids)
+        return container, end + 40
+
+    def post(self, y, name, handle, time, text, replying=None, alts=(), card=None, quote=None, counts=None):
+        """A compact post row. Returns (row, bottom)."""
+        x = 180
+        kids = [node("android.widget.ImageView", b(40, y + 20, 150, y + 130), cd=name, clickable=True)]
+        kids += self.header(x, y + 20, name, handle, time)
+        cy = y + 85
+        if replying:
+            kids.append(self.text(x, cy, 1040, cy + 50, replying, "reply_context_text"))
+            cy += 60
+        if text:
+            t_node, cy = self.body(x, cy, text)
+            kids.append(t_node)
+        for alt in alts:
+            m, cy = self.media(x, cy + 10, alt)
+            kids.append(m)
+        if card:
+            c, cy = self.card(x, cy + 10, *card)
+            kids.append(c)
+        if quote:
+            q, cy = self.quote_card(x, cy + 10, *quote)
+            kids.append(q)
+        acts, cy = self.actions(x, cy + 10, counts or ("3", "12", "48"))
+        kids += acts
+        return node("android.view.ViewGroup", b(0, y, 1080, cy + 10), vid=self.vid("row"), children=kids), cy + 20
+
+    def focal(self, y, name, handle, text, absolute, alts=()):
+        """The detail view's focal post: name above handle, full-width text, absolute time line."""
+        kids = [node("android.widget.ImageView", b(40, y + 20, 150, y + 130), cd=name, clickable=True),
+                self.text(180, y + 25, 180 + 22 * len(name), y + 80, name, "tweet_header_name"),
+                self.text(180, y + 85, 180 + 20 * (len(handle) + 1), y + 135, "@" + handle, "tweet_header_username"),
+                node("android.widget.Button", b(840, y + 40, 1040, y + 110), text="Follow", clickable=True)]
+        t_node, cy = self.body(40, y + 160, text)
+        kids.append(t_node)
+        for alt in alts:
+            m, cy = self.media(40, cy + 10, alt)
+            kids.append(m)
+        kids.append(self.text(40, cy + 20, 1040, cy + 75, absolute, "tweet_date"))
+        cy += 90
+        kids.append(self.text(40, cy, 300, cy + 55, "12 Reposts"))
+        kids.append(self.text(320, cy, 600, cy + 55, "48 Likes"))
+        acts, cy = self.actions(40, cy + 70, ("", "", ""))
+        kids += [k for k in acts if k.get("text", None) != ""]
+        return node("android.view.ViewGroup", b(0, y, 1080, cy + 10), vid=self.vid("row"), children=kids), cy + 20
+
+    def toolbar(self, title=None, left="Navigate up", right=None):
+        kids = [node("android.widget.ImageButton", b(0, 120, 110, 247), cd=left, clickable=True)]
+        if title:
+            kids.append(self.text(150, 150, 500, 215, title))
+        if right:
+            kids.append(node("android.widget.Button", b(840, 140, 1040, 225), text=right, clickable=True,
+                             vid=self.vid("button_tweet")))
+        return node("android.view.ViewGroup", b(0, 110, 1080, 257), children=kids)
+
+    def composer_row(self, y, hint, draft=None, account=None, replying=None, vid="tweet_text"):
+        """Optional "Replying to" line, then my avatar and the focused field."""
+        kids = []
+        if replying:
+            kids.append(self.text(180, y, 1040, y + 50, replying, "reply_context_text"))
+            y += 60
+        kids.append(node("android.widget.ImageView", b(40, y + 10, 150, y + 120), cd=account or "Profile picture",
+                         vid=self.vid("composer_avatar")))
+        kids.append(node("android.widget.EditText", b(180, y, 1040, y + 130), text=draft if draft else hint,
+                         hint=hint, vid=self.vid(vid), editable=True, focused=True, clickable=True))
+        return kids, y + 140
+
+    def screen(self, kids, captured=CAPTURED):
+        return snapshot(XPKG, node("android.widget.FrameLayout", b(0, 0, W, H), children=kids), captured)
+
+    def stack(self, y, items):
+        """Lays out [(kind, args...)] from y; returns rows and the bottom."""
+        rows = []
+        for kind, kw in items:
+            if kind == "post":
+                row, y = self.post(y, **kw)
+            else:
+                row, y = self.focal(y, **kw)
+            rows.append(row)
+        return rows, y
+
+
+X_THREAD = [
+    ("post", dict(name="Ravi K", handle="ravi_k", time="5h",
+                  text="Shipping the offline mode this week. Small teams can still move fast.",
+                  quote=("Asha Dev", "asha_dev", "Nov 19", "What is the one feature you would ship first?"))),
+    ("post", dict(name="Asha Dev", handle="asha_dev", time="4h", replying="Replying to @ravi_k",
+                  text="Offline first is underrated. How are you handling sync conflicts?")),
+    ("focal", dict(name="Meera Iyer", handle="meera_writes",
+                   text="We tried last-write-wins and regretted it. Per-field merge was worth the extra week.",
+                   absolute="6:42 PM · 21 Nov 26 · 1,204 Views")),
+    ("post", dict(name="Dev N", handle="dev_null_test", time="1h", replying="Replying to @meera_writes",
+                  text="Same here, CRDTs saved us.")),
+]
+
+
+def x_reply_thread(x):
+    rows, y = x.stack(270, X_THREAD)
+    lst = node("androidx.recyclerview.widget.RecyclerView", b(0, 257, 1080, 1960), scrollable=True, children=rows)
+    comp, _ = x.composer_row(1980, "Post your reply", draft="Per-field merge is the way",
+                             replying="Replying to @meera_writes")
+    return x.screen([x.toolbar("Post"), lst, node("android.view.ViewGroup", b(0, 1970, 1080, 2200), children=comp)])
+
+
+def x_reply_composer_image(x):
+    row, y = x.post(270, name="Asha Dev", handle="asha_dev", time="2h",
+                    text="Sketched the new data flow on the office whiteboard",
+                    alts=("A whiteboard with boxes for screen, parser and panel joined by arrows", "Image"))
+    comp, _ = x.composer_row(y + 10, "Post your reply", replying="Replying to @asha_dev")
+    return x.screen([x.toolbar(left="Cancel", right="Reply"), row] + comp)
+
+
+X_OWN = [
+    ("post", dict(name="Kiran", handle="kiran_test", time="3h",
+                  text="Hot take: most apps do not need a settings screen with 40 toggles.")),
+    ("post", dict(name="Ravi K", handle="ravi_k", time="2h", replying="Replying to @kiran_test",
+                  text="Disagree, power users want control.")),
+]
+
+
+def x_reply_own_post(x):
+    rows, y = x.stack(270, X_OWN)
+    comp, _ = x.composer_row(y + 10, "Post your reply", account="Account @kiran_test", replying="Replying to @ravi_k")
+    return x.screen([x.toolbar(left="Cancel", right="Reply")] + rows + comp)
+
+
+def x_reply_link_card_no_line(x):
+    row, y = x.post(270, name="Dev N", handle="dev_null_test", time="Nov 19", text="Good read on accessibility trees",
+                    card=("How screen readers see your app", "From example.com"))
+    comp, _ = x.composer_row(y + 10, "Post your reply")
+    return x.screen([x.toolbar(left="Cancel", right="Reply"), row] + comp)
+
+
+def x_quote_composer(x):
+    comp, y = x.composer_row(280, "Add a comment", draft="This matches what we saw")
+    quoted, _ = x.quote_card(180, y + 20, "Meera Iyer", "meera_writes", "1h",
+                             "Per-field merge was worth the extra week.")
+    return x.screen([x.toolbar(left="Cancel", right="Post")] + comp + [quoted])
+
+
+def x_timeline(x):
+    rows, y = x.stack(400, X_OWN)
+    tabs = node("android.view.ViewGroup", b(0, 257, 1080, 380), children=[
+        x.text(200, 290, 450, 350, "For you"), x.text(630, 290, 880, 350, "Following")])
+    lst = node("androidx.recyclerview.widget.RecyclerView", b(0, 380, 1080, 2100), scrollable=True, children=rows)
+    fab = node("android.widget.ImageButton", b(880, 1900, 1040, 2060), cd="New post", clickable=True)
+    return x.screen([x.toolbar(left="Show navigation drawer"), tabs, lst, fab])
+
+
+def x_post_detail(x):
+    rows, y = x.stack(270, X_THREAD[2:])
+    lst = node("androidx.recyclerview.widget.RecyclerView", b(0, 257, 1080, 2050), scrollable=True, children=rows)
+    bar = x.text(180, 2080, 1040, 2180, "Post your reply", clickable=True)
+    return x.screen([x.toolbar("Post"), lst, bar])
+
+
+def x_search(x):
+    field = node("android.widget.EditText", b(150, 130, 1040, 235), text="Search", hint="Search",
+                 vid=x.vid("query"), editable=True, focused=True)
+    rows, _ = x.stack(300, X_OWN)
+    return x.screen([field] + rows)
+
+
+def x_new_post(x):
+    comp, _ = x.composer_row(280, "What’s happening?", draft="Thinking about")
+    return x.screen([x.toolbar(left="Cancel", right="Post")] + comp)
+
+
+def x_dm(x):
+    def bubble(y, side, text):
+        width = min(620, 60 + 18 * len(text))
+        left, right = (150, 150 + width) if side == "in" else (1040 - width, 1040)
+        return node("android.view.ViewGroup", b(0, y, 1080, y + 130), children=[
+            node("android.widget.FrameLayout", b(left, y + 10, right, y + 120), children=[
+                x.text(left + 40, y + 35, right - 40, y + 95, text, "dm_message_text")])])
+    lst = node("androidx.recyclerview.widget.RecyclerView", b(0, 257, 1080, 2040), scrollable=True, children=[
+        bubble(400, "in", "are you coming to the meetup?"), bubble(560, "out", "yes, see you there"),
+        bubble(720, "in", "can you bring the demo phone")])
+    header = node("android.view.ViewGroup", b(0, 110, 1080, 257), children=[
+        node("android.widget.ImageButton", b(0, 120, 110, 247), cd="Navigate up", clickable=True),
+        x.text(240, 125, 700, 185, "Asha Dev"), x.text(240, 190, 700, 240, "@asha_dev")])
+    field = node("android.widget.EditText", b(140, 2060, 900, 2190), text="Start a message", hint="Start a message",
+                 vid=x.vid("dm_composer_edit_text"), editable=True, focused=True)
+    return x.screen([header, lst, field])
+
+
+def write_x(out_dir):
+    ids, bare, joined = X(), X(ids=False), X(ids=False, joined=True)
+    write(out_dir, "x/synthetic-reply_thread.json", x_reply_thread(ids))
+    write(out_dir, "x/synthetic-reply_thread-no_ids.json", x_reply_thread(joined))
+    write(out_dir, "x/synthetic-reply_composer-image.json", x_reply_composer_image(ids))
+    write(out_dir, "x/synthetic-reply_composer-image-no_ids.json", x_reply_composer_image(bare))
+    write(out_dir, "x/synthetic-reply_own_post.json", x_reply_own_post(ids))
+    write(out_dir, "x/synthetic-reply_link_card-no_replying_line.json", x_reply_link_card_no_line(ids))
+    write(out_dir, "x/synthetic-quote_composer.json", x_quote_composer(ids))
+    write(out_dir, "x/synthetic-quote_composer-no_ids.json", x_quote_composer(bare))
+    write(out_dir, "x/synthetic-timeline.json", x_timeline(ids))
+    write(out_dir, "x/synthetic-post_detail.json", x_post_detail(ids))
+    write(out_dir, "x/synthetic-search.json", x_search(ids))
+    write(out_dir, "x/synthetic-new_post.json", x_new_post(ids))
+    write(out_dir, "x/synthetic-dm.json", x_dm(ids))
+
+
 def write(out_dir, rel, snap):
     path = os.path.join(out_dir, rel)
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -705,6 +978,7 @@ def main(out_dir):
           tg_chat("Asha Patel", "online", TG_HEADERS_ONLY, TG_DATES_CAPTURED))
     write(out_dir, "generic/synthetic-instagram_dm.json", instagram_dm())
     write(out_dir, "generic/synthetic-not_a_chat.json", generic_feed())
+    write_x(out_dir)
 
 
 if __name__ == "__main__":

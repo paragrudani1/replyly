@@ -1,0 +1,48 @@
+{
+  "formatVersion": 1,
+  "packageName": "com.twitter.android",
+  "capturedAt": "2026-11-21T18:15:30Z",
+  "screenWidth": 1080,
+  "screenHeight": 2340,
+  "root": {
+    "className": "android.widget.FrameLayout",
+    "bounds": "[0,0][1080,2340]",
+    "children": [
+      {
+        "className": "android.view.ViewGroup",
+        "bounds": "[0,110][1080,257]",
+        "children": [
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Cancel",
+            "bounds": "[0,120][110,247]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.Button",
+            "viewId": "com.twitter.android:id/button_tweet",
+            "text": "Post",
+            "bounds": "[840,140][1040,225]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "android.widget.ImageView",
+        "viewId": "com.twitter.android:id/composer_avatar",
+        "contentDescription": "Profile picture",
+        "bounds": "[40,290][150,400]"
+      },
+      {
+        "className": "android.widget.EditText",
+        "viewId": "com.twitter.android:id/tweet_text",
+        "text": "Thinking about",
+        "hint": "What’s happening?",
+        "bounds": "[180,280][1040,410]",
+        "editable": true,
+        "focused": true,
+        "clickable": true
+      }
+    ]
+  }
+}

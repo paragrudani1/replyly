@@ -1,0 +1,105 @@
+{
+  "formatVersion": 1,
+  "packageName": "com.twitter.android",
+  "capturedAt": "2026-11-21T18:15:30Z",
+  "screenWidth": 1080,
+  "screenHeight": 2340,
+  "root": {
+    "className": "android.widget.FrameLayout",
+    "bounds": "[0,0][1080,2340]",
+    "children": [
+      {
+        "className": "android.view.ViewGroup",
+        "bounds": "[0,110][1080,257]",
+        "children": [
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Navigate up",
+            "bounds": "[0,120][110,247]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "Asha Dev",
+            "bounds": "[240,125][700,185]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "@asha_dev",
+            "bounds": "[240,190][700,240]"
+          }
+        ]
+      },
+      {
+        "className": "androidx.recyclerview.widget.RecyclerView",
+        "bounds": "[0,257][1080,2040]",
+        "scrollable": true,
+        "children": [
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,400][1080,530]",
+            "children": [
+              {
+                "className": "android.widget.FrameLayout",
+                "bounds": "[150,410][732,520]",
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "viewId": "com.twitter.android:id/dm_message_text",
+                    "text": "are you coming to the meetup?",
+                    "bounds": "[190,435][692,495]"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,560][1080,690]",
+            "children": [
+              {
+                "className": "android.widget.FrameLayout",
+                "bounds": "[656,570][1040,680]",
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "viewId": "com.twitter.android:id/dm_message_text",
+                    "text": "yes, see you there",
+                    "bounds": "[696,595][1000,655]"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,720][1080,850]",
+            "children": [
+              {
+                "className": "android.widget.FrameLayout",
+                "bounds": "[150,730][714,840]",
+                "children": [
+                  {
+                    "className": "android.widget.TextView",
+                    "viewId": "com.twitter.android:id/dm_message_text",
+                    "text": "can you bring the demo phone",
+                    "bounds": "[190,755][674,815]"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "className": "android.widget.EditText",
+        "viewId": "com.twitter.android:id/dm_composer_edit_text",
+        "text": "Start a message",
+        "hint": "Start a message",
+        "bounds": "[140,2060][900,2190]",
+        "editable": true,
+        "focused": true
+      }
+    ]
+  }
+}

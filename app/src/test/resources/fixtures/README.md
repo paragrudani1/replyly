@@ -4,6 +4,7 @@ Each file is one `ScreenSnapshot` as JSON, exactly what the debug screen dumps (
 Load them in tests with `Fixtures.snapshot("<app>/<name>.json")`.
 
 - `whatsapp/`, `whatsapp_business/`, `telegram/`: real dumps from the S23, one folder per app.
+- `x/`: X (issue #30): reply and quote composers, a thread, and screens that must not be read (timeline, search, new post). All synthetic, with guessed view ids.
 - `generic/`: apps without a full parser (Instagram, Slack...).
 - `sample/`: small hand-written trees for format tests. Not a real app.
 
