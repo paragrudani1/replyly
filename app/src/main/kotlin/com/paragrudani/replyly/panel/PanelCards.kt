@@ -234,9 +234,9 @@ internal fun SuggestionCard(
 }
 
 /**
- * "212/280": the card's weighted length ([XLength]) against the X post length. In the error colour
- * when the card was trimmed to fit or sits at the limit. TalkBack reads "212 of 280 characters",
- * plus "trimmed to fit".
+ * "212/280": the card's weighted length ([XLength]) against the X post length, "142/280 · trimmed"
+ * for a card trimmed to fit (#46). In the error colour when the card was trimmed or sits at the
+ * limit. TalkBack reads "212 of 280 characters", plus "trimmed to fit".
  */
 @Composable
 internal fun LengthCounter(
@@ -246,14 +246,28 @@ internal fun LengthCounter(
 ) {
     val used = XLength.weighted(suggestion.text)
     val warn = suggestion.trimmed || used >= limit
-    val description = "$used of $limit characters" + if (suggestion.trimmed) ", trimmed to fit" else ""
+    val description = lengthCounterDescription(used, limit, suggestion.trimmed)
     Text(
-        "$used/$limit",
+        lengthCounterText(used, limit, suggestion.trimmed),
         style = MaterialTheme.typography.labelSmall,
         color = if (warn) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = modifier.semantics { contentDescription = description },
     )
 }
+
+/** "212/280", or "142/280 · trimmed" for a trimmed card. */
+internal fun lengthCounterText(
+    used: Int,
+    limit: Int,
+    trimmed: Boolean,
+): String = "$used/$limit" + if (trimmed) " · trimmed" else ""
+
+/** What TalkBack reads for the counter: "212 of 280 characters", plus ", trimmed to fit". */
+internal fun lengthCounterDescription(
+    used: Int,
+    limit: Int,
+    trimmed: Boolean,
+): String = "$used of $limit characters" + if (trimmed) ", trimmed to fit" else ""
 
 /** "1 reply was over 280 and was left out." under fewer than 3 X cards. */
 internal fun droppedNotice(

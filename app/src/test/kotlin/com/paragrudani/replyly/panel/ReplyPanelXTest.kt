@@ -129,4 +129,21 @@ class ReplyPanelXTest {
             droppedNotice(2, 500),
         ).isEqualTo("2 replies were over 500 characters and were left out. Regenerate for more.")
     }
+
+    @Test
+    fun `a trimmed card says so next to its counter (#46)`() {
+        assertThat(lengthCounterText(142, 280, trimmed = true)).isEqualTo("142/280 · trimmed")
+        assertThat(lengthCounterText(212, 280, trimmed = false)).isEqualTo("212/280")
+        // TalkBack wording is unchanged.
+        assertThat(
+            lengthCounterDescription(142, 280, trimmed = true),
+        ).isEqualTo("142 of 280 characters, trimmed to fit")
+        assertThat(lengthCounterDescription(212, 280, trimmed = false)).isEqualTo("212 of 280 characters")
+    }
+
+    @Test
+    fun `the instruction placeholder has an X example on X only (#46)`() {
+        assertThat(instructionPlaceholder(isX = false)).isEqualTo("Instruction, e.g. say I'll call at 6")
+        assertThat(instructionPlaceholder(isX = true)).doesNotContain("call at 6")
+    }
 }
