@@ -14,7 +14,9 @@ import kotlin.random.Random
  * The generator draws a reply composer (posts above the field), a thread detail view with an inline
  * composer (parents, the focal post with its absolute time line, other replies below it), or a quote
  * composer (the field, then the quoted card). Posts get 0 to 5 parents, random authors (one of them
- * me), texts that end in a mention ("Thanks @ravi_k"), multi-line texts and emoji, images with and
+ * me), texts that end in a mention ("Thanks @ravi_k") or are only mentions ("@ravi_k", "@ravi_k
+ * @asha_dev"), a bare domain ("example.com"), a text that starts with "Replying to @ravi_k", multi-line
+ * texts and emoji, images with and
  * without alt text, link cards, their own "Replying to" line and an embedded quoted post. The thread
  * may be scrolled so the oldest post's header is cut off. The composer has a random draft (mentions
  * too), an optional "Replying to" line and an optional account handle. Each screen is built with view
@@ -69,7 +71,12 @@ class XParserPropertyTest {
             if (ctx.replyingTo.isNotEmpty()) add("replying line")
             if (ctx.thread.any { it.imageAltTexts.isNotEmpty() }) add("alt text")
             if (ctx.thread.any { it.linkCard != null }) add("link card")
-            if (case.allPosts.any { it.text.endsWith("@ravi_k") || it.text.endsWith("@asha_dev") }) add("mention text")
+            val texts = (case.allPosts + case.allPosts.mapNotNull { it.quote }).map { it.text }
+            if (texts.any { it.endsWith("@ravi_k") || it.endsWith("@asha_dev") }) add("mention text")
+            if (ctx.thread.any { it.text == "@ravi_k" }) add("mention-only text")
+            if (ctx.thread.any { it.text == "@ravi_k @asha_dev" }) add("two-mention text")
+            if (ctx.thread.any { it.text == "example.com" }) add("domain text")
+            if (ctx.thread.any { it.text.startsWith("Replying to @") }) add("replying-to text")
             ctx.thread.mapNotNull { it.handle }.forEach { add("author $it") }
         }
 
@@ -194,6 +201,13 @@ class XParserPropertyTest {
                 "This is the way",
                 "Agree with Meera here",
                 "Small teams can still move fast, if they say no to most features and ship the rest.",
+                // Only mentions: on X a lone "@grok" is common. Not a header, whatever sits above it.
+                "@ravi_k",
+                "@ravi_k @asha_dev",
+                // A bare domain is post text, not a link card.
+                "example.com",
+                // Starts like a "Replying to" line, but is post text.
+                "Replying to @ravi_k was a mistake",
             )
         private val times = listOf("now", "45s", "5m", "2h", "23h", "3d", "Nov 19", "21 Nov 25")
         private val alts = listOf("A whiteboard sketch of boxes and arrows", "Screenshot of a settings screen", null)
@@ -575,6 +589,10 @@ class XParserPropertyTest {
                 "alt text",
                 "link card",
                 "mention text",
+                "mention-only text",
+                "two-mention text",
+                "domain text",
+                "replying-to text",
                 "author asha_dev",
                 "author ravi_k",
                 "author meera_writes",

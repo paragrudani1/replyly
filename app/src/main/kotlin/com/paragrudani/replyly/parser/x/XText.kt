@@ -33,6 +33,7 @@ object XHandles {
 
 /** Text patterns of the X app (English UI). Pure, so the parser and the Scrambler share them. */
 object XText {
+    private const val HANDLE = """[A-Za-z0-9_]{1,15}"""
     private const val MONTH =
         """(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|june?|july?|aug(?:ust)?""" +
             """|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?"""
@@ -50,8 +51,16 @@ object XText {
     private val absolute =
         Regex("""^$CLOCK\s*·\s*$DAY_MONTH(?:\s*·\s*[\d.,]+\s?[KMB]?\s+views?)?$""", RegexOption.IGNORE_CASE)
 
-    /** "Replying to @a", "Replying to @a and @b", "Replying to @a, @b and 2 others". */
-    private val replyingTo = Regex("""^replying to\s+@.*""", RegexOption.IGNORE_CASE)
+    /**
+     * "Replying to @a", "Replying to @a and @b", "Replying to @a, @b and 2 others": only handles
+     * after "Replying to", so a post text such as "Replying to @a was a mistake" is not one.
+     */
+    private val replyingTo =
+        Regex(
+            """^replying to\s+@$HANDLE(?:(?:\s*,\s*(?:and\s+)?|\s+and\s+|\s*&\s*|\s+)@$HANDLE)*""" +
+                """(?:,?\s+and\s+(?:\d+\s+)?others?)?$""",
+            RegexOption.IGNORE_CASE,
+        )
 
     /**
      * A header line: "@asha_dev", "Asha Dev @asha_dev", "@asha_dev · 2h", "Asha Dev @asha_dev · 2h".
@@ -68,7 +77,7 @@ object XText {
         )
 
     private val domain =
-        Regex("""^(?:from\s+)?((?:[a-z0-9-]+\.)+[a-z]{2,})(?:/\S*)?$""", RegexOption.IGNORE_CASE)
+        Regex("""^(from\s+)?((?:[a-z0-9-]+\.)+[a-z]{2,})(?:/\S*)?$""", RegexOption.IGNORE_CASE)
 
     /**
      * Words of the X UI around posts and composers that are never post text (English UI only).
@@ -190,13 +199,20 @@ object XText {
     }
 
     /** `example.com` from "example.com" or "From example.com"; `null` if not a domain line. */
-    fun domainOf(text: String): String? = domain.matchEntire(ChatText.squash(text))?.groupValues?.get(1)
+    fun domainOf(text: String): String? = domain.matchEntire(ChatText.squash(text))?.groupValues?.get(2)
+
+    /** "From example.com": a link card's domain line, never post text. */
+    fun isFromDomain(text: String): Boolean = domain.matchEntire(ChatText.squash(text))?.groups?.get(1) != null
 
     /** The alt text of a media description, or `null` for a generic "Image" without alt text. */
     fun altText(description: String): String? {
         val s = ChatText.squash(description)
-        return s.takeUnless { it.lowercase().trimEnd('.') in genericMedia }
+        return s.takeUnless { isGenericMedia(it) }
     }
+
+    /** A media description with no alt text in it ("Image", "Photo."). */
+    fun isGenericMedia(description: String): Boolean =
+        ChatText.squash(description).lowercase().trimEnd('.') in genericMedia
 
     private const val MAX_NAME = 50
 }

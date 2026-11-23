@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.parser.x
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.truth.Truth.assertWithMessage
 import org.junit.Test
 
 class XTextTest {
@@ -64,5 +65,29 @@ class XTextTest {
         assertThat(XText.domainOf("v1.2")).isNull()
         assertThat(XText.altText("Image")).isNull()
         assertThat(XText.altText("A cat on a laptop")).isEqualTo("A cat on a laptop")
+        assertThat(XText.isGenericMedia("Photo.")).isTrue()
+        assertThat(XText.isGenericMedia("A cat on a laptop")).isFalse()
+        assertThat(XText.isFromDomain("From example.com")).isTrue()
+        assertThat(XText.isFromDomain("example.com")).isFalse()
+    }
+
+    @Test
+    fun `a replying-to line holds only handles`() {
+        for (
+        line in listOf(
+            "Replying to @ravi_k",
+            "Replying to @ravi_k and @asha_dev",
+            "Replying to @a_b, @c and 2 others",
+            "Replying to @a_b, @c, and 2 others",
+            "Replying to @a_b @c",
+            "replying to  @A_B",
+        )
+        ) {
+            assertWithMessage(line).that(XText.isReplyingTo(line)).isTrue()
+        }
+        for (text in listOf("Replying to @ravi_k was a mistake", "Replying to everyone", "Thanks @ravi_k")) {
+            assertWithMessage(text).that(XText.isReplyingTo(text)).isFalse()
+        }
+        assertThat(XText.replyingToHandles("Replying to @ravi_k was a mistake")).isEmpty()
     }
 }

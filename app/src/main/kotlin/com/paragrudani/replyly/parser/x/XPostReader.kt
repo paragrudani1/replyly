@@ -170,7 +170,11 @@ internal class XPostReader(
         quoted: XPost?,
     ): XPost {
         val inBand = band(start, end).filter { it !in allPieces && it !== composerReplyingTo }
-        val replying = inBand.filter(::isReplyingToNode)
+        // A post's own "Replying to" line sits between its header and its text: one further down
+        // is post text that happens to read like one.
+        val firstContent = inBand.indexOfFirst { !isReplyingToNode(it) && !XText.isChrome(it.text!!) }
+        val replying =
+            inBand.filterIndexed { i, node -> isReplyingToNode(node) && (firstContent < 0 || i < firstContent) }
         val absolute = inBand.firstOrNull { XText.isAbsoluteTime(it.text!!) }
         val card = card(inBand)
         val used = (replying + listOfNotNull(absolute) + card.nodes).toSet()
@@ -207,7 +211,7 @@ internal class XPostReader(
             )
         }
         val domain =
-            inBand.firstOrNull { it.idName !in XIds.TEXT && XText.domainOf(it.text!!) != null }
+            inBand.firstOrNull { it.idName !in XIds.TEXT && isCardDomain(it) }
                 ?: return Card(null, emptyList())
         val title =
             domain.parent
@@ -215,6 +219,22 @@ internal class XPostReader(
                 ?.flatMap { it.descendantsAndSelf().toList() }
                 ?.firstOrNull { it !== domain && it in inBand && !XText.isChrome(it.text!!) }
         return Card(XLinkCard(title?.text, XText.domainOf(domain.text!!)), listOfNotNull(title, domain))
+    }
+
+    /**
+     * A link card's domain line: "From example.com", or a bare domain inside a container that holds
+     * an image and no post header (the card). A bare domain anywhere else is post text.
+     */
+    private fun isCardDomain(node: TreeNode): Boolean {
+        val text = node.text!!
+        if (XText.domainOf(text) == null) return false
+        if (XText.isFromDomain(text)) return true
+        val headerPieces = anchors.flatMap { it.pieces }
+        for (container in node.ancestors()) {
+            if (headerPieces.any { container.isAncestorOf(it) }) return false
+            if (container.descendantsAndSelf().any { isImageClass(it) || it.idName in XIds.MEDIA }) return true
+        }
+        return false
     }
 
     /** "6:42 PM · 21 Nov 26 · 1,204 Views" gives "6:42 PM · 21 Nov 26". */
@@ -244,12 +264,21 @@ internal class XPostReader(
         }
     }
 
-    /** The name of a header whose line has none: the id, else the row's left neighbour, else the line above. */
+    /**
+     * The name of a header whose line has none: the id, else the row's left neighbour, else the line
+     * above. A node on the row of another header line is that header's name, never this one's: so a
+     * post whose text is only "@ravi_k" does not borrow the name of the header above it.
+     */
     private fun nameFor(
         handle: TreeNode,
         heads: Set<TreeNode>,
     ): TreeNode? {
-        val candidates = leaves.filter { it !== handle && it !in heads && !isReplyingToNode(it) }
+        val otherHeads = heads.filter { it !== handle }
+        val candidates =
+            leaves.filter { leaf ->
+                leaf !== handle && leaf !in heads && !isReplyingToNode(leaf) &&
+                    otherHeads.none { sameRow(it.bounds, leaf.bounds) }
+            }
         val sameRow =
             candidates.filter {
                 sameRow(it.bounds, handle.bounds) &&
@@ -286,7 +315,9 @@ internal class XPostReader(
             !XText.isAbsoluteTime(text) && '\n' !in text && text.length <= MAX_NAME && XText.header(text) == null
     }
 
-    private fun isReplyingToNode(node: TreeNode): Boolean = node.text?.let(XText::isReplyingTo) == true
+    /** A "Replying to @…" line; never a node with the post-text id, whatever it reads. */
+    private fun isReplyingToNode(node: TreeNode): Boolean =
+        node.idName !in XIds.TEXT && node.text?.let(XText::isReplyingTo) == true
 
     private fun inComposer(node: TreeNode): Boolean = node === composer || composer.isAncestorOf(node)
 

@@ -6,6 +6,7 @@ import com.paragrudani.replyly.parser.ParseReport
 import com.paragrudani.replyly.parser.Parsers
 import com.paragrudani.replyly.parser.TargetApps
 import com.paragrudani.replyly.parser.generic.GenericChatParser
+import com.paragrudani.replyly.screen.ScreenNode
 import com.paragrudani.replyly.testing.Fixtures
 import org.junit.Test
 
@@ -229,6 +230,31 @@ class XParserTest {
         for (word in listOf("Ravi", "Meera", "merge", "offline", "@")) {
             assertThat(all).doesNotContain(word)
         }
+    }
+
+    @Test
+    fun `an unknown field under a replying-to line is a reply, and the notes say no button showed`() {
+        val original = Fixtures.snapshot("x/synthetic-reply_composer-image-no_ids.json")
+
+        fun unknown(n: ScreenNode): ScreenNode =
+            if (n.editable) {
+                n.copy(viewId = null, hint = "Tap to write", text = "Tap to write")
+            } else {
+                n.copy(children = n.children.map(::unknown))
+            }
+        val renamed = original.copy(root = unknown(original.root))
+
+        assertThat(XFields.allowsButton(renamed.packageName, null, "Tap to write")).isFalse()
+        val report = XParser().explain(renamed)
+        assertThat(report.chat?.x?.mode).isEqualTo(XMode.REPLY)
+        assertThat(
+            report.chat
+                ?.x
+                ?.target
+                ?.handle,
+        ).isEqualTo("asha_dev")
+        assertThat(report.notes).contains(XParser.NOTE_UNRECOGNISED_FIELD)
+        assertThat(XParser().explain(original).notes).doesNotContain(XParser.NOTE_UNRECOGNISED_FIELD)
     }
 
     private companion object {

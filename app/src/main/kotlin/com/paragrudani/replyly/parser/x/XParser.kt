@@ -17,7 +17,8 @@ import com.paragrudani.replyly.screen.ScreenSnapshot
  * - **Composer.** The focused editable field (else the first one whose hint is a reply or quote
  *   hint), classified by [XFields]. A new-post composer, search or any other field is not a reply:
  *   `null`. A field [XFields] cannot classify still counts as a reply when a "Replying to @…" line
- *   sits right above it. A DM goes to [GenericChatParser] as a normal 1:1 chat.
+ *   sits right above it, and the notes say so ([NOTE_UNRECOGNISED_FIELD]): the overlay's gate does
+ *   not show the button on such a field. A DM goes to [GenericChatParser] as a normal 1:1 chat.
  * - **Posts** ([XPostReader]): headers, bodies, alt text, link card, "Replying to" lines, the
  *   quoted post embedded in a post.
  * - **Target.** Reply: the detail view's focal post (the one with an absolute time line) if one
@@ -41,8 +42,9 @@ class XParser(
 
     override fun explain(snapshot: ScreenSnapshot): ParseReport {
         val tree = ScreenTree(snapshot)
-        val (composer, field) =
-            composer(tree) ?: return ParseReport(null, METHOD_GEOMETRY, listOf("no reply or quote composer"))
+        val found = composer(tree) ?: return ParseReport(null, METHOD_GEOMETRY, listOf("no reply or quote composer"))
+        val composer = found.node
+        val field = found.field
         if (field == XField.DM) {
             val generic = GenericChatParser().explain(snapshot)
             return ParseReport(generic.chat, METHOD_DM, listOf("direct message: generic 1:1 path") + generic.notes)
@@ -91,7 +93,7 @@ class XParser(
                 "${context.thread.count { it.isMine }} mine (handle from ${source.name.lowercase()})",
                 "${context.thread.sumOf { it.imageAltTexts.size }} alt texts, " +
                     "${context.thread.count { it.linkCard != null }} link cards",
-            )
+            ) + listOfNotNull(NOTE_UNRECOGNISED_FIELD.takeIf { found.inferred })
         return ParseReport(chat, method, notes)
     }
 
@@ -137,17 +139,26 @@ class XParser(
             ?.let { Pick(it.post, emptyList(), "nearest above composer") }
     }
 
-    private fun composer(tree: ScreenTree): Pair<TreeNode, XField>? {
+    private class Composer(
+        val node: TreeNode,
+        val field: XField,
+        /** [XFields] could not classify the field; a "Replying to" line above it made it a reply. */
+        val inferred: Boolean = false,
+    )
+
+    private fun composer(tree: ScreenTree): Composer? {
         val fields = tree.shownNodes.filter { it.editable && !it.node.password }
         val focused = fields.firstOrNull { it.node.focused }
         if (focused != null) {
             val field = XFields.classify(focused.node.viewId, focused.node.hint)
-            if (field != XField.OTHER) return focused to field
-            return focused.takeIf { replyLineAbove(tree, it) }?.let { it to XField.REPLY } ?: (focused to field)
+            if (field == XField.OTHER && replyLineAbove(tree, focused)) {
+                return Composer(focused, XField.REPLY, inferred = true)
+            }
+            return Composer(focused, field)
         }
         return fields
-            .map { it to XFields.classify(it.node.viewId, it.node.hint) }
-            .firstOrNull { (_, f) -> f == XField.REPLY || f == XField.QUOTE }
+            .map { Composer(it, XFields.classify(it.node.viewId, it.node.hint)) }
+            .firstOrNull { it.field == XField.REPLY || it.field == XField.QUOTE }
     }
 
     /** A "Replying to @…" line right above an unknown field: the field is a reply composer. */
@@ -193,6 +204,13 @@ class XParser(
         const val METHOD_VIEW_IDS = "x:view-ids"
         const val METHOD_GEOMETRY = "x:geometry"
         const val METHOD_DM = "x:dm-generic"
+
+        /**
+         * The parser read the field as a reply only from the "Replying to" line; the overlay's gate
+         * sees the field alone ([XFields]), so the phone showed no button on it.
+         */
+        const val NOTE_UNRECOGNISED_FIELD =
+            "field not recognised (id and hint): reply inferred from the replying-to line; no button on the phone"
 
         private const val REPLY_LINE_SLACK = 8
         private const val REPLY_LINE_REACH = 300
