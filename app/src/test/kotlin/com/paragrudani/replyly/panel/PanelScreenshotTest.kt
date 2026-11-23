@@ -1,9 +1,11 @@
 package com.paragrudani.replyly.panel
 
 import androidx.compose.runtime.Composable
+import com.paragrudani.replyly.llm.NothingToReplyReason
 import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.testing.ScreenshotRule
 import com.paragrudani.replyly.testing.ScreenshotTest
+import com.paragrudani.replyly.testing.ShotVariant
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -59,7 +61,31 @@ class PanelScreenshotTest {
 
     @Test
     fun nothingToReply() =
-        shot("panel/nothing_to_reply", PanelUiState(suggestions = SuggestionsUi.NothingToReply, generation = 1))
+        shot("panel/nothing_to_reply", PanelUiState(suggestions = SuggestionsUi.NothingToReply(), generation = 1))
+
+    /** Issue #38: their media came after my last message. */
+    @Test
+    fun nothingToReplyTheirMedia() =
+        shot(
+            "panel/nothing_to_reply_their_media",
+            PanelUiState(
+                suggestions = SuggestionsUi.NothingToReply(NothingToReplyReason.TheirMediaAfterMine),
+                generation = 1,
+            ),
+            variants = ShotVariant.LIGHT_DARK,
+        )
+
+    /** Issue #38: no message of mine (an empty chat, or only their media). */
+    @Test
+    fun nothingToReplyNoMessageOfMine() =
+        shot(
+            "panel/nothing_to_reply_no_message_of_mine",
+            PanelUiState(
+                suggestions = SuggestionsUi.NothingToReply(NothingToReplyReason.NoMessageOfMine),
+                generation = 1,
+            ),
+            variants = ShotVariant.LIGHT_DARK,
+        )
 
     @Test
     fun copied() = shot("panel/copied", ready.copy(copied = true))
@@ -166,7 +192,8 @@ class PanelScreenshotTest {
         name: String,
         ui: PanelUiState,
         title: String = "Riya",
-    ) = shots.component(name) { Sheet(ui, title) }
+        variants: List<ShotVariant> = ShotVariant.ALL,
+    ) = shots.component(name, variants) { Sheet(ui, title) }
 
     @Composable
     private fun Sheet(

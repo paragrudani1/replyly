@@ -5,6 +5,7 @@ import com.paragrudani.replyly.history.ContactNoteStore
 import com.paragrudani.replyly.history.HistoryRepository
 import com.paragrudani.replyly.insert.InsertResult
 import com.paragrudani.replyly.insert.ReplyInserter
+import com.paragrudani.replyly.llm.NothingToReplyReason
 import com.paragrudani.replyly.llm.ReplyGenerator
 import com.paragrudani.replyly.llm.ReplyTarget
 import com.paragrudani.replyly.llm.Suggestion
@@ -56,10 +57,12 @@ sealed interface SuggestionsUi {
     ) : SuggestionsUi
 
     /**
-     * My message is the last one, recent and not a question ([ReplyTarget.NothingToReply]): no call
-     * was made. "Suggest follow-ups anyway" ([ReplyPanelState.suggestFollowUpsAnyway]) makes one.
+     * Nothing needs an answer ([ReplyTarget.NothingToReply], for [reason]): no call was made.
+     * "Suggest follow-ups anyway" ([ReplyPanelState.suggestFollowUpsAnyway]) makes one.
      */
-    data object NothingToReply : SuggestionsUi
+    data class NothingToReply(
+        val reason: NothingToReplyReason = NothingToReplyReason.MyMessageLast,
+    ) : SuggestionsUi
 }
 
 data class PanelUiState(
@@ -180,7 +183,7 @@ class ReplyPanelState(
      * [suggestFollowUpsAnyway] (with or without an instruction): one call.
      */
     fun regenerate() {
-        if (mutableState.value.suggestions == SuggestionsUi.NothingToReply && canGenerate()) followUpAnyway = true
+        if (mutableState.value.suggestions is SuggestionsUi.NothingToReply && canGenerate()) followUpAnyway = true
         generate()
     }
 
@@ -189,7 +192,7 @@ class ReplyPanelState(
      * follow-ups to my last message. Ignored in any other state.
      */
     fun suggestFollowUpsAnyway() {
-        if (mutableState.value.suggestions != SuggestionsUi.NothingToReply || !canGenerate()) return
+        if (mutableState.value.suggestions !is SuggestionsUi.NothingToReply || !canGenerate()) return
         followUpAnyway = true
         generate()
     }
@@ -208,7 +211,7 @@ class ReplyPanelState(
      */
     fun toggleChip(chip: QuickInstruction) {
         if (!canGenerate()) return
-        val nothingToReply = mutableState.value.suggestions == SuggestionsUi.NothingToReply
+        val nothingToReply = mutableState.value.suggestions is SuggestionsUi.NothingToReply
         mutableState.update {
             val chips = if (chip in it.chips) it.chips - chip else it.chips + chip
             it.copy(chips = chips, instruction = it.instruction.takeWholeCharacters(instructionRoom(chips)))
@@ -254,10 +257,9 @@ class ReplyPanelState(
                     }
                 // Pure and local: deciding there is nothing to reply to costs no call. Not on X:
                 // replying to my own post there is a normal reply (continuing my thread).
-                if (suggestionRequest.x == null &&
-                    ReplyTarget.decide(suggestionRequest) == ReplyTarget.NothingToReply
-                ) {
-                    mutableState.update { it.copy(suggestions = SuggestionsUi.NothingToReply) }
+                val nothingReason = suggestionRequest.takeIf { it.x == null }?.let(ReplyTarget::nothingReason)
+                if (nothingReason != null) {
+                    mutableState.update { it.copy(suggestions = SuggestionsUi.NothingToReply(nothingReason)) }
                     return@launch
                 }
                 val next =

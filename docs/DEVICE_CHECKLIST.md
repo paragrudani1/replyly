@@ -1239,8 +1239,14 @@ chat text, the analysis text or the prompt. **Send:** any line it prints (blur i
 
 14.14 **Do:** in a 1:1 chat, send "photo bhej na?" and have the other person answer with a photo
 (no caption). Tap the button. **See:** "Nothing to reply to" (their photo answered you), not
-follow-ups. Tap "Suggest follow-ups anyway" and open "Show details": the photo shows as a
-`[media]` line after your message. **Send:** pass/fail and the two conversation lines.
+follow-ups, with the line under it "Nothing after your last message needs an answer." (issue
+#38; not "Your message is the last one in this chat."). Tap "Suggest follow-ups anyway" and open
+"Show details": the photo shows as a `[media]` line after your message. Then open a chat where
+you never wrote and the other person sent only a photo (or a new chat with no messages) and tap
+the button. **See:** "Nothing to reply to" with "No messages to reply to." under it. Last, send a
+recent message that is not a question ("ok done") and tap the button. **See:** "Your message is
+the last one in this chat." under the title, as before. **Send:** pass/fail for each of the three
+lines and the two conversation lines.
 
 ## 15. X replies and quotes (issue #30, PRs 1 and 2)
 
