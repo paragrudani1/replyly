@@ -79,17 +79,33 @@ class SettingsScreenshotTest {
     @Test
     fun bottom() = shots.screen("settings/bottom") { Screen(viewModel(), firstItem = 99) }
 
-    /** "Your style", with "Names people call me" and "My X handle" (issue #30) filled in. */
+    /** "Your style", with "Names people call me" filled in; "On X" (issue #30) starts below it. */
     @Test
     fun yourStyle() =
         shots.screen("settings/your_style") {
             Screen(viewModel(filled.copy(myNames = "Kiran, Kiru", myXHandle = "kiran_test")), firstItem = 2)
         }
 
+    /** "On X" (issue #30): My X handle, My X voice and the longer-posts switch on. */
+    @Test
+    fun onX() =
+        shots.screen("settings/on_x") {
+            Screen(
+                viewModel(
+                    filled.copy(
+                        myXHandle = "kiran_test",
+                        myXVoice = "Indie Android dev. Dry humour, short sentences, rarely emoji, never hashtags.",
+                        xPostLength = ReplylySettings.X_POST_MEDIUM,
+                    ),
+                ),
+                firstItem = 3,
+            )
+        }
+
     @Test
     fun emptyBlocklists() =
         shots.screen("settings/blocklists_empty") {
-            Screen(viewModel(ReplylySettings()), firstItem = 3)
+            Screen(viewModel(ReplylySettings()), firstItem = 4)
         }
 
     @Test

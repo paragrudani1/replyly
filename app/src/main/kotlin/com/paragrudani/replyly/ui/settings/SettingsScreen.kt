@@ -249,13 +249,6 @@ fun SettingsScreen(
                             capitalization = KeyboardCapitalization.Words,
                         )
                         ValidatedField(
-                            label = "My X handle",
-                            value = draft.myXHandle,
-                            error = state.errors[SettingsField.MyXHandle],
-                            onValueChange = { v -> vm.editDraft { it.copy(myXHandle = v) } },
-                            supporting = "Optional, e.g. @asha_dev. Marks your own posts when you reply on X.",
-                        )
-                        ValidatedField(
                             label = "History messages in the prompt (N)",
                             value = draft.historyMessageCount,
                             error = state.errors[SettingsField.HistoryMessageCount],
@@ -264,6 +257,37 @@ fun SettingsScreen(
                             supporting = "More gives better context and costs more tokens.",
                         )
                     }
+                }
+            }
+            item(key = "x") {
+                SettingsSection("On X") {
+                    SettingsGroupPadding {
+                        ValidatedField(
+                            label = "My X handle",
+                            value = draft.myXHandle,
+                            error = state.errors[SettingsField.MyXHandle],
+                            onValueChange = { v -> vm.editDraft { it.copy(myXHandle = v) } },
+                            supporting = "Optional, e.g. @asha_dev. Marks your own posts when you reply on X.",
+                        )
+                        ValidatedField(
+                            label = "My X voice",
+                            value = draft.myXVoice,
+                            error = state.errors[SettingsField.MyXVoice],
+                            onValueChange = { v -> vm.editDraft { it.copy(myXVoice = v) } },
+                            singleLine = false,
+                            supporting =
+                                "${draft.myXVoice.trim().length} / ${SettingsValidator.MAX_MY_X_VOICE}. " +
+                                    "Topics, tone, emoji and hashtag habits for your X replies.",
+                            capitalization = KeyboardCapitalization.Sentences,
+                        )
+                    }
+                    SettingsSwitchRow(
+                        label = "Longer X posts",
+                        supporting = "Up to 500 characters instead of 280. Turn on only with X Premium.",
+                        checked = draft.xPostMedium,
+                        onCheckedChange = { on -> vm.editDraft { it.copy(xPostMedium = on) } },
+                        haptic = true,
+                    )
                 }
             }
             item(key = "privacy") {

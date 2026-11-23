@@ -89,7 +89,8 @@ class SettingsPolishTest {
     @Test
     fun `sections have headings in the agreed order`() {
         setScreen()
-        listOf("AI provider", "Your style", "Privacy", "Limits and usage", "Appearance", "About").forEach { title ->
+        val sections = listOf("AI provider", "Your style", "On X", "Privacy", "Limits and usage", "Appearance", "About")
+        sections.forEach { title ->
             scrollTo(title)
             compose.onNode(hasText(title) and SemanticsMatcher.keyIsDefined(SemanticsProperties.Heading)).assertExists()
         }
@@ -188,6 +189,15 @@ class SettingsPolishTest {
         setScreen()
         scrollTo("Names people call me")
         compose.onNodeWithText("Names people call me").assertExists()
+    }
+
+    @Test
+    fun `on X has the handle, the voice and the longer-posts switch`() {
+        setScreen()
+        scrollTo("Longer X posts")
+        compose.onNodeWithText("My X handle").assertExists()
+        compose.onNodeWithText("My X voice").assertExists()
+        compose.onNodeWithText("Longer X posts").assertExists()
     }
 
     @Test
