@@ -101,6 +101,42 @@ class SettingsViewModelTest {
         }
 
     @Test
+    fun `my X handle is saved without the @ and shown with it`() =
+        runTest {
+            val vm = viewModel()
+            assertThat(
+                vm.state.value.draft
+                    ?.myXHandle,
+            ).isEmpty()
+
+            vm.editDraft { it.copy(myXHandle = "  @Kiran_Test ") }
+            vm.save()
+
+            assertThat(settings.current().myXHandle).isEqualTo("Kiran_Test")
+            assertThat(
+                vm.state.value.draft
+                    ?.myXHandle,
+            ).isEqualTo("@Kiran_Test")
+            assertThat(vm.state.value.dirty).isFalse()
+
+            vm.editDraft { it.copy(myXHandle = "") }
+            vm.save()
+            assertThat(settings.current().myXHandle).isEmpty()
+        }
+
+    @Test
+    fun `an X handle with spaces or over 15 characters is an error`() =
+        runTest {
+            val vm = viewModel()
+            for (bad in listOf("kiran test", "a_handle_that_is_too_long", "x.com/kiran")) {
+                vm.editDraft { it.copy(myXHandle = bad) }
+                vm.save()
+                assertThat(vm.state.value.errors).containsKey(SettingsField.MyXHandle)
+            }
+            assertThat(settings.current().myXHandle).isEmpty()
+        }
+
+    @Test
     fun `too many name characters are an error`() =
         runTest {
             val vm = viewModel()

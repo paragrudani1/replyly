@@ -48,6 +48,7 @@ class DataStoreSettingsRepositoryTest {
                     dailyRequestLimit = 50,
                     retentionDays = 30,
                     myNames = "Parag, Paru",
+                    myXHandle = "kiran_test",
                     useDynamicColor = true,
                 )
             DataStoreSettingsRepository(stores.open("settings")).update { changed }

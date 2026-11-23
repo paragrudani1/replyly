@@ -1,0 +1,85 @@
+{
+  "formatVersion": 1,
+  "packageName": "com.twitter.android",
+  "capturedAt": "2026-11-21T18:15:30Z",
+  "screenWidth": 1080,
+  "screenHeight": 2340,
+  "root": {
+    "className": "android.widget.FrameLayout",
+    "bounds": "[0,0][1080,2340]",
+    "children": [
+      {
+        "className": "android.view.ViewGroup",
+        "bounds": "[0,110][1080,257]",
+        "children": [
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Cancel",
+            "bounds": "[0,120][110,247]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.Button",
+            "viewId": "com.twitter.android:id/button_tweet",
+            "text": "Post",
+            "bounds": "[840,140][1040,225]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "android.widget.ImageView",
+        "viewId": "com.twitter.android:id/composer_avatar",
+        "contentDescription": "Profile picture",
+        "bounds": "[40,290][150,400]"
+      },
+      {
+        "className": "android.widget.EditText",
+        "viewId": "com.twitter.android:id/tweet_text",
+        "text": "This matches what we saw",
+        "hint": "Add a comment",
+        "bounds": "[180,280][1040,410]",
+        "editable": true,
+        "focused": true,
+        "clickable": true
+      },
+      {
+        "className": "android.view.ViewGroup",
+        "viewId": "com.twitter.android:id/quote_tweet_view",
+        "bounds": "[180,440][1040,655]",
+        "clickable": true,
+        "children": [
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Meera Iyer",
+            "bounds": "[210,460][260,510]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "viewId": "com.twitter.android:id/tweet_header_name",
+            "text": "Meera Iyer",
+            "bounds": "[280,458][500,513]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "viewId": "com.twitter.android:id/tweet_header_username",
+            "text": "@meera_writes",
+            "bounds": "[512,458][772,513]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "viewId": "com.twitter.android:id/tweet_header_timestamp",
+            "text": "· 1h",
+            "bounds": "[784,458][894,513]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "viewId": "com.twitter.android:id/tweet_content_text",
+            "text": "Per-field merge was worth the extra week.",
+            "bounds": "[210,525][1040,635]"
+          }
+        ]
+      }
+    ]
+  }
+}

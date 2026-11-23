@@ -15,6 +15,13 @@ object DumpSummary {
                 add("Chat key: ${chat.chatKey.encoded}")
                 val kind = "Group: ${yesNo(chat.isGroup)} · History: ${yesNo(chat.historyApplies)}"
                 add("$kind · ${chat.messages.size} messages")
+                chat.x?.let { x ->
+                    val quotes = x.thread.count { it.quoted != null }
+                    add(
+                        "X: ${x.mode.name.lowercase()} · ${x.parents.size} parents + target · " +
+                            "$quotes with a quoted post · my handle from ${x.myHandleSource.name.lowercase()}",
+                    )
+                }
             }
             if (report.notes.isNotEmpty()) add("Notes: ${report.notes.joinToString("; ")}")
             chat?.messages?.forEach { m ->

@@ -33,6 +33,7 @@ class ScreenFactsReaderTest {
                 viewIdResourceName = "com.whatsapp:id/entry"
                 setBoundsInScreen(Rect(30, 1300, 900, 1420))
                 isEditable = true
+                hintText = "Message"
             }
         val reader =
             ScreenFactsReader(
@@ -64,6 +65,7 @@ class ScreenFactsReaderTest {
                     password = false,
                     viewId = "com.whatsapp:id/entry",
                     bounds = Bounds(30, 1300, 900, 1420),
+                    hint = "Message",
                 ),
             )
     }

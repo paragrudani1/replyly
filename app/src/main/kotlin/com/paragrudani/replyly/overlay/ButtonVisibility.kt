@@ -22,6 +22,8 @@ data class FocusedInput(
     val password: Boolean,
     val viewId: String?,
     val bounds: Bounds,
+    /** The field's hint ("Post your reply"), kept while the user types. `null` when it has none. */
+    val hint: String? = null,
 )
 
 /** Everything the decision reads. Two cheap IPC calls fill it; no tree walk. */
@@ -52,6 +54,9 @@ enum class HideReason {
     WINDOW_NOT_ACTIVE,
     EXCLUDED_APP,
     BLOCKED_APP,
+
+    /** An app-specific field that is not a reply: X search or a new post without a target (issue #30). */
+    NOT_A_REPLY_FIELD,
 }
 
 /**
@@ -59,11 +64,13 @@ enum class HideReason {
  * focus, its window is the active (or focused) app window, the keyboard is open, and the input
  * is not hidden behind the keyboard. Target app
  * = any app [isAppAllowed] lets through (WhatsApp, WhatsApp Business, Telegram, and the generic
- * mode for every other app), except Replyly itself and the system UI.
+ * mode for every other app), except Replyly itself and the system UI. [isFieldAllowed] narrows
+ * an app to some of its fields: on X, the reply and quote composers and DMs only (`XFields`).
  */
 class ButtonVisibility(
     private val ownPackage: String,
     private val isAppAllowed: (packageName: String) -> Boolean,
+    private val isFieldAllowed: (packageName: String, viewId: String?, hint: String?) -> Boolean = { _, _, _ -> true },
 ) {
     fun decide(facts: ScreenFacts): ButtonDecision {
         val keyboard =
@@ -90,6 +97,10 @@ class ButtonVisibility(
 
             input.bounds.width <= 0 || input.bounds.height <= 0 || keyboard.bounds.covers(input.bounds) -> {
                 hide(HideReason.INPUT_COVERED)
+            }
+
+            !isFieldAllowed(input.packageName, input.viewId, input.hint) -> {
+                hide(HideReason.NOT_A_REPLY_FIELD)
             }
 
             !isAppAllowed(input.packageName) -> {

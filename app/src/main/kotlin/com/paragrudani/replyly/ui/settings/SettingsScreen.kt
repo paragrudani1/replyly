@@ -249,6 +249,13 @@ fun SettingsScreen(
                             capitalization = KeyboardCapitalization.Words,
                         )
                         ValidatedField(
+                            label = "My X handle",
+                            value = draft.myXHandle,
+                            error = state.errors[SettingsField.MyXHandle],
+                            onValueChange = { v -> vm.editDraft { it.copy(myXHandle = v) } },
+                            supporting = "Optional, e.g. @asha_dev. Marks your own posts when you reply on X.",
+                        )
+                        ValidatedField(
                             label = "History messages in the prompt (N)",
                             value = draft.historyMessageCount,
                             error = state.errors[SettingsField.HistoryMessageCount],

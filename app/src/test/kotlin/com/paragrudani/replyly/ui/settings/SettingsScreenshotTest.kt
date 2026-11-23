@@ -79,6 +79,13 @@ class SettingsScreenshotTest {
     @Test
     fun bottom() = shots.screen("settings/bottom") { Screen(viewModel(), firstItem = 99) }
 
+    /** "Your style", with "Names people call me" and "My X handle" (issue #30) filled in. */
+    @Test
+    fun yourStyle() =
+        shots.screen("settings/your_style") {
+            Screen(viewModel(filled.copy(myNames = "Kiran, Kiru", myXHandle = "kiran_test")), firstItem = 2)
+        }
+
     @Test
     fun emptyBlocklists() =
         shots.screen("settings/blocklists_empty") {

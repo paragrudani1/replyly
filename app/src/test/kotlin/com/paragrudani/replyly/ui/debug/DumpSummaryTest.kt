@@ -58,4 +58,18 @@ class DumpSummaryTest {
         assertThat(DumpSummary.crashed(IllegalStateException("private text")))
             .containsExactly("Parser crashed: IllegalStateException")
     }
+
+    @Test
+    fun `an X dump names the mode and counts the posts`() {
+        val report = Parsers.registry().explain(Fixtures.snapshot("x/synthetic-reply_thread.json"))
+
+        val lines = DumpSummary.lines(report)
+
+        assertThat(lines).contains("Parser: x:view-ids")
+        assertThat(lines).contains("Group: no · History: no · 3 messages")
+        assertThat(lines).contains("X: reply · 2 parents + target · 1 with a quoted post · my handle from none")
+        assertThat(
+            lines.single { it.startsWith("Notes: ") },
+        ).startsWith("Notes: mode: reply; 3 posts: 2 parents + target")
+    }
 }

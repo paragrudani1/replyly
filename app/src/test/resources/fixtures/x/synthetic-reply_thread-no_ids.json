@@ -1,0 +1,349 @@
+{
+  "formatVersion": 1,
+  "packageName": "com.twitter.android",
+  "capturedAt": "2026-11-21T18:15:30Z",
+  "screenWidth": 1080,
+  "screenHeight": 2340,
+  "root": {
+    "className": "android.widget.FrameLayout",
+    "bounds": "[0,0][1080,2340]",
+    "children": [
+      {
+        "className": "android.view.ViewGroup",
+        "bounds": "[0,110][1080,257]",
+        "children": [
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Navigate up",
+            "bounds": "[0,120][110,247]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "Post",
+            "bounds": "[150,150][500,215]"
+          }
+        ]
+      },
+      {
+        "className": "androidx.recyclerview.widget.RecyclerView",
+        "bounds": "[0,257][1080,1960]",
+        "scrollable": true,
+        "children": [
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,270][1080,810]",
+            "children": [
+              {
+                "className": "android.widget.ImageView",
+                "contentDescription": "Ravi K",
+                "bounds": "[40,290][150,400]",
+                "clickable": true
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "Ravi K @ravi_k · 5h",
+                "bounds": "[180,290][598,345]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "Shipping the offline mode this week. Small teams can still move fast.",
+                "bounds": "[180,355][1040,465]"
+              },
+              {
+                "className": "android.view.ViewGroup",
+                "bounds": "[180,475][1040,690]",
+                "clickable": true,
+                "children": [
+                  {
+                    "className": "android.widget.ImageView",
+                    "contentDescription": "Asha Dev",
+                    "bounds": "[210,495][260,545]"
+                  },
+                  {
+                    "className": "android.widget.TextView",
+                    "text": "Asha Dev @asha_dev · Nov 19",
+                    "bounds": "[280,493][874,548]"
+                  },
+                  {
+                    "className": "android.widget.TextView",
+                    "text": "What is the one feature you would ship first?",
+                    "bounds": "[210,560][1040,670]"
+                  }
+                ]
+              },
+              {
+                "className": "android.widget.ImageButton",
+                "contentDescription": "Reply",
+                "bounds": "[180,720][250,790]",
+                "clickable": true
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "3",
+                "bounds": "[255,728][340,782]"
+              },
+              {
+                "className": "android.widget.ImageButton",
+                "contentDescription": "Repost",
+                "bounds": "[400,720][470,790]",
+                "clickable": true
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "12",
+                "bounds": "[475,728][560,782]"
+              },
+              {
+                "className": "android.widget.ImageButton",
+                "contentDescription": "Like",
+                "bounds": "[620,720][690,790]",
+                "clickable": true
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "48",
+                "bounds": "[695,728][780,782]"
+              },
+              {
+                "className": "android.widget.ImageButton",
+                "contentDescription": "Share",
+                "bounds": "[960,720][1030,790]",
+                "clickable": true
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,820][1080,1175]",
+            "children": [
+              {
+                "className": "android.widget.ImageView",
+                "contentDescription": "Asha Dev",
+                "bounds": "[40,840][150,950]",
+                "clickable": true
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "Asha Dev @asha_dev · 4h",
+                "bounds": "[180,840][686,895]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "Replying to @ravi_k",
+                "bounds": "[180,905][1040,955]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "Offline first is underrated. How are you handling sync conflicts?",
+                "bounds": "[180,965][1040,1075]"
+              },
+              {
+                "className": "android.widget.ImageButton",
+                "contentDescription": "Reply",
+                "bounds": "[180,1085][250,1155]",
+                "clickable": true
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "3",
+                "bounds": "[255,1093][340,1147]"
+              },
+              {
+                "className": "android.widget.ImageButton",
+                "contentDescription": "Repost",
+                "bounds": "[400,1085][470,1155]",
+                "clickable": true
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "12",
+                "bounds": "[475,1093][560,1147]"
+              },
+              {
+                "className": "android.widget.ImageButton",
+                "contentDescription": "Like",
+                "bounds": "[620,1085][690,1155]",
+                "clickable": true
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "48",
+                "bounds": "[695,1093][780,1147]"
+              },
+              {
+                "className": "android.widget.ImageButton",
+                "contentDescription": "Share",
+                "bounds": "[960,1085][1030,1155]",
+                "clickable": true
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,1185][1080,1760]",
+            "children": [
+              {
+                "className": "android.widget.ImageView",
+                "contentDescription": "Meera Iyer",
+                "bounds": "[40,1205][150,1315]",
+                "clickable": true
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "Meera Iyer",
+                "bounds": "[180,1210][400,1265]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "@meera_writes",
+                "bounds": "[180,1270][440,1320]"
+              },
+              {
+                "className": "android.widget.Button",
+                "text": "Follow",
+                "bounds": "[840,1225][1040,1295]",
+                "clickable": true
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "We tried last-write-wins and regretted it. Per-field merge was worth the extra week.",
+                "bounds": "[40,1345][1040,1510]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "6:42 PM · 21 Nov 26 · 1,204 Views",
+                "bounds": "[40,1530][1040,1585]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "12 Reposts",
+                "bounds": "[40,1600][300,1655]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "48 Likes",
+                "bounds": "[320,1600][600,1655]"
+              },
+              {
+                "className": "android.widget.ImageButton",
+                "contentDescription": "Reply",
+                "bounds": "[40,1670][110,1740]",
+                "clickable": true
+              },
+              {
+                "className": "android.widget.ImageButton",
+                "contentDescription": "Repost",
+                "bounds": "[260,1670][330,1740]",
+                "clickable": true
+              },
+              {
+                "className": "android.widget.ImageButton",
+                "contentDescription": "Like",
+                "bounds": "[480,1670][550,1740]",
+                "clickable": true
+              },
+              {
+                "className": "android.widget.ImageButton",
+                "contentDescription": "Share",
+                "bounds": "[960,1670][1030,1740]",
+                "clickable": true
+              }
+            ]
+          },
+          {
+            "className": "android.view.ViewGroup",
+            "bounds": "[0,1770][1080,2070]",
+            "children": [
+              {
+                "className": "android.widget.ImageView",
+                "contentDescription": "Dev N",
+                "bounds": "[40,1790][150,1900]",
+                "clickable": true
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "Dev N @dev_null_test · 1h",
+                "bounds": "[180,1790][730,1845]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "Replying to @meera_writes",
+                "bounds": "[180,1855][1040,1905]"
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "Same here, CRDTs saved us.",
+                "bounds": "[180,1915][1040,1970]"
+              },
+              {
+                "className": "android.widget.ImageButton",
+                "contentDescription": "Reply",
+                "bounds": "[180,1980][250,2050]",
+                "clickable": true
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "3",
+                "bounds": "[255,1988][340,2042]"
+              },
+              {
+                "className": "android.widget.ImageButton",
+                "contentDescription": "Repost",
+                "bounds": "[400,1980][470,2050]",
+                "clickable": true
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "12",
+                "bounds": "[475,1988][560,2042]"
+              },
+              {
+                "className": "android.widget.ImageButton",
+                "contentDescription": "Like",
+                "bounds": "[620,1980][690,2050]",
+                "clickable": true
+              },
+              {
+                "className": "android.widget.TextView",
+                "text": "48",
+                "bounds": "[695,1988][780,2042]"
+              },
+              {
+                "className": "android.widget.ImageButton",
+                "contentDescription": "Share",
+                "bounds": "[960,1980][1030,2050]",
+                "clickable": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "className": "android.view.ViewGroup",
+        "bounds": "[0,1970][1080,2200]",
+        "children": [
+          {
+            "className": "android.widget.TextView",
+            "text": "Replying to @meera_writes",
+            "bounds": "[180,1980][1040,2030]"
+          },
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Profile picture",
+            "bounds": "[40,2050][150,2160]"
+          },
+          {
+            "className": "android.widget.EditText",
+            "text": "Per-field merge is the way",
+            "hint": "Post your reply",
+            "bounds": "[180,2040][1040,2170]",
+            "editable": true,
+            "focused": true,
+            "clickable": true
+          }
+        ]
+      }
+    ]
+  }
+}

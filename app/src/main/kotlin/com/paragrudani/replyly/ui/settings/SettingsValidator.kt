@@ -1,9 +1,10 @@
 package com.paragrudani.replyly.ui.settings
 
+import com.paragrudani.replyly.parser.x.XHandles
 import com.paragrudani.replyly.settings.ReplylySettings
 
 /** Endpoint and model moved to provider profiles; the form no longer edits or checks them. */
-enum class SettingsField { HistoryMessageCount, AboutMe, MyNames, RetentionDays, DailyRequestLimit }
+enum class SettingsField { HistoryMessageCount, AboutMe, MyNames, MyXHandle, RetentionDays, DailyRequestLimit }
 
 /** What the settings form edits: numbers stay text until saved, so half-typed input is fine. */
 data class SettingsDraft(
@@ -16,6 +17,8 @@ data class SettingsDraft(
     val blockedPackages: Set<String>,
     val blockedChatKeys: Set<String>,
     val myNames: String = "",
+    /** Shown with a leading `@` when set. */
+    val myXHandle: String = "",
 ) {
     companion object {
         fun from(settings: ReplylySettings) =
@@ -29,6 +32,11 @@ data class SettingsDraft(
                 blockedPackages = settings.blockedPackages,
                 blockedChatKeys = settings.blockedChatKeys,
                 myNames = settings.myNames,
+                myXHandle =
+                    settings.myXHandle
+                        .takeIf { it.isNotEmpty() }
+                        ?.let { "@$it" }
+                        .orEmpty(),
             )
     }
 }
@@ -78,6 +86,9 @@ object SettingsValidator {
             errors[SettingsField.MyNames] = "At most $MAX_MY_NAMES characters (now ${myNames.length})"
         }
 
+        val myXHandle = XHandles.normalize(draft.myXHandle)
+        if (myXHandle == null) errors[SettingsField.MyXHandle] = "Letters, digits and _ only, up to 15 characters"
+
         val retention = draft.retentionDays.wholeIn(1..MAX_RETENTION_DAYS)
         if (retention ==
             null
@@ -96,6 +107,7 @@ object SettingsValidator {
                 retentionDays = retention!!,
                 dailyRequestLimit = limit!!,
                 myNames = myNames,
+                myXHandle = myXHandle!!,
                 // Blocklists are saved on their own the moment they change; Save keeps the stored ones.
             )
         }

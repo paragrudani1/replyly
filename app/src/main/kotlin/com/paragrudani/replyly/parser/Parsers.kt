@@ -3,6 +3,7 @@ package com.paragrudani.replyly.parser
 import com.paragrudani.replyly.parser.generic.GenericChatParser
 import com.paragrudani.replyly.parser.telegram.TelegramParser
 import com.paragrudani.replyly.parser.whatsapp.WhatsAppParser
+import com.paragrudani.replyly.parser.x.XParser
 import com.paragrudani.replyly.screen.ScreenSnapshot
 import java.time.ZoneId
 
@@ -10,11 +11,15 @@ import java.time.ZoneId
 object Parsers {
     /**
      * [zone] turns a snapshot's capture time into the day that "Today" and weekday separators
-     * resolve against: the phone's zone.
+     * resolve against: the phone's zone. [myXHandle] is the "My X handle" setting, read on each
+     * X parse (issue #30).
      */
-    fun registry(zone: ZoneId = ZoneId.systemDefault()): ChatParserRegistry =
+    fun registry(
+        zone: ZoneId = ZoneId.systemDefault(),
+        myXHandle: () -> String? = { null },
+    ): ChatParserRegistry =
         ChatParserRegistry(
-            parsers = listOf(WhatsAppParser(zone), TelegramParser(zone)),
+            parsers = listOf(WhatsAppParser(zone), TelegramParser(zone), XParser(myXHandle)),
             fallback = GenericChatParser(),
         )
 }

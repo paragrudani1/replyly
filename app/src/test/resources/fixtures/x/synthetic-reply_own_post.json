@@ -1,0 +1,212 @@
+{
+  "formatVersion": 1,
+  "packageName": "com.twitter.android",
+  "capturedAt": "2026-11-21T18:15:30Z",
+  "screenWidth": 1080,
+  "screenHeight": 2340,
+  "root": {
+    "className": "android.widget.FrameLayout",
+    "bounds": "[0,0][1080,2340]",
+    "children": [
+      {
+        "className": "android.view.ViewGroup",
+        "bounds": "[0,110][1080,257]",
+        "children": [
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Cancel",
+            "bounds": "[0,120][110,247]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.Button",
+            "viewId": "com.twitter.android:id/button_tweet",
+            "text": "Reply",
+            "bounds": "[840,140][1040,225]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "android.view.ViewGroup",
+        "viewId": "com.twitter.android:id/row",
+        "bounds": "[0,270][1080,565]",
+        "children": [
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Kiran",
+            "bounds": "[40,290][150,400]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.TextView",
+            "viewId": "com.twitter.android:id/tweet_header_name",
+            "text": "Kiran",
+            "bounds": "[180,290][290,345]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "viewId": "com.twitter.android:id/tweet_header_username",
+            "text": "@kiran_test",
+            "bounds": "[302,290][522,345]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "viewId": "com.twitter.android:id/tweet_header_timestamp",
+            "text": "· 3h",
+            "bounds": "[534,290][644,345]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "viewId": "com.twitter.android:id/tweet_content_text",
+            "text": "Hot take: most apps do not need a settings screen with 40 toggles.",
+            "bounds": "[180,355][1040,465]"
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Reply",
+            "bounds": "[180,475][250,545]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "3",
+            "bounds": "[255,483][340,537]"
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Repost",
+            "bounds": "[400,475][470,545]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "12",
+            "bounds": "[475,483][560,537]"
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Like",
+            "bounds": "[620,475][690,545]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "48",
+            "bounds": "[695,483][780,537]"
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Share",
+            "bounds": "[960,475][1030,545]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "android.view.ViewGroup",
+        "viewId": "com.twitter.android:id/row",
+        "bounds": "[0,575][1080,875]",
+        "children": [
+          {
+            "className": "android.widget.ImageView",
+            "contentDescription": "Ravi K",
+            "bounds": "[40,595][150,705]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.TextView",
+            "viewId": "com.twitter.android:id/tweet_header_name",
+            "text": "Ravi K",
+            "bounds": "[180,595][312,650]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "viewId": "com.twitter.android:id/tweet_header_username",
+            "text": "@ravi_k",
+            "bounds": "[324,595][464,650]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "viewId": "com.twitter.android:id/tweet_header_timestamp",
+            "text": "· 2h",
+            "bounds": "[476,595][586,650]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "viewId": "com.twitter.android:id/reply_context_text",
+            "text": "Replying to @kiran_test",
+            "bounds": "[180,660][1040,710]"
+          },
+          {
+            "className": "android.widget.TextView",
+            "viewId": "com.twitter.android:id/tweet_content_text",
+            "text": "Disagree, power users want control.",
+            "bounds": "[180,720][1040,775]"
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Reply",
+            "bounds": "[180,785][250,855]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "3",
+            "bounds": "[255,793][340,847]"
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Repost",
+            "bounds": "[400,785][470,855]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "12",
+            "bounds": "[475,793][560,847]"
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Like",
+            "bounds": "[620,785][690,855]",
+            "clickable": true
+          },
+          {
+            "className": "android.widget.TextView",
+            "text": "48",
+            "bounds": "[695,793][780,847]"
+          },
+          {
+            "className": "android.widget.ImageButton",
+            "contentDescription": "Share",
+            "bounds": "[960,785][1030,855]",
+            "clickable": true
+          }
+        ]
+      },
+      {
+        "className": "android.widget.TextView",
+        "viewId": "com.twitter.android:id/reply_context_text",
+        "text": "Replying to @ravi_k",
+        "bounds": "[180,895][1040,945]"
+      },
+      {
+        "className": "android.widget.ImageView",
+        "viewId": "com.twitter.android:id/composer_avatar",
+        "contentDescription": "Account @kiran_test",
+        "bounds": "[40,965][150,1075]"
+      },
+      {
+        "className": "android.widget.EditText",
+        "viewId": "com.twitter.android:id/tweet_text",
+        "text": "Post your reply",
+        "hint": "Post your reply",
+        "bounds": "[180,955][1040,1085]",
+        "editable": true,
+        "focused": true,
+        "clickable": true
+      }
+    ]
+  }
+}

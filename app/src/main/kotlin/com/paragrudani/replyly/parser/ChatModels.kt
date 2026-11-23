@@ -1,5 +1,6 @@
 package com.paragrudani.replyly.parser
 
+import com.paragrudani.replyly.parser.x.XContext
 import java.time.LocalDate
 
 /**
@@ -54,6 +55,11 @@ data class ParsedChat(
     val messages: List<ChatMessage>,
     /** True only for apps with a full parser. Generic apps send visible text only, no history. */
     val historyApplies: Boolean,
+    /**
+     * The X reply or quote screen (issue #30), `null` for every other app and for X DMs. Until the X
+     * prompt mode lands, [messages] also carries its thread so the chat prompt works.
+     */
+    val x: XContext? = null,
 ) {
     val chatKey: ChatKey get() = ChatKey(packageName, title)
 }

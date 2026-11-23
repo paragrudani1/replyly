@@ -114,6 +114,7 @@ class HistorySuggestionRequestAssembler(
                 TargetApps.WHATSAPP to "WhatsApp",
                 TargetApps.WHATSAPP_BUSINESS to "WhatsApp Business",
                 TargetApps.TELEGRAM to "Telegram",
+                TargetApps.X to "X",
                 // Common generic apps, in case package visibility hides their label.
                 "com.Slack" to "Slack",
                 "com.linkedin.android" to "LinkedIn",

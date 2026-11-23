@@ -24,6 +24,11 @@ data class ReplylySettings(
      * mention me; may be empty. See [myNameList].
      */
     val myNames: String = "",
+    /**
+     * "My X handle" (issue #30): marks my own posts on X. Stored without `@` (see
+     * `XHandles.normalize`), compared without case; empty when not set.
+     */
+    val myXHandle: String = "",
     /** Material You: colours from the wallpaper instead of the Replyly brand colours. */
     val useDynamicColor: Boolean = false,
 ) {
