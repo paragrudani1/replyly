@@ -7,10 +7,14 @@ import kotlin.random.Random
 /**
  * Seeded property test for [XTags.strip] (issue #46 §4). A reply is built from a leading run of
  * tags, a middle of plain words (with look-alikes: `C#`, `#1`, e-mails, `@` and `#` in URLs) and
- * inline tags, and a trailing run, so the expected result is known (the simulated truth).
+ * inline tags, a trailing run and an optional tail of emoji or sentence punctuation after it, so
+ * the expected result is known (the simulated truth). The middle ends in a plain word that neither
+ * ends in dangling punctuation nor is all emoji, so the run's end is unambiguous.
  *
  * Invariants, for every seed:
- * 1. Both kinds stripped: the result is exactly the middle with the inline tags' sigils removed.
+ * 1. Both kinds stripped: the result is exactly the middle with the inline tags' sigils removed,
+ *    plus the tail when it follows a removed run and holds an emoji or the middle does not end a
+ *    sentence (or the tail as written when there is no trailing run).
  * 2. Never adds text: the result is a subsequence of the input.
  * 3. Idempotent: stripping the result again changes nothing.
  * 4. A kept kind is untouched: every tag of that kind in the input is in the result, in order.
@@ -45,6 +49,8 @@ class XTagsPropertyTest {
     private val hashtags = listOf("#Kotlin", "#buildinpublic", "#dev_life", "#日本", "＃タグ", "#v2")
     private val mentions = listOf("@ravi_k", "@asha_dev", "@x", "＠ravi_k", "@A_1")
     private val spaces = listOf(" ", " ", "  ", "\n", " \n")
+    private val safeLast = plain.filter { it.last() !in XLength.DANGLING && it != "🔥" }
+    private val tails = listOf("", "", "", "🚀", " 🚀", ".", "!", "…", " 🎉🎉", "👍🏽", " !", " 🔥.")
 
     private data class Case(
         val input: String,
@@ -74,11 +80,12 @@ class XTagsPropertyTest {
                             },
                         )
                     }
-                    add(plain.random(random))
+                    add(safeLast.random(random))
                 }
             }
         val words = lead + middle + trail
-        val input =
+        val tailPart = if (middle.isEmpty()) "" else tails.random(random)
+        val body =
             buildString {
                 if (random.nextInt(8) == 0) append(" ")
                 words.forEachIndexed { i, word ->
@@ -86,12 +93,13 @@ class XTagsPropertyTest {
                     append(word)
                 }
             }
+        val input = body + tailPart
         // The middle as it sits in the input (its own spacing), sigils of inline tags removed.
-        val expected =
+        val stripped =
             if (middle.isEmpty()) {
                 ""
             } else {
-                val trimmed = input.trim()
+                val trimmed = body.trim()
                 var from = 0
                 repeat(lead.size) { from = trimmed.indexOf(lead[it], from) + lead[it].length }
                 val start = trimmed.indexOf(middle.first(), from)
@@ -100,6 +108,34 @@ class XTagsPropertyTest {
                 val region = trimmed.substring(start, end).trimEnd()
                 middle.filter { it in hashtags || it in mentions }.fold(region) { acc, tag ->
                     acc.replaceFirst(Regex("(?<=^|\\s)" + Regex.escape(tag) + "(?=\\s|$)"), tag.drop(1))
+                }
+            }
+        val bare = tailPart.trimStart()
+        val expected =
+            when {
+                bare.isEmpty() -> {
+                    stripped
+                }
+
+                trail.isEmpty() -> {
+                    stripped + tailPart
+                }
+
+                bare.any { Character.getType(it) == Character.SURROGATE.toInt() } -> {
+                    // The tail's own space, else the whitespace before the run.
+                    val trimmed = body.trim()
+                    var runStart = trimmed.length
+                    repeat(trail.size) { runStart = trimmed.lastIndexOf(trail[trail.size - 1 - it], runStart - 1) }
+                    val gap = tailPart.firstOrNull()?.takeIf { it.isWhitespace() } ?: trimmed[runStart - 1]
+                    stripped + gap + bare
+                }
+
+                stripped.last() in XLength.SENTENCE_END || stripped.last() == '…' -> {
+                    stripped
+                }
+
+                else -> {
+                    stripped + bare
                 }
             }
         return Case(input, expected)

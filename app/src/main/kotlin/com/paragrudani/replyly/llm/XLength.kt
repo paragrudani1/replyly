@@ -32,8 +32,11 @@ import java.util.Locale
  *
  * **URLs** count 23 each, as twitter-text's `Extractor.extractURLsWithIndices` (`Regex.VALID_URL`)
  * finds them:
- * - `http://` or `https://`, then a domain that ends in a top-level domain of two or more letters
- *   (any, so an unknown one over-counts, the safe direction), an optional port and path. A scheme
+ * - `http://` or `https://`, then a domain that ends in a top-level domain of two or more ASCII
+ *   letters (any, so an unknown one over-counts, the safe direction) or two or more Cyrillic letters
+ *   (`.рф`), or one of the common non-Latin TLDs in [IDN_TLDS] (`.中国`), then an optional port and
+ *   path. Another non-Latin TLD counts as its characters (an under-count; rare, links are off in
+ *   the prompt). A scheme
  *   without such a domain is plain text: `http://x`, `http://localhost:8080`, an IP address
  *   (twitter-text's `VALID_DOMAIN` needs a TLD after a dot).
  * - a bare domain whose last label is a common top-level domain ([TLDS]), with an optional path.
@@ -281,6 +284,9 @@ object XLength {
     /** twitter-text's path characters, roughly: printable ASCII, Latin accents, combining marks, Cyrillic. */
     private const val PATH_CHAR = """[\x21-\x7E\u00C0-\u024F\u0300-\u036F\u0400-\u04FF\u1E00-\u1EFF]"""
 
+    /** Common non-Latin, non-Cyrillic country TLDs (IANA IDN ccTLDs) after a scheme. */
+    internal val IDN_TLDS: List<String> = listOf("中国", "中國", "香港", "台灣", "台湾", "新加坡", "भारत", "한국", "ไทย")
+
     /** twitter-text's TLD lookahead: a TLD ends before anything but `[a-z0-9@+-]`. */
     private const val TLD_END = """(?![a-z0-9@+-])"""
 
@@ -288,7 +294,9 @@ object XLength {
 
     private val URL: Regex =
         Regex(
-            """(?<![\w@./-])(?:https?://(?:$LABEL\.)+[a-z]{2,}$TLD_END(?::\d+)?""" +
+            """(?<![\w@./-])(?:https?://(?:$LABEL\.)+(?:[a-z]{2,}|\p{IsCyrillic}{2,}|${IDN_TLDS.joinToString(
+                "|",
+            )})$TLD_END(?::\d+)?""" +
                 """|(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:${TLDS.joinToString("|")})$TLD_END)""" +
                 """(?:[/?#]$PATH_CHAR*)?""",
             RegexOption.IGNORE_CASE,

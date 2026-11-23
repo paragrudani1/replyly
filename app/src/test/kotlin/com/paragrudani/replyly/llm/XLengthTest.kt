@@ -84,6 +84,11 @@ class XLengthTest {
         assertThat(XLength.weighted("http://localhost")).isEqualTo(16)
         assertThat(XLength.weighted("http://localhost:8080/api")).isEqualTo(25)
         assertThat(XLength.weighted("localhost")).isEqualTo(9)
+        // #50 review N1: a Cyrillic or common non-Latin TLD after a scheme is still a link.
+        assertThat(XLength.weighted("https://пример.рф")).isEqualTo(23)
+        assertThat(XLength.weighted("https://例子.中国/x")).isEqualTo(23)
+        assertThat(XLength.weighted("see https://例子.中国然后")).isEqualTo(4 + 23 + 4)
+        assertThat(XLength.weighted("https://example.com然后")).isEqualTo(27)
         assertThat(XLength.weighted("http://192.168.1.10")).isEqualTo(19)
         // With a TLD it is still a link, with a port or a path.
         assertThat(XLength.weighted("http://example.com:8080/api")).isEqualTo(23)

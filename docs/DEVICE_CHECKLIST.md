@@ -1257,7 +1257,7 @@ line with your message and the `[media]` line after it; and the 3 cards from the
 Replyly now reads X (`com.twitter.android`): the button shows on the **reply composer** and the
 **quote composer** (and in X DMs, which work like any other chat), and the parser reads the post
 you reply to, the thread above it and the quoted post. 15.1–15.15 check detection and reading
-(PR 1); 15.16–15.24 check the X prompt, the length counter and the new settings (PR 2).
+(PR 1); 15.16–15.24 check the X prompt, the length counter and the new settings (PR 2); 15.25–15.27 check the #46 follow-ups.
 
 **Every X view id in `parser/x/XIds.kt` is a guess** from older public Twitter dumps, and the
 composer is recognised by its hint ("Post your reply", "Add a comment"), in English. The dumps of
@@ -1414,13 +1414,16 @@ screenshot of the card.
 
 15.26 **Do:** (#46) open the panel in an X reply composer, then in a WhatsApp chat. **See:** on X
 the empty instruction field reads "e.g. ask for a source" in full (no "…", also at the largest
-font size); in WhatsApp it still reads "Instruction, e.g. say I'll call at 6". **Send:** pass/fail.
+font size); in WhatsApp it still reads "Instruction, e.g. say I'll call at 6". With TalkBack on,
+focus the X field: it is announced as "Instruction". **Send:** pass/fail.
 
-15.27 **Do:** (#46) make sure "My X voice" has no `#` and no `@` (Save). Reply to a post with the
-instruction `start with @ravi_k, mention #Kotlin in the middle and end with #buildinpublic #dev`,
-Regenerate. **See:** no card starts with `@ravi_k` or ends with `#buildinpublic #dev` (those runs
-are removed with their spaces); where the model put them mid-sentence the word stays without its
-sign ("love Kotlin for this", "as ravi_k said"). `C#`, `#1`, e-mail addresses and links are never
-changed. Then add `#buildinpublic` to "My X voice", Save, and tap Regenerate with the same
+15.27 **Do:** (#46) make sure "My X voice" has no `#` and no `@` (Save); the rule is literal, so
+a voice like "never use #hashtags" counts as using them (write tags without `#` there). Reply to
+someone else's post, in a thread where none of your own posts (or posts quoted in it) show a `#`
+or `@`, with the instruction `start with @ravi_k, mention #Kotlin and C# in the middle, give
+asha@example.com, and end with #buildinpublic #dev 🚀`, Regenerate. **See:** no card starts with
+`@ravi_k` or ends with `#buildinpublic #dev` (those runs are removed with their spaces, an emoji
+after them stays); where the model put them mid-sentence the word stays without its sign ("love
+Kotlin for this", "as ravi_k said"). `C#` and `asha@example.com` stay as written. Then add `#buildinpublic` to "My X voice", Save, and tap Regenerate with the same
 instruction. **See:** hashtags now stay as written, while `@` mentions are still removed. Remove it
 again afterwards. **Send:** pass/fail and screenshots of both panels.

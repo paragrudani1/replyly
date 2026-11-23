@@ -27,9 +27,35 @@ class XTagsTest {
     fun `an inline one keeps its word and loses the sigil`() {
         assertThat(strip("love #Kotlin for this")).isEqualTo("love Kotlin for this")
         assertThat(strip("as @ravi_k said, caching wins")).isEqualTo("as ravi_k said, caching wins")
-        assertThat(strip("Great point #Kotlin.")).isEqualTo("Great point Kotlin.")
+        assertThat(strip("Great point #Kotlin, really.")).isEqualTo("Great point Kotlin, really.")
         assertThat(strip("@ravi_k, you nailed it")).isEqualTo("ravi_k, you nailed it")
         assertThat(strip("full-width ＃タグ and ＠ravi_k too")).isEqualTo("full-width タグ and ravi_k too")
+    }
+
+    @Test
+    fun `a trailing run before emoji or punctuation still goes, with dangling punctuation`() {
+        assertThat(strip("Totally agree #kotlin #dev 🚀")).isEqualTo("Totally agree 🚀")
+        assertThat(strip("Totally agree #kotlin #dev🚀")).isEqualTo("Totally agree 🚀")
+        assertThat(strip("Great point! #buildinpublic #kotlin.")).isEqualTo("Great point!")
+        assertThat(strip("Great point #kotlin.")).isEqualTo("Great point.")
+        assertThat(strip("Great point #kotlin, #dev")).isEqualTo("Great point")
+        assertThat(strip("Totally agree — #kotlin")).isEqualTo("Totally agree")
+        assertThat(strip("Ship it\n\n#dev #kotlin 👍🏽")).isEqualTo("Ship it 👍🏽")
+        assertThat(strip("Ship it\n\n#dev #kotlin👍🏽")).isEqualTo("Ship it\n👍🏽")
+        assertThat(strip("Ship it today #dev 🔥🔥!")).isEqualTo("Ship it today 🔥🔥!")
+    }
+
+    @Test
+    fun `twitter-text edge shapes`() {
+        // N2: a mention may run into CJK or Devanagari (it does on X), not into a Latin accent.
+        assertThat(strip("as @ravi_k然后 said it")).isEqualTo("as ravi_k然后 said it")
+        assertThat(strip("as @ravi_kनमस्ते said it")).isEqualTo("as ravi_kनमस्ते said it")
+        assertThat(strip("as @ravi_ké said it")).isEqualTo("as @ravi_ké said it")
+        // N3: hashtag special characters are part of the tag.
+        assertThat(strip("great #ハッシュ・タグ")).isEqualTo("great")
+        assertThat(strip("say #a·b here")).isEqualTo("say a·b here")
+        // N4: a tag made of supplementary-plane letters.
+        assertThat(strip("try #𠮷野家 here")).isEqualTo("try 𠮷野家 here")
     }
 
     @Test

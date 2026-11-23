@@ -207,13 +207,17 @@ class SuggestionOutputParserTest {
 
         val kept =
             SuggestionOutputParser.parse(
-                json("agree" to "Ship it #buildinpublic", "question" to "Why @ravi_k?", "insight" to "Sync is hard."),
+                json(
+                    "agree" to "Ship it #buildinpublic",
+                    "question" to "Why does @ravi_k say so?",
+                    "insight" to "Sync is hard.",
+                ),
                 lengthLimit = 280,
                 xTags = XTags.Keep(hashtags = true, mentions = false),
             ) as ParsedSuggestions.Ok
         assertThat(
             kept.suggestions.map { it.text },
-        ).containsExactly("Ship it #buildinpublic", "Why ravi_k?", "Sync is hard.")
+        ).containsExactly("Ship it #buildinpublic", "Why does ravi_k say so?", "Sync is hard.")
     }
 
     @Test

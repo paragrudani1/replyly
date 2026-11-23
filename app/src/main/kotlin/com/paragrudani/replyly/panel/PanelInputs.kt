@@ -89,7 +89,11 @@ internal fun InstructionArea(
                 keyboardOptions =
                     KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                modifier = Modifier.weight(1f),
+                // The X example has no "Instruction," (#46): name the field for TalkBack.
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .then(if (ui.isX) Modifier.semantics { contentDescription = "Instruction" } else Modifier),
             )
             FilledTonalIconButton(
                 onClick = {
