@@ -25,6 +25,9 @@ import kotlin.random.Random
  *    (their media after mine means they answered).
  * 5. The "anyway" tap only ever turns NothingToReply into FollowUp(Asked); every other decision
  *    is the same with or without it.
+ * 8. [ReplyTarget.nothingReason] is set exactly when the decision is NothingToReply, and then
+ *    names the situation (issue #38): no message of mine (empty chat or only their media), their
+ *    media after my last message, or my message last; with the "anyway" tap it is always null.
  *
  * Generator 2 (chronological): real timelines with whole-minute send times in Asia/Kolkata,
  * America/New_York and Europe/London around their autumn clock changes, crossing midnight;
@@ -90,6 +93,7 @@ class ReplyTargetPropertyTest {
         var replies = 0
         var followUps = 0
         var nothing = 0
+        val reasons = mutableSetOf<NothingToReplyReason>()
         for (seed in 1..SEEDS) {
             val random = Random(seed)
             val isGroup = random.nextBoolean()
@@ -102,6 +106,20 @@ class ReplyTargetPropertyTest {
             val lastMine = conversation.indexOfLast { it.message.isMe }
             val othersAfter = conversation.drop(lastMine + 1).filter { it.message.text.isNotBlank() }
             val myMessageLast = conversation.isNotEmpty() && conversation.last().message.isMe
+            val reason = ReplyTarget.nothingReason(conversation, now, isGroup, names)
+            // 8
+            val expectedReason =
+                when {
+                    decision != ReplyTarget.NothingToReply -> null
+                    conversation.none { it.message.isMe } -> NothingToReplyReason.NoMessageOfMine
+                    myMessageLast -> NothingToReplyReason.MyMessageLast
+                    else -> NothingToReplyReason.TheirMediaAfterMine
+                }
+            assertWithMessage(context).that(reason).isEqualTo(expectedReason)
+            assertWithMessage(context)
+                .that(ReplyTarget.nothingReason(conversation, now, isGroup, names, followUpAnyway = true))
+                .isNull()
+            if (expectedReason != null) reasons += expectedReason
 
             if (othersAfter.isNotEmpty()) {
                 // 1
@@ -134,6 +152,9 @@ class ReplyTargetPropertyTest {
         assertWithMessage("replies").that(replies).isGreaterThan(SEEDS / 5)
         assertWithMessage("follow-ups").that(followUps).isGreaterThan(SEEDS / 20)
         assertWithMessage("nothing to reply to").that(nothing).isGreaterThan(SEEDS / 50)
+        assertWithMessage(
+            "nothing-to-reply reasons",
+        ).that(reasons).containsExactlyElementsIn(NothingToReplyReason.entries)
     }
 
     private val zones = listOf("Asia/Kolkata", "America/New_York", "Europe/London").map(ZoneId::of)

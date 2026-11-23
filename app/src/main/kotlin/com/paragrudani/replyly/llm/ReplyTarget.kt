@@ -18,6 +18,18 @@ enum class FollowUpReason {
     Asked,
 }
 
+/** Why [ReplyTarget.decide] found nothing to reply to (issue #38); the panel's subtitle says it. */
+enum class NothingToReplyReason {
+    /** My message is the last one, recent and not a question. */
+    MyMessageLast,
+
+    /** Only their media (no text) came after my last message: they answered. */
+    TheirMediaAfterMine,
+
+    /** There is no message of mine: an empty chat, or only their media. */
+    NoMessageOfMine,
+}
+
 /**
  * What the next message from me should do (issue #26, PR 2). Pure: decided from the messages and
  * the time only, by [ReplyTarget.decide].
@@ -36,7 +48,10 @@ sealed interface ReplyTarget {
         val reason: FollowUpReason,
     ) : ReplyTarget
 
-    /** My message is the last one, recent and not a question: the panel offers follow-ups instead of calling. */
+    /**
+     * Nothing needs an answer: the panel offers follow-ups instead of calling. Why:
+     * [ReplyTarget.nothingReason].
+     */
     data object NothingToReply : ReplyTarget
 
     companion object {
@@ -45,6 +60,29 @@ sealed interface ReplyTarget {
 
         fun decide(request: SuggestionRequest): ReplyTarget =
             decide(request.history, request.now, request.isGroup, request.myNames, request.followUpAnyway)
+
+        fun nothingReason(request: SuggestionRequest): NothingToReplyReason? =
+            nothingReason(request.history, request.now, request.isGroup, request.myNames, request.followUpAnyway)
+
+        /**
+         * Why [decide] returns [NothingToReply] for the same arguments, or null when it returns
+         * anything else. No message of mine wins over their media (an empty chat is no message too).
+         */
+        fun nothingReason(
+            messages: List<PromptMessage>,
+            now: ZonedDateTime,
+            isGroup: Boolean,
+            myNames: List<String> = emptyList(),
+            followUpAnyway: Boolean = false,
+        ): NothingToReplyReason? {
+            if (decide(messages, now, isGroup, myNames, followUpAnyway) != NothingToReply) return null
+            val lastMine = messages.indexOfLast { it.message.isMe }
+            return when {
+                lastMine < 0 -> NothingToReplyReason.NoMessageOfMine
+                lastMine < messages.lastIndex -> NothingToReplyReason.TheirMediaAfterMine
+                else -> NothingToReplyReason.MyMessageLast
+            }
+        }
 
         /**
          * - A message with blank text (media without a caption) is a turn marker: it can be my last
