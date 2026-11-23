@@ -9,7 +9,8 @@ import kotlin.random.Random
 /**
  * Seeded property test for [XLength.weighted] and [XLength.trim] on random replies mixing ASCII,
  * Devanagari, CJK, emoji (skin tones, ZWJ sequences, flags, keycaps), URLs with and without a
- * scheme, sentence punctuation and odd spacing.
+ * scheme (also touching CJK, and `localhost`-style ones that are plain text), decomposed accents
+ * (counted as NFC, cut on the original), sentence punctuation and odd spacing.
  *
  * Invariants, for every seed and a random limit:
  * 1. The result's weighted length is at most the limit.
@@ -73,6 +74,15 @@ class XLengthPropertyTest {
             "so:",
             "then;",
             "「よし。」",
+            // Issue #46: decomposed accents (NFC), links touching CJK, scheme URLs without a TLD.
+            "cafe\u0301",
+            "nai\u0308ve",
+            "Jose\u0301",
+            "https://example.com/x，然后",
+            "example.com/docs。好",
+            "localhost",
+            "http://localhost:8080",
+            "http://x",
         )
     private val enders = listOf(".", "!", "?", "。", "！", "？", "...", "?!", ".\"", "!)")
     private val spaces = listOf(" ", " ", " ", "  ", "\n", " \n ")

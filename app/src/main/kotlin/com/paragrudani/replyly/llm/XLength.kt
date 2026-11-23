@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.llm
 
 import java.text.BreakIterator
+import java.text.Normalizer
 import java.util.Locale
 
 /**
@@ -25,12 +26,26 @@ import java.util.Locale
  * indicator, or a keycap or emoji variation selector) counts 2 as a whole, so a skin tone, a ZWJ
  * family and a flag are one emoji each, as twitter-text's emoji parsing does.
  *
- * **URLs** count 23 each: `http://` or `https://` followed by non-space characters, or a bare
- * domain whose last label is a common top-level domain ([TLDS]), with an optional path. Trailing
- * `.,:;!?)]}'"` is not part of the URL. A domain right after `@`, a letter, a digit, `.`, `-` or
- * `/` is not a URL (an e-mail address, a file path). This is a subset of twitter-text's extractor
- * (it knows every TLD and balances parentheses); the difference only matters for unusual TLDs,
- * which then count as their characters.
+ * **NFC**: the text is normalised to NFC before counting, as twitter-text's `parseTweet` does
+ * (`Normalizer.normalize(text, Normalizer.Form.NFC)` in `TwitterTextParser.java`), so a decomposed
+ * `e` + U+0301 counts 1 like `é`. [trim] still cuts the original text (see there).
+ *
+ * **URLs** count 23 each, as twitter-text's `Extractor.extractURLsWithIndices` (`Regex.VALID_URL`)
+ * finds them:
+ * - `http://` or `https://`, then a domain that ends in a top-level domain of two or more letters
+ *   (any, so an unknown one over-counts, the safe direction), an optional port and path. A scheme
+ *   without such a domain is plain text: `http://x`, `http://localhost:8080`, an IP address
+ *   (twitter-text's `VALID_DOMAIN` needs a TLD after a dot).
+ * - a bare domain whose last label is a common top-level domain ([TLDS]), with an optional path.
+ *
+ * A TLD ends before anything but `[a-z0-9@+-]` (twitter-text's TLD lookahead), so
+ * `example.com然后` is a link and then CJK. The path keeps only twitter-text's path characters
+ * (`VALID_GENERAL_URL_PATH_CHARS`: ASCII, Latin accents, Cyrillic; [PATH_CHAR]): a link followed
+ * directly by CJK or full-width punctuation (`…/x，然后`) ends there, and the rest counts by weight.
+ * Trailing `.,:;!?)]}'"` is not part of the URL. A domain right after `@`, a letter, a digit, `.`,
+ * `-` or `/` is not a URL (an e-mail address, a file path). This is a subset of twitter-text's
+ * extractor (it knows every TLD and balances parentheses); the difference only matters for unusual
+ * bare TLDs, which then count as their characters.
  */
 object XLength {
     const val URL_WEIGHT = 23
@@ -41,8 +56,14 @@ object XLength {
     /** "X post length" medium, for X Premium (longer posts; ~500 keeps a reply readable). */
     const val MEDIUM_LIMIT = 500
 
-    /** The weighted length X shows in its counter. */
-    fun weighted(text: String): Int {
+    /** The weighted length X shows in its counter (of the NFC form of [text]). */
+    fun weighted(text: String): Int = weightedNfc(Normalizer.normalize(text, Normalizer.Form.NFC))
+
+    /** Where [text] has URLs (twitter-text rules, see the class KDoc), without their trailing punctuation. */
+    internal fun urlRanges(text: String): List<IntRange> =
+        URL.findAll(text).map { it.range.first until it.range.first + it.value.trimEnd(*URL_TRAILING).length }.toList()
+
+    private fun weightedNfc(text: String): Int {
         var total = 0
         var index = 0
         for (match in URL.findAll(text)) {
@@ -70,7 +91,9 @@ object XLength {
      *
      * Invariants (checked by `XLengthPropertyTest`):
      * 1. The result's weighted length is at most [limit].
-     * 2. The result is a prefix of the input with trailing whitespace removed.
+     * 2. The result is a prefix of the input with trailing whitespace removed. Counting is on the
+     *    NFC form, cutting is on the original: every cut point is before whitespace or after `。！？`,
+     *    where NFC never joins characters, so the NFC of a cut is a prefix of the input's NFC.
      * 3. It never ends mid-word or mid-grapheme: in the input, the result is followed by the end,
      *    by whitespace (possibly after dangling `,;:` or dashes it dropped, [DANGLING]), or it ends
      *    with sentence punctuation ([SENTENCE_END]).
@@ -255,11 +278,19 @@ object XLength {
             "np",
         )
 
+    /** twitter-text's path characters, roughly: printable ASCII, Latin accents, combining marks, Cyrillic. */
+    private const val PATH_CHAR = """[\x21-\x7E\u00C0-\u024F\u0300-\u036F\u0400-\u04FF\u1E00-\u1EFF]"""
+
+    /** twitter-text's TLD lookahead: a TLD ends before anything but `[a-z0-9@+-]`. */
+    private const val TLD_END = """(?![a-z0-9@+-])"""
+
+    private const val LABEL = """[\p{L}\p{N}](?:[\p{L}\p{N}_-]*[\p{L}\p{N}])?"""
+
     private val URL: Regex =
         Regex(
-            """(?<![\w@./-])(?:https?://\S+|(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:${TLDS.joinToString(
-                "|",
-            )})\b(?:/\S*)?)""",
+            """(?<![\w@./-])(?:https?://(?:$LABEL\.)+[a-z]{2,}$TLD_END(?::\d+)?""" +
+                """|(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:${TLDS.joinToString("|")})$TLD_END)""" +
+                """(?:[/?#]$PATH_CHAR*)?""",
             RegexOption.IGNORE_CASE,
         )
 }
