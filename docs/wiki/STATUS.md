@@ -2,7 +2,7 @@
 
 Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECISIONS](../DECISIONS.md).
 
-## 2026-11-23: #30 PR 1 merged (#40); #30 PR 2 (X prompt mode) in progress
+## 2026-11-23: #30 PR 1 merged (#40); #30 PR 2 (#44) in review
 
 **Merged.** v1 (#8–#16), polish (#19, #21–#24), profiles (#20), docs (#25), #29 (signing-key rotation), **#27 (message dates, `624939c`)**, **#28 (prompt v2, `ecb0b65`)**, **#40 (#30 PR 1, X detection and parser, `bee7cd9`)**, and the wiki docs PRs #31–#39, #41, #42 (and this one). Issue #26 is closed.
 - `latest-debug` is versionCode 85 (built from `bee7cd9`; X detection is in it, X replies still use the chat prompt until PR 2), signed with the new key (certificate SHA-256 `2a5421c6…2737d6`).
@@ -18,10 +18,11 @@ Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECIS
 **In flight: issue #30, X reply and quote posts.** Issue: https://github.com/paragrudani1/replyly/issues/30. Common rules: `/root/.t3/cos/replyly/x-common.md`.
 - **PR 1: [#40](https://github.com/paragrudani1/replyly/pull/40), merged `bee7cd9`.** Detection (reply/quote composers and DMs only, gated on the focused field's view id and English hint), X parser in `parser/x/` (pinned `XContext`/`XPost` as `ParsedChat.x`), "My X handle", no history for X, dump/scramble, interim mapping to `ParsedChat.messages`. Review r1 (`reviews/pr40-r1.md`): S1–S3 and N1–N4 fixed by a fix delegate (`x-pr1-fix1-brief.md`); the CoS read the fix diff and skipped a round 2. Gate 1051 tests; 25,000 fresh property seeds clean. DECISIONS has 11 `#30 PR 1` entries; DEVICE_CHECKLIST 15 (an English-UI precondition, 15.1–15.15, 15.4a).
 - **PR 2 (`x-prompt`): X system-prompt section, 280/500 length (X weighting, trim at a sentence or word boundary, no regenerate: invariant 4), per-card counter, "My X voice" and "X post length", chips, screenshots, DEVICE_CHECKLIST 15 rest. `Closes #30`.**
-  - **Open subagent: "#30 PR 2: X prompt mode, length, panel"**, fresh worktree. Brief `/root/.t3/cos/replyly/x-pr2-brief.md` (it folds in review N5).
-    - taskId `node:delegated-task:command%3Amcp%3A0b3cb7ad-8b09-4a3b-81e2-44b90a1dab9f%3Adelegate-task%3Ac2410e69-d84c-4094-90fc-c29600686a6d`
-    - If it has finished, read the PR body (`gh pr list -R paragrudani1/replyly --head x-prompt`).
-  - **Next:** review (new delegate, brief like `x-pr1-review-brief.md`; focus: the X system prompt verbatim, length counting and trimming, invariant 4, untrusted input), fix, merge on green, post the final X system prompt verbatim to Parag, status post, close-out of #30.
+  - **Opened as [#44](https://github.com/paragrudani1/replyly/pull/44)** (head `1526eae`, CI green, not merged). Gate 1113 tests. X system prompt verbatim in the PR body; chat `SYSTEM_PROMPT` pinned by SHA-256. `feedback.db` v3 (nullable `x_mode`). 10 DECISIONS entries; DEVICE_CHECKLIST 15.16–15.24. Author worktree `t3-e183b525-73c499d77c5c5f38`.
+  - **Open subagent: "#30 PR 2 review (PR #44)"** (round 1). Brief `/root/.t3/cos/replyly/x-pr2-review-brief.md`, output `reviews/pr44-r1.md`.
+    - taskId `node:delegated-task:command%3Amcp%3A1343e0d2-fb0b-4bbc-b335-c3d36ae91ce6%3Adelegate-task%3Aae1732b3-ccf6-48ff-bc1e-460eb190b467`
+    - If it has finished, read `reviews/pr44-r1.md`.
+  - **Next:** fix findings (small ones by the CoS in the author worktree, bigger ones by a fix delegate there), merge on green, post the final X system prompt verbatim to Parag, status post, check #30 closed, remove the merged worktrees.
 
 **Follow-ups filed:** #38 (Nothing-to-reply subtitle wrong when I never wrote or their media is last).
 
@@ -32,7 +33,7 @@ Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECIS
 
 **Cleanup.** Done on 2026-11-23: the stale worktrees, `/root/local-dev/tmp-replyly-base`, `/root/local-dev/replyly-audit` and the `/tmp` scratch files are removed. Remaining worktrees: the CoS's (`t3-a8f2345a…`), PR 1's (`t3-a25cf273…`, branch merged; remove after #30 closes) and PR 2's agent's.
 
-**Briefs and reviews.** In `/root/.t3/cos/replyly/`: `x-*.md`, `v2-*.md`, `issue-*.md`, and `reviews/pr27-r1.md` to `-r3.md`, `pr28-r1.md`, `pr28-r2.md`, `pr40-r1.md`.
+**Briefs and reviews.** In `/root/.t3/cos/replyly/`: `x-*.md`, `v2-*.md`, `issue-*.md`, and `reviews/pr27-r1.md` to `-r3.md`, `pr28-r1.md`, `pr28-r2.md`, `pr40-r1.md`, `pr44-r1.md` (when done).
 
 **How the CoS works.**
 - **GitHub token:** `GH_TOKEN="$(cat /root/.config/replyly/gh_token)" gh … -R paragrudani1/replyly`. Never print it. The T3 PR and issue tools use another login and fail for this repo.
