@@ -1,5 +1,6 @@
 package com.paragrudani.replyly.ui.debug
 
+import com.paragrudani.replyly.parser.TargetApps
 import com.paragrudani.replyly.parser.generic.ChatText
 import com.paragrudani.replyly.parser.x.XText
 import com.paragrudani.replyly.screen.ScreenNode
@@ -25,34 +26,66 @@ import javax.crypto.spec.SecretKeySpec
  *   unread banners, deleted placeholders, bubble labels), and the last line of a Telegram cell when
  *   it is exactly a status line ("Sent today at 6:42 PM, Read"). Words inside a message are never
  *   kept, whatever they are.
- * - X (issue #30): post times ("2h", "Nov 19", "6:42 PM · 21 Nov 26 · 1,204 Views"), counts
- *   ("1.2K", "48 Likes"), the composer hints ("Post your reply", "Add a comment"...) and X's fixed UI
- *   words ("Reply", "Follow", "Show more"...; a message that is exactly such a word stays too) and the
- *   description of an image without alt text ("Image", "Photo") stay whole.
+ * - X dumps only (issue #30; `forX`, from the snapshot's package): post times ("2h", "Nov 19",
+ *   "6:42 PM · 21 Nov 26 · 1,204 Views"), counts ("1.2K", "48 Likes"), the composer hints ("Post your
+ *   reply", "Add a comment"...) and X's fixed UI words ("Reply", "Follow", "Show more"...; a post that
+ *   is exactly such a word stays too) and the description of an image without alt text ("Image",
+ *   "Photo") stay whole.
  *   A header line "Name @handle · 2h" keeps its "·" and time, and a "Replying to @a and @b" line its
  *   words, with each name and handle scrambled on its own, so a handle scrambles the same in a
  *   header, a "Replying to" line, the "@handle" node and any other text that mentions it (the
  *   rest of that text is scrambled as one string). A card's "From " stays before its domain.
  *   Post text, alt text and link titles are scrambled like any text.
+ * - An X text field's hint stays readable whatever its wording or language ("Reply to @asha_dev",
+ *   a hint in Hindi), with only its handles scrambled, and so does the field's text while it equals
+ *   the hint (an empty field): the overlay's gate reads the hint, and DEVICE_CHECKLIST 15.4 needs it
+ *   when the button does not show. See [xFieldHint].
+ * - WhatsApp, Telegram and every other app scramble exactly as before issue #30.
  * - View ids, class names, bounds, flags and the package name are never touched.
  */
 class Scrambler(
     private val key: ByteArray = randomKey(),
 ) {
-    fun scramble(snapshot: ScreenSnapshot): ScreenSnapshot = snapshot.copy(root = scramble(snapshot.root))
+    fun scramble(snapshot: ScreenSnapshot): ScreenSnapshot =
+        snapshot.copy(root = scramble(snapshot.root, forX = snapshot.packageName in TargetApps.X_PACKAGES))
 
-    private fun scramble(node: ScreenNode): ScreenNode =
-        node.copy(
-            text = node.text?.let(::scrambleText),
-            contentDescription = node.contentDescription?.let(::scrambleText),
-            hint = node.hint?.let(::scrambleText),
-            children = node.children.map(::scramble),
+    private fun scramble(
+        node: ScreenNode,
+        forX: Boolean,
+    ): ScreenNode {
+        val fieldHint = if (forX) xFieldHint(node) else null
+        return node.copy(
+            text = node.text?.let { if (fieldHint != null && it == node.hint) fieldHint else scrambleText(it, forX) },
+            contentDescription = node.contentDescription?.let { scrambleText(it, forX) },
+            hint = node.hint?.let { fieldHint ?: scrambleText(it, forX) },
+            children = node.children.map { scramble(it, forX) },
         )
+    }
 
-    fun scrambleText(text: String): String {
-        if (isKeptWhole(text)) return text
+    /**
+     * The hint of an X text field, readable: only each @handle in it is scrambled (as everywhere
+     * else in the dump). `null` (scramble it like any text) for a node that is not editable, or a
+     * hint that is not one short line.
+     *
+     * A hint is the app's own UI string (`setHint` from X's resources: "Post your reply", "Reply to
+     * @asha_dev", the same in the user's UI language), never what someone wrote: post text is a
+     * node's text, not its hint. The only user-derived part X puts in one is the handle being
+     * answered, which is scrambled. The length and line limits keep anything else out.
+     */
+    private fun xFieldHint(node: ScreenNode): String? {
+        val hint = node.hint ?: return null
+        if (!node.editable || '\n' in hint || hint.length > MAX_HINT) return null
+        return handleToken.replace(hint) { m -> scrambleWith(m.value) }
+    }
+
+    /** Scrambles one string; [forX] adds the X rules (an X dump). */
+    fun scrambleText(
+        text: String,
+        forX: Boolean = false,
+    ): String {
+        if (isKeptWhole(text, forX)) return text
         telegramCell(text)?.let { return it }
-        xLine(text)?.let { return it }
+        if (forX) xLine(text)?.let { return it }
         activeName.matchEntire(text)?.let { m -> return scrambleWith(m.groupValues[1]) + m.groupValues[2] }
         memberList(text)?.let { return it }
         return scrambleWith(text)
@@ -89,7 +122,8 @@ class Scrambler(
 
     /** X lines with structure the parser reads: "Replying to @a and @b", "Name @handle · 2h", "From x.com". */
     private fun xLine(text: String): String? {
-        replyingTo.matchEntire(text)?.let {
+        if (XText.isReplyingTo(text)) {
+            // Only handles and the words "Replying to", "and", "others" (XText checks the form).
             return handleToken.replace(text) { m -> scrambleWith(m.value) }
         }
         XText.header(text)?.takeIf { it.time != null }?.let { h ->
@@ -221,12 +255,15 @@ class Scrambler(
             )
         private const val HANDLE = """@[A-Za-z0-9_]{1,15}"""
         private val handleToken = Regex("""(?<![A-Za-z0-9_@])$HANDLE(?![A-Za-z0-9_])""")
-        private val replyingTo =
-            Regex("""^Replying to $HANDLE(?:(?:, | and )$HANDLE)*(?: and \d+ others?)?$""")
         private val fromDomain = Regex("""^(From )([a-z0-9-]+(?:\.[a-z0-9-]+)+)$""")
         private val timePart = Regex("""^·\s?(.+)$""")
 
-        /** The X composer hints, exactly (lower case): the parser tells a reply from a new post by them. */
+        private const val MAX_HINT = 80
+
+        /**
+         * The X composer hints, exactly (lower case), kept in any text of an X dump. A field's own
+         * hint is kept whatever it says ([xFieldHint]).
+         */
         private val xHints =
             setOf(
                 "post your reply",
@@ -245,17 +282,28 @@ class Scrambler(
 
         private val activeName = Regex("""^(.+?)( (?:is|are) (?:typing|recording audio)(?:…|\.\.\.)?)$""")
 
-        /** Whole strings that hold no private content and that the parsers need to read. */
-        fun isKeptWhole(text: String): Boolean {
+        /**
+         * Whole strings that hold no private content and that the parsers need to read. [forX] adds
+         * the X ones (times, counts, hints, UI words, "Image"), for X dumps only.
+         */
+        fun isKeptWhole(
+            text: String,
+            forX: Boolean = false,
+        ): Boolean {
             val s = ChatText.squash(text).lowercase()
-            return ChatText.isTime(text) || separators.any { it.matches(s) } || ChatText.isUnreadBanner(text) ||
-                ChatText.isBubbleLabel(text) || s in deleted || s in encryptionNotices || online.matches(s) ||
-                lastSeen.matches(s) || members.matches(s) || typing.matches(s) || s in xHints ||
-                XText.isPostTime(
-                    text,
-                ) || XText.isAbsoluteTime(text) || XText.isCount(text) || XText.isChromeWord(text) ||
-                XText.altText(text) == null
+            val common =
+                ChatText.isTime(text) || separators.any { it.matches(s) } || ChatText.isUnreadBanner(text) ||
+                    ChatText.isBubbleLabel(text) || s in deleted || s in encryptionNotices || online.matches(s) ||
+                    lastSeen.matches(s) || members.matches(s) || typing.matches(s)
+            return common || (forX && isKeptWholeOnX(text, s))
         }
+
+        private fun isKeptWholeOnX(
+            text: String,
+            squashed: String,
+        ): Boolean =
+            squashed in xHints || XText.isPostTime(text) || XText.isAbsoluteTime(text) || XText.isCount(text) ||
+                XText.isChromeWord(text) || XText.isGenericMedia(text)
 
         private fun randomKey(): ByteArray = ByteArray(32).also(SecureRandom()::nextBytes)
     }
