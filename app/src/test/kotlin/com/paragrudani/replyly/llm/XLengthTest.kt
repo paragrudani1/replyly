@@ -68,6 +68,43 @@ class XLengthTest {
     }
 
     @Test
+    fun `a decomposed accent counts as its composed form (NFC, issue #46)`() {
+        // e + U+0301 COMBINING ACUTE: twitter-text normalises to NFC first, so it is one é.
+        assertThat(XLength.weighted("café")).isEqualTo(4)
+        assertThat(XLength.weighted("naïve café")).isEqualTo(10)
+        // A trim still returns a prefix of the original (decomposed) text.
+        val decomposed = "café café café café"
+        assertThat(XLength.trim(decomposed, 10)).isEqualTo(XLength.Trim("café café", true))
+    }
+
+    @Test
+    fun `a scheme URL without a valid top-level domain is plain text (issue #46)`() {
+        // twitter-text matches a URL only on a domain with a TLD, scheme or not.
+        assertThat(XLength.weighted("http://x")).isEqualTo(8)
+        assertThat(XLength.weighted("http://localhost")).isEqualTo(16)
+        assertThat(XLength.weighted("http://localhost:8080/api")).isEqualTo(25)
+        assertThat(XLength.weighted("localhost")).isEqualTo(9)
+        // #50 review N1: a Cyrillic or common non-Latin TLD after a scheme is still a link.
+        assertThat(XLength.weighted("https://пример.рф")).isEqualTo(23)
+        assertThat(XLength.weighted("https://例子.中国/x")).isEqualTo(23)
+        assertThat(XLength.weighted("see https://例子.中国然后")).isEqualTo(4 + 23 + 4)
+        assertThat(XLength.weighted("https://example.com然后")).isEqualTo(27)
+        assertThat(XLength.weighted("http://192.168.1.10")).isEqualTo(19)
+        // With a TLD it is still a link, with a port or a path.
+        assertThat(XLength.weighted("http://example.com:8080/api")).isEqualTo(23)
+    }
+
+    @Test
+    fun `a link ends at CJK or full-width punctuation right after it (issue #46)`() {
+        // "go to " 6 + link 23 + "，" 2 + "然后" 4.
+        assertThat(XLength.weighted("go to https://example.com/x，然后")).isEqualTo(35)
+        assertThat(XLength.weighted("https://example.com然后")).isEqualTo(23 + 4)
+        assertThat(XLength.weighted("example.com/docs。好")).isEqualTo(23 + 2 + 2)
+        // Latin accents and Cyrillic stay in the path, as in twitter-text's path characters.
+        assertThat(XLength.weighted("https://example.com/café/путь")).isEqualTo(23)
+    }
+
+    @Test
     fun `fits within the limit`() {
         assertThat(XLength.fits("a".repeat(280), 280)).isTrue()
         assertThat(XLength.fits("a".repeat(281), 280)).isFalse()

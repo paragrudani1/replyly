@@ -181,6 +181,76 @@ class SuggestionOutputParserTest {
         assertThat(parsed).isInstanceOf(ParsedSuggestions.Invalid::class.java)
     }
 
+    // --- X: hashtags and @-mentions (#46)
+
+    private val stripBoth = XTags.Keep(hashtags = false, mentions = false)
+
+    @Test
+    fun `X - hashtags and mentions are stripped unless kept, before the length check`() {
+        val parsed =
+            SuggestionOutputParser.parse(
+                json(
+                    "agree" to "@ravi_k Local-first wins, love #Kotlin for this. #buildinpublic",
+                    "question" to "How do you merge as @asha_dev asked?",
+                    "insight" to "Sync is the hard bit.",
+                ),
+                lengthLimit = 280,
+                xTags = stripBoth,
+            ) as ParsedSuggestions.Ok
+        assertThat(parsed.suggestions.map { it.text })
+            .containsExactly(
+                "Local-first wins, love Kotlin for this.",
+                "How do you merge as asha_dev asked?",
+                "Sync is the hard bit.",
+            ).inOrder()
+        assertThat(parsed.suggestions.map { it.trimmed }).containsExactly(false, false, false)
+
+        val kept =
+            SuggestionOutputParser.parse(
+                json(
+                    "agree" to "Ship it #buildinpublic",
+                    "question" to "Why does @ravi_k say so?",
+                    "insight" to "Sync is hard.",
+                ),
+                lengthLimit = 280,
+                xTags = XTags.Keep(hashtags = true, mentions = false),
+            ) as ParsedSuggestions.Ok
+        assertThat(
+            kept.suggestions.map { it.text },
+        ).containsExactly("Ship it #buildinpublic", "Why does ravi_k say so?", "Sync is hard.")
+    }
+
+    @Test
+    fun `X - stripping comes before trimming, so a reply over only by its tags is not trimmed`() {
+        val body = "word ".repeat(55).trim() // 274
+        val parsed =
+            SuggestionOutputParser.parse(
+                json("agree" to "$body #Kotlin #dev", "question" to "Which part?", "insight" to "Sync is hard."),
+                lengthLimit = 280,
+                xTags = stripBoth,
+            ) as ParsedSuggestions.Ok
+        assertThat(parsed.suggestions[0]).isEqualTo(Suggestion("agree", body))
+    }
+
+    @Test
+    fun `X - a card of only tags is dropped without the length notice`() {
+        val parsed =
+            SuggestionOutputParser.parse(
+                json("agree" to "#Kotlin @ravi_k", "question" to "Which part?", "insight" to "Sync is hard."),
+                lengthLimit = 280,
+                xTags = stripBoth,
+            ) as ParsedSuggestions.Ok
+        assertThat(parsed.suggestions.map { it.intent }).containsExactly("question", "insight").inOrder()
+        assertThat(parsed.droppedOverLimit).isEqualTo(0)
+        val none =
+            SuggestionOutputParser.parse(
+                json("agree" to "#a", "question" to "@b", "insight" to "#c #d"),
+                lengthLimit = 280,
+                xTags = stripBoth,
+            )
+        assertThat(none).isEqualTo(ParsedSuggestions.Invalid("no suggestion left after the X checks"))
+    }
+
     @Test
     fun `chats ignore the length`() {
         val long = "word ".repeat(100).trim()

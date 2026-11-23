@@ -54,6 +54,13 @@ import com.paragrudani.replyly.ui.theme.MinTouchTarget
 import com.paragrudani.replyly.ui.theme.Spacing
 
 /**
+ * The instruction field's example: a chat one, or an X one on X (#46). The X one has no
+ * "Instruction," so it shows in full at 130 % font (about 23 characters fit).
+ */
+internal fun instructionPlaceholder(isX: Boolean): String =
+    if (isX) "e.g. ask for a source" else "Instruction, e.g. say I'll call at 6"
+
+/**
  * The instruction field with Regenerate, and the quick-chips under it.
  *
  * A chip tap toggles that chip and regenerates once; chips and the typed text combine as
@@ -76,13 +83,17 @@ internal fun InstructionArea(
             CompactField(
                 value = ui.instruction,
                 onValueChange = actions.onInstructionChange,
-                placeholder = "Instruction, e.g. say I'll call at 6",
+                placeholder = instructionPlaceholder(ui.isX),
                 singleLine = true,
                 shape = CircleShape,
                 keyboardOptions =
                     KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-                modifier = Modifier.weight(1f),
+                // The X example has no "Instruction," (#46): name the field for TalkBack.
+                modifier =
+                    Modifier
+                        .weight(1f)
+                        .then(if (ui.isX) Modifier.semantics { contentDescription = "Instruction" } else Modifier),
             )
             FilledTonalIconButton(
                 onClick = {

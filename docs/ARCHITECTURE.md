@@ -163,11 +163,12 @@ One lazy binding per interface, all real implementations:
   target, my instruction and the task (reply, continue my thread, or quote). Post times get an
   approximate age (`XPostAge`). No `ReplyTarget`: the panel never shows "Nothing to reply to" on X.
   `ParsedChat.messages` still carries PR 1's interim thread for the debug dump.
-- **Length** (`llm/XLength`): X's weighted count (twitter-text v3 weights, emoji clusters 2, URLs
-  23). `SuggestionOutputParser.parse(…, lengthLimit)` trims a card over "X post length" at a
+- **Length** (`llm/XLength`): X's weighted count (twitter-text v3: NFC, weights, emoji clusters 2,
+  URLs with a TLD 23). `SuggestionOutputParser.parse(…, lengthLimit)` trims a card over "X post length" at a
   sentence or word boundary (`Suggestion.trimmed`) or drops it; `Success.lengthLimit` and
   `droppedOverLimit` reach the panel, which shows a counter on each card and a line for dropped
-  ones. One call per tap, never a retry.
+  ones. One call per tap, never a retry. Before that, `XTags` strips hashtags and @-mentions
+  unless my X voice or my own posts use that kind (#46).
 - **Settings**: "On X" section: My X handle, My X voice (`my_x_voice`), "Longer X posts"
   (`x_post_length` 280/500). The feedback entry stores `x_mode` (`feedback.db` v3).
 

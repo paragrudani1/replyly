@@ -33,6 +33,10 @@ sealed interface ParsedSuggestions {
  * mid-word or mid-grapheme) and marked [Suggestion.trimmed]. A card whose cut is empty or shorter
  * than [MIN_TRIMMED_LENGTH] is dropped: the panel shows the others. All dropped is
  * [ParsedSuggestions.Invalid]. There is no second LLM call (invariant 4: one call per tap).
+ *
+ * **Hashtags and @-mentions** (issue #46, `xTags` set, X only): before the length check, each card
+ * loses the kinds [XTags.Keep] does not keep ([XTags.strip]: leading and trailing runs go, inline
+ * ones lose the sigil). A card left empty is dropped; it is not counted in `droppedOverLimit`.
  */
 object SuggestionOutputParser {
     /** The prompt asks for at most ~60 words; this only bounds what the feedback log stores. */
@@ -53,6 +57,8 @@ object SuggestionOutputParser {
         expected: Int = 3,
         /** X only: the weighted post length; `null` for chats (no limit). */
         lengthLimit: Int? = null,
+        /** X only: which of hashtags and @-mentions stay ([XTags.keep]); `null` for chats (untouched). */
+        xTags: XTags.Keep? = null,
     ): ParsedSuggestions {
         val root = findSuggestionsObject(raw) ?: return ParsedSuggestions.Invalid("no suggestions JSON in reply")
         val items = root["suggestions"] as JsonArray
@@ -69,8 +75,17 @@ object SuggestionOutputParser {
         if (valid.size != expected) {
             return ParsedSuggestions.Invalid("${valid.size} valid suggestions of ${items.size}, expected $expected")
         }
-        val kept = if (lengthLimit == null) valid else valid.mapNotNull { it.fitTo(lengthLimit) }
+        val stripped =
+            if (xTags == null) {
+                valid
+            } else {
+                valid.mapNotNull { card ->
+                    XTags.strip(card.text, xTags).ifEmpty { null }?.let { card.copy(text = it) }
+                }
+            }
+        val kept = if (lengthLimit == null) stripped else stripped.mapNotNull { it.fitTo(lengthLimit) }
         if (kept.isEmpty()) {
+            if (stripped.size < valid.size) return ParsedSuggestions.Invalid("no suggestion left after the X checks")
             return ParsedSuggestions.Invalid("all $expected suggestions over the length limit of $lengthLimit")
         }
         return ParsedSuggestions.Ok(
@@ -80,7 +95,7 @@ object SuggestionOutputParser {
                 ?.trim()
                 ?.take(MAX_ANALYSIS_CHARS)
                 .orEmpty(),
-            droppedOverLimit = valid.size - kept.size,
+            droppedOverLimit = stripped.size - kept.size,
         )
     }
 

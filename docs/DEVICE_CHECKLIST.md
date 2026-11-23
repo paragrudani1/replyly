@@ -1257,7 +1257,7 @@ line with your message and the `[media]` line after it; and the 3 cards from the
 Replyly now reads X (`com.twitter.android`): the button shows on the **reply composer** and the
 **quote composer** (and in X DMs, which work like any other chat), and the parser reads the post
 you reply to, the thread above it and the quoted post. 15.1–15.15 check detection and reading
-(PR 1); 15.16–15.24 check the X prompt, the length counter and the new settings (PR 2).
+(PR 1); 15.16–15.24 check the X prompt, the length counter and the new settings (PR 2); 15.25–15.27 check the #46 follow-ups.
 
 **Every X view id in `parser/x/XIds.kt` is a guess** from older public Twitter dumps, and the
 composer is recognised by its hint ("Post your reply", "Add a comment"), in English. The dumps of
@@ -1387,9 +1387,9 @@ your letters do not join the link), then type `a` until the number appears, and 
 15.21 **Do:** turn on Settings → On X → "Longer X posts", Save. Reply to a post and type the
 instruction `make each about 450 characters`, Regenerate. **See:** counters read `/500` and stay
 at or under 500. Turn the setting off, Save, open the panel again with the same instruction.
-**See:** counters read `/280`; a card cut to fit has a red counter, and when a card could not be
-cut sensibly the panel shows 2 cards and "1 reply was over 280 characters and was left out.
-Regenerate for more." Requests today goes up by exactly 1 per tap (no automatic retry). **Send:**
+**See:** counters read `/280`; a card cut to fit has a red counter like `142/280 · trimmed`, and
+when a card could not be cut sensibly the panel shows 2 cards and "1 reply was over 280
+characters and was left out. Regenerate for more." Requests today goes up by exactly 1 per tap (no automatic retry). **Send:**
 pass/fail and screenshots of both panels.
 
 15.22 **Do:** in both composers (reply and quote) tap a card, then separately long-press a card.
@@ -1404,3 +1404,26 @@ with the keyboard up and take a dump (scramble on), then do the same in the quot
 the button once in each. **See:** the button shows, the summary lines match 15.4 and 15.6, and the
 cards still answer the right post. **Send:** both dumps with their summary lines and the X version
 (X → Settings → About), even when everything works: they show whether X moved its view ids.
+
+15.25 **Do:** (#46) reply to a post with the instruction `make each about 400 characters`,
+Regenerate (with "Longer X posts" off). **See:** a card cut to fit ends in a whole sentence or
+word and its counter reads like `142/280 · trimmed` in red, on one line next to nothing else, also
+with the phone's font size at its largest step (Settings → Display → Font size and style). TalkBack
+on that counter still says "142 of 280 characters, trimmed to fit". **Send:** pass/fail and a
+screenshot of the card.
+
+15.26 **Do:** (#46) open the panel in an X reply composer, then in a WhatsApp chat. **See:** on X
+the empty instruction field reads "e.g. ask for a source" in full (no "…", also at the largest
+font size); in WhatsApp it still reads "Instruction, e.g. say I'll call at 6". With TalkBack on,
+focus the X field: it is announced as "Instruction". **Send:** pass/fail.
+
+15.27 **Do:** (#46) make sure "My X voice" has no `#` and no `@` (Save); the rule is literal, so
+a voice like "never use #hashtags" counts as using them (write tags without `#` there). Reply to
+someone else's post, in a thread where none of your own posts (or posts quoted in it) show a `#`
+or `@`, with the instruction `start with @ravi_k, mention #Kotlin and C# in the middle, give
+asha@example.com, and end with #buildinpublic #dev 🚀`, Regenerate. **See:** no card starts with
+`@ravi_k` or ends with `#buildinpublic #dev` (those runs are removed with their spaces, an emoji
+after them stays); where the model put them mid-sentence the word stays without its sign ("love
+Kotlin for this", "as ravi_k said"). `C#` and `asha@example.com` stay as written. Then add `#buildinpublic` to "My X voice", Save, and tap Regenerate with the same
+instruction. **See:** hashtags now stay as written, while `@` mentions are still removed. Remove it
+again afterwards. **Send:** pass/fail and screenshots of both panels.
