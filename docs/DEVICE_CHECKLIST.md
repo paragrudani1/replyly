@@ -1377,9 +1377,9 @@ your letters do not join the link), then type `a` until the number appears, and 
 15.21 **Do:** turn on Settings → On X → "Longer X posts", Save. Reply to a post and type the
 instruction `make each about 450 characters`, Regenerate. **See:** counters read `/500` and stay
 at or under 500. Turn the setting off, Save, open the panel again with the same instruction.
-**See:** counters read `/280`; a card cut to fit has a red counter, and when a card could not be
-cut sensibly the panel shows 2 cards and "1 reply was over 280 characters and was left out.
-Regenerate for more." Requests today goes up by exactly 1 per tap (no automatic retry). **Send:**
+**See:** counters read `/280`; a card cut to fit has a red counter like `142/280 · trimmed`, and
+when a card could not be cut sensibly the panel shows 2 cards and "1 reply was over 280
+characters and was left out. Regenerate for more." Requests today goes up by exactly 1 per tap (no automatic retry). **Send:**
 pass/fail and screenshots of both panels.
 
 15.22 **Do:** in both composers (reply and quote) tap a card, then separately long-press a card.
@@ -1394,3 +1394,23 @@ with the keyboard up and take a dump (scramble on), then do the same in the quot
 the button once in each. **See:** the button shows, the summary lines match 15.4 and 15.6, and the
 cards still answer the right post. **Send:** both dumps with their summary lines and the X version
 (X → Settings → About), even when everything works: they show whether X moved its view ids.
+
+15.25 **Do:** (#46) reply to a post with the instruction `make each about 400 characters`,
+Regenerate (with "Longer X posts" off). **See:** a card cut to fit ends in a whole sentence or
+word and its counter reads like `142/280 · trimmed` in red, on one line next to nothing else, also
+with the phone's font size at its largest step (Settings → Display → Font size and style). TalkBack
+on that counter still says "142 of 280 characters, trimmed to fit". **Send:** pass/fail and a
+screenshot of the card.
+
+15.26 **Do:** (#46) open the panel in an X reply composer, then in a WhatsApp chat. **See:** on X
+the empty instruction field reads "e.g. ask for a source" in full (no "…", also at the largest
+font size); in WhatsApp it still reads "Instruction, e.g. say I'll call at 6". **Send:** pass/fail.
+
+15.27 **Do:** (#46) make sure "My X voice" has no `#` and no `@` (Save). Reply to a post with the
+instruction `start with @ravi_k, mention #Kotlin in the middle and end with #buildinpublic #dev`,
+Regenerate. **See:** no card starts with `@ravi_k` or ends with `#buildinpublic #dev` (those runs
+are removed with their spaces); where the model put them mid-sentence the word stays without its
+sign ("love Kotlin for this", "as ravi_k said"). `C#`, `#1`, e-mail addresses and links are never
+changed. Then add `#buildinpublic` to "My X voice", Save, and tap Regenerate with the same
+instruction. **See:** hashtags now stay as written, while `@` mentions are still removed. Remove it
+again afterwards. **Send:** pass/fail and screenshots of both panels.
