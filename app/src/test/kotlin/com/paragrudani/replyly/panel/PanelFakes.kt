@@ -17,6 +17,7 @@ import com.paragrudani.replyly.llm.TokenUsage
 import com.paragrudani.replyly.parser.ChatKey
 import com.paragrudani.replyly.parser.ChatMessage
 import com.paragrudani.replyly.parser.ParsedChat
+import com.paragrudani.replyly.parser.x.XMode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -93,6 +94,7 @@ class FakeAssembler(
             styleExamples = emptyList(),
             instruction = instruction,
             now = now,
+            x = chat.x,
         )
     }
 }
@@ -140,6 +142,7 @@ class FakeFeedbackLog : FeedbackLog {
         val promptVersion: Int = 2,
         val panelId: String? = null,
         val cacheReadTokens: Int? = null,
+        val xMode: XMode? = null,
     )
 
     val recorded = mutableListOf<Recorded>()
@@ -155,9 +158,11 @@ class FakeFeedbackLog : FeedbackLog {
         promptVersion: Int,
         panelId: String?,
         cacheReadTokens: Int?,
+        xMode: XMode?,
     ): Long {
         if (failRecord) throw IllegalStateException("db closed")
-        recorded += Recorded(chatKey, model, prompt, suggestions, analysis, promptVersion, panelId, cacheReadTokens)
+        recorded +=
+            Recorded(chatKey, model, prompt, suggestions, analysis, promptVersion, panelId, cacheReadTokens, xMode)
         return 40L + recorded.size
     }
 

@@ -5,6 +5,7 @@ import com.paragrudani.replyly.feedback.db.FeedbackDatabase
 import com.paragrudani.replyly.feedback.db.FeedbackEntryEntity
 import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.parser.ChatKey
+import com.paragrudani.replyly.parser.x.XMode
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -66,6 +67,7 @@ class RoomFeedbackLog(
         promptVersion: Int,
         panelId: String?,
         cacheReadTokens: Int?,
+        xMode: XMode?,
     ): Long {
         purgeIfDue()
         return dao().insert(
@@ -85,6 +87,7 @@ class RoomFeedbackLog(
                 analysis = analysis,
                 panelId = panelId,
                 cacheReadTokens = cacheReadTokens,
+                xMode = xMode?.name?.lowercase(),
             ),
         )
     }
@@ -161,6 +164,7 @@ class RoomFeedbackLog(
             analysis = analysis,
             panelId = panelId,
             cacheReadTokens = cacheReadTokens,
+            xMode = XMode.entries.firstOrNull { it.name.equals(xMode, ignoreCase = true) },
         )
 
     private fun decodeSuggestions(suggestionsJson: String): List<Suggestion> =

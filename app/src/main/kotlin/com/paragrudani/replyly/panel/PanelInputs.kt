@@ -103,7 +103,7 @@ internal fun InstructionArea(
                 .padding(horizontal = Spacing.L),
             horizontalArrangement = Arrangement.spacedBy(Spacing.S),
         ) {
-            QuickInstruction.entries.forEach { chip ->
+            QuickInstruction.forPanel(ui.isX).forEach { chip ->
                 val selected = chip in ui.chips
                 FilterChip(
                     selected = selected,

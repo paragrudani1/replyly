@@ -22,7 +22,8 @@ import net.zetetic.database.sqlcipher.SupportOpenHelperFactory
 /**
  * One feedback log row. [suggestionsJson] is a JSON array of `{intent, text}`. Version 2 added
  * [promptVersion] (rows from before are prompt v1), [analysis] (the model's reasoning, local only)
- * [panelId] (one id per panel open, for the insert rate per panel) and [cacheReadTokens].
+ * [panelId] (one id per panel open, for the insert rate per panel) and [cacheReadTokens]. Version 3
+ * added [xMode] (#30 PR 2).
  */
 @Entity(
     tableName = "feedback_entries",
@@ -43,6 +44,8 @@ data class FeedbackEntryEntity(
     @ColumnInfo(name = "panel_id") val panelId: String? = null,
     /** Input tokens read from the prompt cache (Anthropic), a count only; null when not reported. */
     @ColumnInfo(name = "cache_read_tokens") val cacheReadTokens: Int? = null,
+    /** "reply" or "quote" for an X entry; null for chats (the app is in [chatKey]). */
+    @ColumnInfo(name = "x_mode") val xMode: String? = null,
 )
 
 /** The columns the quality stats need: no prompt or analysis (the chat key groups v1 rows into panels). */
@@ -115,7 +118,7 @@ interface FeedbackDao {
  * The feedback log's own encrypted DB file (`feedback.db`), separate from #3's history DB so the
  * two Room schemas never touch. Opened with SQLCipher and the shared [DatabaseKeyProvider].
  */
-@Database(entities = [FeedbackEntryEntity::class], version = 2, exportSchema = true)
+@Database(entities = [FeedbackEntryEntity::class], version = 3, exportSchema = true)
 abstract class FeedbackDatabase : RoomDatabase() {
     abstract fun feedbackDao(): FeedbackDao
 
@@ -135,7 +138,7 @@ abstract class FeedbackDatabase : RoomDatabase() {
             Room
                 .databaseBuilder(context.applicationContext, FeedbackDatabase::class.java, name)
                 .openHelperFactory(openHelperFactory(keyProvider.getOrCreatePassphrase()))
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
 
         /** Prompt v2 (issue #26): old rows are prompt v1, without analysis, panel id or cache count. */
@@ -146,6 +149,14 @@ abstract class FeedbackDatabase : RoomDatabase() {
                     db.execSQL("ALTER TABLE feedback_entries ADD COLUMN analysis TEXT")
                     db.execSQL("ALTER TABLE feedback_entries ADD COLUMN panel_id TEXT")
                     db.execSQL("ALTER TABLE feedback_entries ADD COLUMN cache_read_tokens INTEGER")
+                }
+            }
+
+        /** X replies (issue #30 PR 2): the X mode of an entry; old rows are chats (null). */
+        val MIGRATION_2_3: Migration =
+            object : Migration(2, 3) {
+                override fun migrate(db: SupportSQLiteDatabase) {
+                    db.execSQL("ALTER TABLE feedback_entries ADD COLUMN x_mode TEXT")
                 }
             }
 

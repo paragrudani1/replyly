@@ -1,0 +1,118 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 3,
+    "identityHash": "3cc543d92ab5756fa8917be8b1079480",
+    "entities": [
+      {
+        "tableName": "feedback_entries",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `chat_key` TEXT NOT NULL, `created_at` INTEGER NOT NULL, `model` TEXT NOT NULL, `prompt` TEXT NOT NULL, `suggestions_json` TEXT NOT NULL, `inserted_index` INTEGER, `final_sent_text` TEXT, `prompt_version` INTEGER NOT NULL DEFAULT 1, `analysis` TEXT, `panel_id` TEXT, `cache_read_tokens` INTEGER, `x_mode` TEXT)",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "chatKey",
+            "columnName": "chat_key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "created_at",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "model",
+            "columnName": "model",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "prompt",
+            "columnName": "prompt",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "suggestionsJson",
+            "columnName": "suggestions_json",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "insertedIndex",
+            "columnName": "inserted_index",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "finalSentText",
+            "columnName": "final_sent_text",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "promptVersion",
+            "columnName": "prompt_version",
+            "affinity": "INTEGER",
+            "notNull": true,
+            "defaultValue": "1"
+          },
+          {
+            "fieldPath": "analysis",
+            "columnName": "analysis",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "panelId",
+            "columnName": "panel_id",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "cacheReadTokens",
+            "columnName": "cache_read_tokens",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "xMode",
+            "columnName": "x_mode",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": true,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_feedback_entries_chat_key",
+            "unique": false,
+            "columnNames": [
+              "chat_key"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_feedback_entries_chat_key` ON `${TABLE_NAME}` (`chat_key`)"
+          },
+          {
+            "name": "index_feedback_entries_created_at",
+            "unique": false,
+            "columnNames": [
+              "created_at"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_feedback_entries_created_at` ON `${TABLE_NAME}` (`created_at`)"
+          }
+        ]
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '3cc543d92ab5756fa8917be8b1079480')"
+    ]
+  }
+}

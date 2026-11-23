@@ -121,6 +121,8 @@ data class ColorPair(
  * @property accent the marigold sparkle (or the wallpaper's tertiary with dynamic colour).
  *   Decoration only: never as a text colour on a light surface.
  * @property agree,decline,ask the suggestion intent chips; [forIntent] maps an intent name.
+ * @property insight,humour the two X intents (issue #30) without a chat colour; X's "disagree" and
+ *   "question" share decline's and ask's.
  */
 @Immutable
 data class ReplylyColors(
@@ -130,15 +132,24 @@ data class ReplylyColors(
     val ask: ColorPair,
     /** Any other intent: a quiet neutral chip. */
     val otherIntent: ColorPair,
+    /** X "insight": a calm teal. */
+    val insight: ColorPair,
+    /** X "humour": a soft violet. */
+    val humour: ColorPair,
     /** The panel's dimmed backdrop over the chat. */
     val backdrop: Color,
 ) {
-    /** The chip colours for a suggestion's intent ("agree", "decline", "ask", anything else). */
+    /**
+     * The chip colours for a suggestion's intent: the chat ones ("agree", "decline", "ask"), the X
+     * ones ("insight", "question", "humour", "disagree"), anything else neutral.
+     */
     fun forIntent(intent: String): ColorPair =
         when (intent.trim().lowercase()) {
             "agree" -> agree
-            "decline" -> decline
-            "ask" -> ask
+            "decline", "disagree" -> decline
+            "ask", "question" -> ask
+            "insight" -> insight
+            "humour", "humor" -> humour
             else -> otherIntent
         }
 }
@@ -150,6 +161,8 @@ internal val LightExtendedColors =
         decline = ColorPair(container = Color(0xFFFFDAD4), content = Color(0xFF7A2318)),
         ask = ColorPair(container = Color(0xFFFFE2B0), content = Color(0xFF5C3D00)),
         otherIntent = ColorPair(container = LightColors.secondaryContainer, content = LightColors.onSecondaryContainer),
+        insight = ColorPair(container = Color(0xFFCDEDEF), content = Color(0xFF00474D)),
+        humour = ColorPair(container = Color(0xFFF3DDF7), content = Color(0xFF5B2468)),
         backdrop = Color(0x52000000),
     )
 
@@ -160,6 +173,8 @@ internal val DarkExtendedColors =
         decline = ColorPair(container = Color(0xFF6B2A20), content = Color(0xFFFFDAD4)),
         ask = ColorPair(container = Color(0xFF5D4100), content = Color(0xFFFFDEA6)),
         otherIntent = ColorPair(container = DarkColors.secondaryContainer, content = DarkColors.onSecondaryContainer),
+        insight = ColorPair(container = Color(0xFF1E4A4E), content = Color(0xFFB5ECEF)),
+        humour = ColorPair(container = Color(0xFF533060), content = Color(0xFFF7D8FF)),
         backdrop = Color(0x80000000),
     )
 

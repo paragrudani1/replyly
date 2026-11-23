@@ -162,7 +162,7 @@ fun FeedbackLogScreen(
                     TimelineItem(
                         entry,
                         time.format(entry.createdAt.atZone(zone)),
-                        appLabel(entry.chatKey.packageName),
+                        appLabel(entry.chatKey.packageName) + entry.xModeSuffix(),
                         last = entry == day.entries.last(),
                     )
                 }
@@ -475,6 +475,9 @@ fun appLabel(
     } catch (_: PackageManager.NameNotFoundException) {
         packageName
     }
+
+/** " reply" or " quote" after the app label for an X entry (#30 PR 2): "X reply". */
+internal fun FeedbackEntry.xModeSuffix(): String = xMode?.let { " ${it.name.lowercase()}" }.orEmpty()
 
 /** [appLabel] bound to this context's PackageManager, cached per package for the screen's life. */
 @Composable

@@ -12,6 +12,7 @@ import com.paragrudani.replyly.feedback.FeedbackEntry
 import com.paragrudani.replyly.feedback.PromptVersionStats
 import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.parser.ChatKey
+import com.paragrudani.replyly.parser.x.XMode
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -208,5 +209,21 @@ class FeedbackLogScreenTest {
         compose.onNodeWithText("Prompt v2", substring = true).assertExists()
         compose.onNodeWithText("Inserted in 1 of 4 panels (25%) · no sent messages seen yet").assertExists()
         compose.onNodeWithText("Inserted in 7 of 10 panels (70%) · edited 12% on average (5 sent)").assertExists()
+    }
+
+    @Test
+    fun `an X entry says reply or quote after the app name`() {
+        val entry =
+            FeedbackEntry(
+                1,
+                ChatKey("com.twitter.android", "Meera Iyer"),
+                java.time.Instant.EPOCH,
+                "m",
+                "p",
+                emptyList(),
+            )
+        assertThat(entry.xModeSuffix()).isEmpty()
+        assertThat(entry.copy(xMode = XMode.REPLY).xModeSuffix()).isEqualTo(" reply")
+        assertThat(entry.copy(xMode = XMode.QUOTE).xModeSuffix()).isEqualTo(" quote")
     }
 }

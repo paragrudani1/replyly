@@ -3,6 +3,7 @@ package com.paragrudani.replyly.feedback
 import com.paragrudani.replyly.llm.PromptBuilder
 import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.parser.ChatKey
+import com.paragrudani.replyly.parser.x.XMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.flowOf
@@ -31,6 +32,8 @@ data class FeedbackEntry(
     val panelId: String? = null,
     /** Input tokens read from the prompt cache (Anthropic only); null when the provider did not say. */
     val cacheReadTokens: Int? = null,
+    /** X reply or quote (#30 PR 2); null for chats, X DMs and entries from before. */
+    val xMode: XMode? = null,
 )
 
 /**
@@ -42,6 +45,7 @@ interface FeedbackLog {
      * @param analysis the model's reasoning: stored locally, never shown in the panel or logged.
      * @param panelId the same for every generation of one panel open (insert rate per panel).
      * @param cacheReadTokens [com.paragrudani.replyly.llm.TokenUsage.cacheReadTokens], a count only.
+     * @param xMode X reply or quote (#30 PR 2, additive); null for chats. The app is in [chatKey].
      * @return the new entry id.
      */
     suspend fun record(
@@ -53,6 +57,7 @@ interface FeedbackLog {
         promptVersion: Int = PromptBuilder.VERSION,
         panelId: String? = null,
         cacheReadTokens: Int? = null,
+        xMode: XMode? = null,
     ): Long
 
     suspend fun markInserted(
@@ -107,6 +112,7 @@ class InMemoryFeedbackLog(
         promptVersion: Int,
         panelId: String?,
         cacheReadTokens: Int?,
+        xMode: XMode?,
     ): Long {
         val id = synchronized(this) { nextId++ }
         val entry =
@@ -121,6 +127,7 @@ class InMemoryFeedbackLog(
                 analysis = analysis,
                 panelId = panelId,
                 cacheReadTokens = cacheReadTokens,
+                xMode = xMode,
             )
         entries.update { it + entry }
         return id

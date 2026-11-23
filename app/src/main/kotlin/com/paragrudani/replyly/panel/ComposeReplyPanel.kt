@@ -448,8 +448,16 @@ private fun ReadyCards(
                     // Guarded too: a disabled clickable still carries its semantics action.
                     onInsert = { if (interactive) actions.onInsert(index) },
                     onCopy = { if (interactive) actions.onCopy(index) },
+                    lengthLimit = ready.lengthLimit,
                 )
             }
+        }
+        if (ready.lengthLimit != null && ready.droppedOverLimit > 0) {
+            Text(
+                droppedNotice(ready.droppedOverLimit, ready.lengthLimit),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
         Text(
             "Tap to insert, hold to copy · ${formatSeconds(ready.latency.inWholeMilliseconds)} · ${ready.model}",
