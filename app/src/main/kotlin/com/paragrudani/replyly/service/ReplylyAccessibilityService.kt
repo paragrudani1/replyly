@@ -8,6 +8,7 @@ import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
 import com.paragrudani.replyly.appGraph
+import com.paragrudani.replyly.parser.TargetApps
 import com.paragrudani.replyly.policy.AccessibilityScreenshotProbe
 import com.paragrudani.replyly.policy.SecureWindowDetector
 import com.paragrudani.replyly.policy.SecureWindowState
@@ -29,6 +30,12 @@ class ReplylyAccessibilityService :
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        // Android's window changes have no source package. Keep them so the overlay can
+        // follow the keyboard and close when the user leaves a chat.
+        serviceInfo =
+            serviceInfo.apply {
+                packageNames = (TargetApps.ACCESSIBILITY_PACKAGES + null).toTypedArray()
+            }
         val graph = appGraph
         components = graph.accessibilityComponents()
         graph.accessibilityHostHolder.attach(this)
@@ -36,6 +43,12 @@ class ReplylyAccessibilityService :
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
+        val sourcePackage = event.packageName?.toString()
+        if (sourcePackage !in TargetApps.ACCESSIBILITY_PACKAGES &&
+            !(sourcePackage == null && event.eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED)
+        ) {
+            return
+        }
         dispatch { it.onEvent(event, this) }
     }
 
@@ -50,7 +63,8 @@ class ReplylyAccessibilityService :
         super.onDestroy()
     }
 
-    override fun captureActiveWindow(): ScreenSnapshot? = rootInActiveWindow?.let { snapshotOf(it) }
+    override fun captureActiveWindow(): ScreenSnapshot? =
+        windows.firstOrNull { it.isActive }?.supportedRoot()?.let(::snapshotOf)
 
     // Ticket #1: FLAG_SECURE probe (see SecureWindowDetector).
     private val secureWindows by lazy {
@@ -67,28 +81,23 @@ class ReplylyAccessibilityService :
         windows.firstOrNull { it.id == windowId }?.let { checkedSnapshotOf(it) }
 
     /**
-     * Probes before fetching the root: fetching it pre-loads node text into this process. Fails
-     * closed: anything but a certain "not secure" counts as secure. A gone window gives `null`.
-     *
-     * WrongConstant: getRoot's docs allow 0 ("either 0 or a combination of FLAG_PREFETCH_*"); lint's
-     * IntDef does not.
+     * Checks the package from the root alone, then probes before mapping the tree. Fails closed:
+     * anything but a certain "not secure" counts as secure. A gone window gives `null`.
      */
-    @SuppressLint("WrongConstant")
     private suspend fun checkedSnapshotOf(window: AccessibilityWindowInfo): ScreenSnapshot? {
+        val root = window.supportedRoot() ?: return null
         val state = secureWindows.check(window.id)
         if (state == SecureWindowState.GONE) return null
         if (state != SecureWindowState.NOT_SECURE) {
-            // The root node alone (no prefetching), for its package name only.
-            return secureSnapshot(
-                window
-                    .getRoot(NO_PREFETCH)
-                    ?.packageName
-                    ?.toString()
-                    .orEmpty(),
-            )
+            return secureSnapshot(root.packageName.toString())
         }
-        return window.root?.let { snapshotOf(it) }
+        return window.supportedRoot()?.let(::snapshotOf)
     }
+
+    // getRoot accepts zero to skip prefetch, but lint's IntDef omits it.
+    @SuppressLint("WrongConstant")
+    private fun AccessibilityWindowInfo.supportedRoot(): AccessibilityNodeInfo? =
+        getRoot(NO_PREFETCH)?.takeIf { it.packageName?.toString() in TargetApps.ACCESSIBILITY_PACKAGES }
 
     private fun snapshotOf(root: AccessibilityNodeInfo): ScreenSnapshot {
         val size = getSystemService(WindowManager::class.java).currentWindowMetrics.bounds

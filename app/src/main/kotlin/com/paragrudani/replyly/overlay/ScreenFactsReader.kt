@@ -4,6 +4,7 @@ import android.accessibilityservice.AccessibilityService
 import android.graphics.Rect
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.accessibility.AccessibilityWindowInfo
+import com.paragrudani.replyly.parser.TargetApps
 import com.paragrudani.replyly.screen.Bounds
 
 /**
@@ -53,7 +54,11 @@ class ScreenFactsReader(
         fun of(service: AccessibilityService) =
             ScreenFactsReader(
                 windows = { service.windows },
-                focusedInput = { service.findFocus(AccessibilityNodeInfo.FOCUS_INPUT) },
+                focusedInput = {
+                    service.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)?.takeIf {
+                        it.packageName?.toString() in TargetApps.ACCESSIBILITY_PACKAGES
+                    }
+                },
             )
     }
 }

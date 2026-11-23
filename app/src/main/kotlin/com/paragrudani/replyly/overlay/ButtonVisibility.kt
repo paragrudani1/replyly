@@ -62,9 +62,8 @@ enum class HideReason {
 /**
  * Spec 3: the button shows only when an editable, non-password field of a target app has input
  * focus, its window is the active (or focused) app window, the keyboard is open, and the input
- * is not hidden behind the keyboard. Target app
- * = any app [isAppAllowed] lets through (WhatsApp, WhatsApp Business, Telegram, and the generic
- * mode for every other app), except Replyly itself and the system UI. [isFieldAllowed] narrows
+ * is not hidden behind the keyboard. [ScreenFactsReader] limits input to supported apps, then
+ * [isAppAllowed] checks the sensitive-screen policy. [isFieldAllowed] narrows
  * an app to some of its fields: on X, the reply and quote composers and DMs only (`XFields`).
  */
 class ButtonVisibility(

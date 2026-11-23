@@ -7,7 +7,7 @@ A personal Android app for a Samsung S23. A floating button shows above the keyb
 - Users: only the owner. Install by sideload. No Google Play release in v1.
 - Device: Samsung S23 (One UI). minSdk 34.
 - Apps with a full parser: WhatsApp, WhatsApp Business, Telegram.
-- Generic fallback: other apps (Slack, LinkedIn, Instagram and more) send the visible text only. They have no history.
+- Accessibility scope: WhatsApp, WhatsApp Business, Telegram and X (replies, quotes and DMs). Other apps have no overlay or screen capture.
 - Languages: English and Hinglish/Gujlish (Latin script). The reply uses the same language and script as the last messages.
 - Build plan: build all components in one pass (no milestones).
 

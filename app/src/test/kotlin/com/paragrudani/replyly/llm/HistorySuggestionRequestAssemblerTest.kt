@@ -270,7 +270,16 @@ class HistorySuggestionRequestAssemblerTest {
             settings.update { it.copy(myXVoice = "dry humour, no hashtags", xPostLength = 500) }
             val chat = XParser { "kiran_test" }.parse(Fixtures.snapshot("x/synthetic-reply_thread.json"))!!
 
-            val request = assembler.assemble(chat, instruction = null)
+            // At 03:08 on 23 Nov in Kolkata, a post from five hours ago was yesterday.
+            val xAssembler =
+                HistorySuggestionRequestAssembler(
+                    history,
+                    notes,
+                    settings,
+                    clock = Clock.fixed(Instant.parse("2026-11-22T21:38:00Z"), kolkata),
+                    zone = { kolkata },
+                )
+            val request = xAssembler.assemble(chat, instruction = null)
 
             assertThat(request.appLabel).isEqualTo("X")
             assertThat(request.x).isEqualTo(chat.x)

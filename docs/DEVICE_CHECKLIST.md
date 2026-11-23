@@ -29,7 +29,7 @@ together; the rest can wait.
 4. Tapping the button opens the panel, and its instruction field gets the keyboard (4.1, 4.4).
 5. A real-key suggestion returns: 3 cards within about 2 s with `anthropic/claude-haiku-5.5` (8.1–8.3).
 6. Tapping a card puts the text in WhatsApp's message box, and nothing is sent (5.1).
-7. FLAG_SECURE blocks: Chrome Incognito gives "Replyly is off here", a banking app shows no button (10.1–10.2).
+7. Secure chat windows are blocked and banking apps show no button (10.1–10.3).
 8. Passive capture stores history, and `history.db` is encrypted (7.1, 7.2).
 9. The API key and history survive installing an update over the app (2.2–2.4).
 10. A Telegram 1:1 dump parses correctly (6.17).
@@ -198,8 +198,8 @@ Telegram. **See:** while a tap is read the button dims and a second tap does not
 `tap outcome=` (`adb logcat -v time -s ReplylyOverlay`).
 
 3.17 **Do:** split screen (Recents > WhatsApp icon > Open in split screen view, Chrome in the other
-half). Tap WhatsApp's field, then Chrome's address bar. **See:** the button follows the focused
-app, and a tap in WhatsApp reads WhatsApp, not Chrome. **Send:** screenshots, window dump.
+half). Tap WhatsApp's field, then Chrome's address bar. **See:** the button shows for the WhatsApp
+field and hides when Chrome takes focus. **Send:** screenshots, window dump.
 
 3.18 **Do:** pop-up view (Recents > WhatsApp icon > Open in pop-up view), tap the field, then the
 button; move the pop-up. **See:** button fully on screen and following; the panel is for that
@@ -257,8 +257,8 @@ Regenerate. **See:** each card shows its whole text wrapped, no "…", no sidewa
 in-panel confirmation (no pop-up), then "Saved messages for this chat were deleted." **Send:**
 screenshot.
 
-4.11 **Do:** open the panel in a generic app (Gmail compose). **See:** no "Contact note" button and
-no delete link. **Send:** screenshot.
+4.11 **Do:** focus a Gmail compose field after opening a WhatsApp chat. **See:** no Replyly
+button or panel in Gmail. **Send:** screenshot if either appears.
 
 4.12 **Do:** note "requests today" in settings. Open the panel, wait for cards, rotate to landscape
 and back. **See:** same cards, no new progress bar, count up by exactly 1. **Send:** counts before
@@ -396,11 +396,10 @@ message with both lines, the contact as sender. **Send:** dump.
 6.21 **Do:** dump Telegram screens with "Today", "X joined Telegram", "Unread messages". **See:**
 none as messages. **Send:** dump.
 
-6.22 **Do:** dump a DM in Instagram, LinkedIn or Slack. **See:** `Parser: generic:visible-text`,
-`History: no`, visible messages with `←`/`→` (Slack shows all on the left: expected). **Send:**
-dump.
+6.22 **Do:** start a debug dump countdown, then switch to a DM in Instagram, LinkedIn or Slack.
+**See:** no dump saved. **Send:** the toast text if a dump is saved.
 
-6.23 **Do:** keep every dump from 6.7–6.22. The CoS uses them offline to check the geometry
+6.23 **Do:** keep every dump from 6.7–6.21. The CoS uses them offline to check the geometry
 fallback (used after app updates when ids change). Nothing to tap.
 
 ## 7. History
@@ -542,9 +541,8 @@ screenshot of where it landed, and the Android version if nothing opened.
 the entry with date, chat, 3 suggestions, ✓ on the inserted one, "Sent: <your text>"; "Show
 prompt" expands. **Send:** screenshot (blur the chat).
 
-9.14 **Do:** in a generic app not in Replyly's built-in list (Discord, Teams, Snapchat), ask for
-suggestions, then "Show prompt" on that entry. **See:** the prompt names the app (e.g. "Discord"),
-not its package name. **Send:** the app and what the prompt called it.
+9.14 **Do:** request suggestions from an X DM, then tap "Show prompt" on the entry.
+**See:** the prompt names the app (X), not its package name. **Send:** the app label if it differs.
 
 9.15 **Do:** force-stop Replyly, reopen the feedback log. **See:** the entries are still there (the
 log is stored now). **Send:** screenshot.
@@ -553,15 +551,14 @@ log is stored now). **Send:** screenshot.
 
 ## 10. Security checks
 
-10.1 **Do:** open a banking app (YONO SBI, iMobile, a UPI app) and tap a field. **See:** no button
-(`reason=BLOCKED_APP`). **Send:** the app's package name (`adb shell pm list packages | grep -i
-<name>`) if the button shows, so it can be added to `policy/SensitiveApps.kt`. Do this for every
-banking, UPI or wallet app you have.
+10.1 **Do:** with Replyly accessibility enabled, open a WhatsApp test chat, focus its input and open
+the Replyly panel. Switch to super.money. **See:** the panel and button disappear. **Record:**
+whether super.money shows “Turn off accessibility access” and lists Replyly. If the warning
+only appeared on the payment screen before, open that screen without confirming a payment.
+Return to WhatsApp and focus the chat input again. **See:** the button returns.
 
-10.2 **Do:** Chrome → new Incognito tab → tap the address bar → tap the button. **See:** "Replyly
-is off here"; Log `secure check state=SECURE code=6` and `tap outcome=blocked
-reason=SECURE_WINDOW`. Then a normal tab: no notice, no `secure check` line. **Send:** Log, and
-whether the screen flashes or stutters on a tap.
+10.2 **Do:** Chrome → new Incognito tab → tap the address bar, then repeat in a normal tab.
+**See:** no Replyly button or screenshot probe in either tab. **Send:** log if a probe appears.
 
 10.3 **Do:** Telegram secret chat (if you have one): tap the field and the button. **See:**
 `reason=SECURE_WINDOW`. **Send:** Log.
@@ -570,10 +567,8 @@ whether the screen flashes or stutters on a tap.
 value (2 or −1: do 2.1; 1: internal error; 3: called too often; timeout: no answer in 1.5 s).
 `state=GONE code=4|5` (window gone mid-tap) shows "Replyly can't read a chat here" and is fine.
 
-10.5 **Do:** debug screen → "Dump in 10 s" → switch to the Chrome Incognito tab (and a banking
-app). **See:** toast "Replyly: not saved: this screen is protected (secure window)" (banking:
-"blocklisted app" or "banking app"), and no new dump. **Send:** the toast text, and the dump if
-one was saved.
+10.5 **Do:** debug screen → "Dump in 10 s" → switch to the Chrome Incognito tab. Repeat in
+super.money. **See:** no new dump in either case. **Send:** the toast text if a dump is saved.
 
 10.6 **Do:** open a password field (WhatsApp > Settings > Account > Two-step verification, or a
 login screen). **See:** no button (`reason=PASSWORD_FIELD`), and no `capture merged` line.
@@ -584,8 +579,8 @@ Open them, tap the button, try a dump, wait 2 s. **See:** "Replyly is off here" 
 "not saved: this screen is protected" toast, and no `capture merged` line. Remove them afterwards.
 **Send:** Log, toast text.
 
-10.8 **Do:** open Slack or Instagram DMs and wait 2 s. **See:** no `capture merged` line (generic
-apps get no history). **Send:** Log.
+10.8 **Do:** open Slack or Instagram DMs, focus the input field and wait 2 s. **See:** no Replyly
+button and no `capture merged` line. **Send:** log if either appears.
 
 10.9 **Do:** `adb shell run-as com.paragrudani.replyly head -c 16 databases/feedback.db | xxd`
 (after at least one suggestion). **See:** random bytes, not `SQLite format 3`. **Send:** the

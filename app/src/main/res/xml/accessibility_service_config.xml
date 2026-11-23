@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- No packageNames: the service sees all apps; components filter by package.
-     canTakeScreenshot (ticket #1): only to detect FLAG_SECURE windows; pixels are never kept. -->
+<!-- Keep packageNames aligned with TargetApps.ACCESSIBILITY_PACKAGES.
+     canTakeScreenshot is only for detecting FLAG_SECURE windows. Pixels are never kept. -->
 <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
   android:accessibilityEventTypes="typeWindowStateChanged|typeWindowContentChanged|typeWindowsChanged|typeViewFocused|typeViewTextChanged"
   android:accessibilityFeedbackType="feedbackGeneric"
@@ -9,4 +9,5 @@
   android:canTakeScreenshot="true"
   android:description="@string/accessibility_service_description"
   android:isAccessibilityTool="false"
-  android:notificationTimeout="100" />
+  android:notificationTimeout="100"
+  android:packageNames="com.whatsapp,com.whatsapp.w4b,org.telegram.messenger,com.twitter.android" />

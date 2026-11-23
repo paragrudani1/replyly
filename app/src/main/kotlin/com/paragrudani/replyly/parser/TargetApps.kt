@@ -12,4 +12,7 @@ object TargetApps {
     const val X = "com.twitter.android"
 
     val X_PACKAGES: Set<String> = setOf(X)
+
+    /** Apps whose events and chat trees the accessibility service handles. */
+    val ACCESSIBILITY_PACKAGES: Set<String> = FULL_PARSER_PACKAGES + X_PACKAGES
 }

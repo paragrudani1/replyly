@@ -17,7 +17,7 @@ All code lives in the single `:app` module, package `com.paragrudani.replyly`.
              ▼                                         ▼
      host.captureWindowChecked(chat window)    host.captureActiveWindowChecked()
              └──────────► FLAG_SECURE probe first (fails closed): a secure window comes back
-                          unread, with secureWindow = true
+                          with an empty tree and secureWindow = true
                           │
                   SensitiveScreenPolicy.evaluate ── Blocked ──► stop, read nothing more
                           │ Allowed
@@ -218,9 +218,11 @@ One lazy binding per interface, all real implementations:
 - The panel's "Open settings" starts `MainActivity.settingsIntent`, which opens the Settings route.
 - Deleting one chat's history is a panel action. The hidden debug screen opens with a long-press on
   the settings title.
-- Accessibility config (`res/xml/accessibility_service_config.xml`): all packages, view ids,
-  interactive windows, not-important views, `canTakeScreenshot` (for the FLAG_SECURE probe).
-  Components filter by package.
+- Accessibility config (`res/xml/accessibility_service_config.xml`): WhatsApp, WhatsApp Business,
+  Telegram and X events only. At bind time the service also subscribes to system window changes
+  without a source package so the overlay can track the keyboard and close when leaving a chat.
+  The focused input and captured trees are restricted to the same supported packages.
+  The service retains interactive-window access and `canTakeScreenshot` for the FLAG_SECURE probe.
 - UI: every surface uses `ui/theme/ReplylyTheme` (also the overlay windows); the floating button
   is a View coloured by `replylyColorScheme`. Rules in [DESIGN.md](DESIGN.md); screenshot tests in
   [SCREENSHOTS.md](SCREENSHOTS.md).
