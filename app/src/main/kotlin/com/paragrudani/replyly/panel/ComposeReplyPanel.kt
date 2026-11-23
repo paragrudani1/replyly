@@ -416,8 +416,8 @@ private fun SuggestionsBody(
                 ErrorState(suggestions.error, actions.onOpenSettings, actions.onRegenerate)
             }
 
-            SuggestionsUi.NothingToReply -> {
-                NothingToReplyState(actions.onSuggestFollowUps)
+            is SuggestionsUi.NothingToReply -> {
+                NothingToReplyState(suggestions.reason, actions.onSuggestFollowUps)
             }
         }
     }
@@ -428,7 +428,7 @@ private fun PanelUiState.bodyKey(): BodyKey =
         SuggestionsUi.Loading -> BodyKey.Loading(regenerating = generation > 1)
         is SuggestionsUi.Ready -> BodyKey.Ready(generation)
         is SuggestionsUi.Error -> BodyKey.Error(generation)
-        SuggestionsUi.NothingToReply -> BodyKey.NothingToReply(generation)
+        is SuggestionsUi.NothingToReply -> BodyKey.NothingToReply(generation)
     }
 
 @Composable

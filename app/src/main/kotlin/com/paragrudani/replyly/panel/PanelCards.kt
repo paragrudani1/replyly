@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.paragrudani.replyly.R
+import com.paragrudani.replyly.llm.NothingToReplyReason
 import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.llm.XLength
 import com.paragrudani.replyly.ui.theme.MotionDurations
@@ -364,11 +365,14 @@ internal fun ErrorState(
 private val ERROR_ICON_BUBBLE: Dp = 48.dp
 
 /**
- * My message is the last one and nothing needs an answer (issue #26). Opening the panel in this
- * state made no LLM call; the button makes exactly one, for 3 follow-ups.
+ * Nothing needs an answer (issue #26); the subtitle says why (issue #38). Opening the panel in
+ * this state made no LLM call; the button makes exactly one, for 3 follow-ups.
  */
 @Composable
-internal fun NothingToReplyState(onSuggestFollowUps: () -> Unit) {
+internal fun NothingToReplyState(
+    reason: NothingToReplyReason,
+    onSuggestFollowUps: () -> Unit,
+) {
     val colors = MaterialTheme.colorScheme
     Column(
         Modifier
@@ -403,7 +407,7 @@ internal fun NothingToReplyState(onSuggestFollowUps: () -> Unit) {
                 modifier = Modifier.semantics { heading() },
             )
             Text(
-                "Your message is the last one in this chat.",
+                reason.subtitle(),
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -423,6 +427,13 @@ internal fun NothingToReplyState(onSuggestFollowUps: () -> Unit) {
 
 internal const val NOTHING_TO_REPLY_TITLE = "Nothing to reply to"
 internal const val SUGGEST_FOLLOW_UPS = "Suggest follow-ups anyway"
+
+internal fun NothingToReplyReason.subtitle(): String =
+    when (this) {
+        NothingToReplyReason.MyMessageLast -> "Your message is the last one in this chat."
+        NothingToReplyReason.TheirMediaAfterMine -> "Nothing after your last message needs an answer."
+        NothingToReplyReason.NoMessageOfMine -> "You haven't written in this chat yet."
+    }
 
 private fun ErrorKind.icon(): Int =
     when (this) {

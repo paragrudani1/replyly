@@ -125,9 +125,10 @@ One lazy binding per interface, all real implementations:
   with the bubble's local time; else `firstSeenAt`. A question: a "?" in the last sentence, a
   question word first or a marker last ("… kya", "… na"); not when it ends in "!" without "?", nor
   exclamations like "kyun nahi" or "what a …". The panel checks it after assembling and before any
-  call: `NothingToReply` shows "Nothing to reply to" with no call; "Suggest follow-ups anyway",
-  Regenerate, or a chip tap that leaves an instruction makes one (each a user tap; later
-  generations in that panel stay follow-ups).
+  call: `NothingToReply` shows "Nothing to reply to" with no call, and a subtitle from
+  `ReplyTarget.nothingReason` (my message last, their media after mine, or no message of mine);
+  "Suggest follow-ups anyway", Regenerate, or a chip tap that leaves an instruction makes one
+  (each a user tap; later generations in that panel stay follow-ups).
 - **Output**: `{"analysis": "...", "suggestions": [{"intent","text"} x3]}`. A missing analysis is
   read as empty. The analysis goes only to the feedback log, never to the panel or logcat.
 - **Feedback log**: each entry stores `prompt_version` (1 for entries from before v2), `analysis`,
