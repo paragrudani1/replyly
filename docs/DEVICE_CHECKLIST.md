@@ -1252,7 +1252,12 @@ chat prompt, so judge only detection and reading here, not how good the cards ar
 **Every X view id in `parser/x/XIds.kt` is a guess** from older public Twitter dumps, and the
 composer is recognised by its hint ("Post your reply", "Add a comment"), in English. The dumps of
 15.4, 15.5, 15.6, 15.8 and 15.9 decide the real ids: send them all, with **scramble on** (handles
-scramble the same everywhere in one dump; times, counts and the composer hints stay readable).
+scramble the same everywhere in one dump; times, counts and the text field's hint stay readable,
+whatever the hint says).
+
+**Before you start:** X's app language must be English: X → Settings and privacy → Accessibility,
+display and languages → Languages → Display language. The button depends on the English hints;
+with another language it does not show, by design.
 How to take a dump with the keyboard open: [PARSER_FIXTURES.md](PARSER_FIXTURES.md), section 1,
 step 4. The debug screen prints `Parser: x:view-ids` (ids found) or `x:geometry` (none matched),
 a line `X: reply · 2 parents + target · …`, a Notes line naming the mode and counting posts, and
@@ -1279,7 +1284,14 @@ opens with the keyboard. **See:** the button shows above the keyboard. Take a du
 **See:** `X: reply · 0 parents + target` (or more parents if X shows the thread), the post's
 author as Title, and a Notes line with `target: named in replying-to line` (or `nearest above
 composer`) and `replying-to line: 1 handles`. **Send:** the dump (scramble on) and the summary
-lines. If the button does not show, send the dump anyway: it holds the field's hint and id.
+lines. If the button does not show, send the dump anyway: it holds the field's hint and id. Also
+write down, word for word, the grey hint text you see in the empty reply field before you type.
+
+15.4a **Do:** in the reply composer of 15.4, type a few words (do not post). Close the keyboard
+(back gesture), then tap the field again so the keyboard reopens. **See:** the button is still
+there with the draft typed, and comes back with the keyboard. Then do the same in the quote
+composer (Repost → Quote, as in 15.6). **See:** the same. **Send:** pass/fail for each composer;
+on fail, a dump (scramble on) taken with the draft typed and the keyboard open.
 
 15.5 **Do:** open a post that is a reply in a thread (it shows posts above it), scroll so the post
 is in the middle, and tap the "Post your reply" bar at the bottom. **See:** if X opens the reply
