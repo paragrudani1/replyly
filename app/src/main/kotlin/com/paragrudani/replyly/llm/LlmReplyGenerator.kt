@@ -84,8 +84,9 @@ class LlmReplyGenerator(
         if (usage != null && usage.totalTokens > 0) costGuard.recordUsage(usage)
 
         val lengthLimit = request.xPostLimit.takeIf { request.x != null }
+        val xTags = request.x?.let { XTags.keep(request.myXVoice, it) }
         val parsed =
-            when (val result = parse(outcome, lengthLimit)) {
+            when (val result = parse(outcome, lengthLimit, xTags)) {
                 is Parsed.Fail -> return result.failure
                 is Parsed.Ok -> result
             }
@@ -176,10 +177,11 @@ class LlmReplyGenerator(
         ) : Parsed
     }
 
-    /** [lengthLimit]: X only, see [SuggestionOutputParser.parse]. */
+    /** [lengthLimit] and [xTags]: X only, see [SuggestionOutputParser.parse]. */
     private fun parse(
         outcome: CallOutcome,
         lengthLimit: Int?,
+        xTags: XTags.Keep?,
     ): Parsed {
         val content =
             when (outcome) {
@@ -192,7 +194,7 @@ class LlmReplyGenerator(
                         ?: return Parsed.Fail(badOutput("empty reply", outcome))
                 }
             }
-        return when (val parsed = SuggestionOutputParser.parse(content, lengthLimit = lengthLimit)) {
+        return when (val parsed = SuggestionOutputParser.parse(content, lengthLimit = lengthLimit, xTags = xTags)) {
             is ParsedSuggestions.Invalid -> Parsed.Fail(badOutput(parsed.reason, outcome))
             is ParsedSuggestions.Ok -> Parsed.Ok(parsed.suggestions, parsed.analysis, parsed.droppedOverLimit)
         }

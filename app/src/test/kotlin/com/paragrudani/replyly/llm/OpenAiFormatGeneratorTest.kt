@@ -203,6 +203,32 @@ class OpenAiFormatGeneratorTest {
     }
 
     @Test
+    fun `X - hashtags and mentions are stripped unless my X voice uses them (#46)`() {
+        val tagged =
+            """{"analysis":"a","suggestions":[{"intent":"agree","text":"Love #Kotlin for this #dev"},""" +
+                """{"intent":"question","text":"@ravi_k which part?"},{"intent":"insight","text":"Sync is hard."}]}"""
+        val post = XPost("Meera Iyer", "meera_writes", "Most apps don't need a backend on day one.", "2h")
+        val xRequest = request.copy(packageName = TargetApps.X, appLabel = "X", x = XContext(XMode.REPLY, post))
+
+        server.enqueue(ok(completion(tagged)))
+        val stripped = runBlocking { generator().generate(xRequest) } as SuggestionResult.Success
+        assertThat(
+            stripped.suggestions.map { it.text },
+        ).containsExactly("Love Kotlin for this", "which part?", "Sync is hard.")
+
+        server.enqueue(ok(completion(tagged)))
+        val voiced = runBlocking { generator().generate(xRequest.copy(myXVoice = "dev, I tag #buildinpublic")) }
+        assertThat((voiced as SuggestionResult.Success).suggestions.map { it.text })
+            .containsExactly("Love #Kotlin for this #dev", "which part?", "Sync is hard.")
+        assertThat(server.requestCount).isEqualTo(2)
+
+        // Chats are untouched.
+        server.enqueue(ok(completion(tagged)))
+        val chat = runBlocking { generator().generate(request) } as SuggestionResult.Success
+        assertThat(chat.suggestions.map { it.text }).contains("Love #Kotlin for this #dev")
+    }
+
+    @Test
     fun `chats carry no length limit`() {
         server.enqueue(ok(completion(threeJson)))
         val result = generate() as SuggestionResult.Success
