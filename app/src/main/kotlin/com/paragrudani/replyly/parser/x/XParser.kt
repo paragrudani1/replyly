@@ -29,7 +29,8 @@ import com.paragrudani.replyly.screen.ScreenSnapshot
  *   nearest above; no parents.
  * - **Mine.** A post is mine when its handle equals [myHandle] (the "My X handle" setting, `@` and
  *   case ignored), or, with the setting empty, the handle shown on the composer's row.
- * - **Interim prompt path (until PR 2).** [ParsedChat.messages] = parents then the target, mine
+ * - **Messages.** [ParsedChat.messages] (PR 1's interim prompt path, now read only by the debug
+ *   dump; the X prompt reads [XContext]) = parents then the target, mine
  *   marked; the title is the target's author; not a group. A post by someone other than the
  *   target's author says so in a bracketed note, since a 1:1 prompt names every other line after
  *   the title. Alt text, link cards and quoted posts become short bracketed notes.

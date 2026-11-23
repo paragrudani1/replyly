@@ -1242,12 +1242,12 @@ chat text, the analysis text or the prompt. **Send:** any line it prints (blur i
 follow-ups. Tap "Suggest follow-ups anyway" and open "Show details": the photo shows as a
 `[media]` line after your message. **Send:** pass/fail and the two conversation lines.
 
-## 15. X replies and quotes (issue #30, PR 1)
+## 15. X replies and quotes (issue #30, PRs 1 and 2)
 
 Replyly now reads X (`com.twitter.android`): the button shows on the **reply composer** and the
 **quote composer** (and in X DMs, which work like any other chat), and the parser reads the post
-you reply to, the thread above it and the quoted post. Until PR 2 the suggestions still use the
-chat prompt, so judge only detection and reading here, not how good the cards are.
+you reply to, the thread above it and the quoted post. 15.1–15.15 check detection and reading
+(PR 1); 15.16–15.24 check the X prompt, the length counter and the new settings (PR 2).
 
 **Every X view id in `parser/x/XIds.kt` is a guess** from older public Twitter dumps, and the
 composer is recognised by its hint ("Post your reply", "Add a comment"), in English. The dumps of
@@ -1264,7 +1264,7 @@ a line `X: reply · 2 parents + target · …`, a Notes line naming the mode and
 one line per post (`←` someone, `→ me`). Keep
 `adb logcat -v time -s ReplylyOverlay ReplylyA11y` open for the whole section.
 
-15.1 **Do:** Settings → "Your style". **See:** a field "My X handle" under "Names people call me".
+15.1 **Do:** Settings → "On X" (below "Your style"). **See:** the field "My X handle".
 Type ` @YourHandle ` (with the spaces), Save. **See:** it shows `@YourHandle`. Type `my handle`
 and Save. **See:** "Letters, digits and _ only, up to 15 characters", nothing saved. Put your real
 handle back. **Send:** pass/fail.
@@ -1332,7 +1332,7 @@ tapping it opens the panel with that conversation; a dump says `Parser: x:dm-gen
 `History: no`. **Send:** pass/fail and the dump's summary lines.
 
 15.13 **Do:** after 15.11, open Settings → Privacy → Feedback log. **See:** an entry for X with the
-target author as chat name. No other trace: X screens are never captured in the background.
+target author as chat name, labelled "X reply" (or "X quote" after 15.6's composer). No other trace: X screens are never captured in the background.
 **Send:** pass/fail.
 
 15.14 **Do:** watch the logcat from the intro during the whole section. **See:** no post text, no
@@ -1341,3 +1341,53 @@ names or handles, no hint text; only event names and reasons. **Send:** any line
 15.15 **Do:** after an X app update (Play Store), repeat 15.4 and 15.6. **See:** same results. If
 the button stops showing or `Parser:` changes from `x:view-ids` to `x:geometry`, send the dump:
 the ids moved.
+
+15.16 **Do:** Settings → "On X". Type a few words in "My X voice" (topics, tone, emoji and
+hashtag habits, e.g. "Android dev, dry humour, no hashtags"), Save. **See:** it stays after leaving
+and reopening Settings; the counter under it reads `n / 500`, and over 500 Save shows an error.
+"Longer X posts" is off by default. **Send:** pass/fail.
+
+15.17 **Do:** reply to a post from someone else (15.4) and tap the button. **See:** 3 cards that
+answer that post (a detail or claim from it), with 3 different intent chips (Insight, Agree,
+Question, Humour or Disagree, each its own colour), written like your X voice. No hashtags (unless
+your voice has them), no @-mentions, nothing like "Great post! 🔥" or "This 👆", no made-up
+numbers or links. Every card shows a counter like `142/280` at its bottom right. **Send:**
+pass/fail, and for a fail a screenshot of the panel plus the feedback log entry's prompt (it shows
+what the model saw; do not post it anywhere public).
+
+15.18 **Do:** in a thread (15.5, at least one post above the one you reply to), tap the button.
+**See:** the cards answer the post you reply to, not a post above it. Then reply to one of **your
+own** posts (continue your thread). **See:** 3 cards right away, no "Nothing to reply to", and
+they read as the next post of your thread. **Send:** pass/fail for each.
+
+15.19 **Do:** Repost → Quote on a post (15.6), tap the button. **See:** the cards read as your
+commentary on the quoted post for your followers (a take, context or a question), not as a reply
+to its author and not a summary of it. **Send:** pass/fail; on fail a panel screenshot.
+
+15.20 **Do:** the counter against X's own. In a reply composer type in Replyly's instruction field
+`include 🔥 and end with example.com/test`, tap Regenerate, and pick a card that has both (tap
+Regenerate again if none does); note its counter, say `96/280`. Tap it to insert. X shows a
+number in its ring only when 20 or fewer characters are left: type `a` at the end until the number
+appears, and count your `a`s. **See:** card count + your `a`s + the number X shows = 280 (in the
+example, 96 + 164 + 20). **Send:** the three numbers and the card text.
+
+15.21 **Do:** turn on Settings → On X → "Longer X posts", Save. Reply to a post and type the
+instruction `make each about 450 characters`, Regenerate. **See:** counters read `/500` and stay
+at or under 500. Turn the setting off, Save, open the panel again with the same instruction.
+**See:** counters read `/280`; a card cut to fit has a red counter, and when a card could not be
+cut sensibly the panel shows 2 cards and "1 reply was over 280 characters and was left out.
+Regenerate for more." Requests today goes up by exactly 1 per tap (no automatic retry). **Send:**
+pass/fail and screenshots of both panels.
+
+15.22 **Do:** in both composers (reply and quote) tap a card, then separately long-press a card.
+**See:** a tap only puts the text into X's box (the Post/Reply button is never pressed, nothing is
+posted); a long-press copies ("Copied") and inserts nothing. **Send:** pass/fail.
+
+15.23 **Do:** watch logcat (intro) during 15.16–15.22. **See:** no post text, card text, voice
+text, names or handles; only event names, counts and reasons. **Send:** any line that has some.
+
+15.24 **Do:** after every X app update (Play Store), before anything else: open a reply composer
+with the keyboard up and take a dump (scramble on), then do the same in the quote composer, and tap
+the button once in each. **See:** the button shows, the summary lines match 15.4 and 15.6, and the
+cards still answer the right post. **Send:** both dumps with their summary lines and the X version
+(X → Settings → About), even when everything works: they show whether X moved its view ids.

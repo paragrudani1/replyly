@@ -30,7 +30,7 @@ All code lives in the single `:app` module, package `com.paragrudani.replyly`.
              │ on open, and on Regenerate, Retry, a quick-chip tap or "Suggest follow-ups anyway" only
              ├─► SuggestionRequestAssembler.assemble   merges the chat into history first, then
              │     reads history, contact note, settings, app label, the clock (Now, 12/24 h)
-             ├─► ReplyTarget.decide (pure) ── NothingToReply ──► "Nothing to reply to", no call
+             ├─► ReplyTarget.decide (pure, not on X) ── NothingToReply ──► "Nothing to reply to", no call
              ├─► ReplyGenerator.generate ──► SuggestionResult
              │     active profile, API key, https endpoint, CostGuard.tryAcquire, call(s), recordUsage
              ├─► FeedbackLog.record
@@ -61,7 +61,7 @@ One lazy binding per interface, all real implementations:
 | `settingsRepository`, `costGuard` | DataStore-backed (`settings`, `cost`) | `settings` runs `SettingsMigrations.ALL` (drops `use_parallel_calls`). |
 | `profileRepository`, `profileSecretStore` | `DataStoreProfileRepository`, `EncryptedProfileSecretStore` | `profiles` (no secrets), `profile_secrets` (AES-GCM per profile id). Migrates the legacy config once. |
 | `apiKeyStore` | `ActiveProfileApiKeyStore` | The active profile's key, behind the old interface (onboarding uses it). The legacy `api_key` store is only read by the migration. |
-| `feedbackLog` | `RoomFeedbackLog` | `feedback.db` (schema 2: `prompt_version`, `analysis`, `panel_id`, `cache_read_tokens`), opened on first use off the main thread. |
+| `feedbackLog` | `RoomFeedbackLog` | `feedback.db` (schema 3: `prompt_version`, `analysis`, `panel_id`, `cache_read_tokens`, `x_mode`), opened on first use off the main thread. |
 | `themeSettings` | `ThemeSettings` | The "Material You colours" flag as a hot `StateFlow`, so overlay windows theme their first frame. |
 
 `InMemory…` classes next to the interfaces are test fakes. Add behaviour to the service as a new
@@ -154,8 +154,21 @@ One lazy binding per interface, all real implementations:
 - **No history**: `historyApplies = false`, X is not in `TargetApps.FULL_PARSER_PACKAGES`, so
   passive capture never reads it and the assembler's merge does nothing. Only the feedback entry is
   stored. DMs go through `GenericChatParser` (no `XContext`).
-- **Interim prompt** (until PR 2's X mode): `ParsedChat.messages` carries the thread (parents, then
-  the target) with bracketed notes for other authors, alt text, link cards and quoted posts.
+- **X prompt** (`llm/XPromptBuilder`, PR 2): `PromptBuilder.build` hands a request with
+  `SuggestionRequest.x` to it. Own static `SYSTEM_PROMPT` (the v2 base, X voice, intents, rules,
+  3 worked examples); the user message has Now, mode, "Post length: 280 (aim for at most 250)",
+  About me, My X voice, my own posts on screen in `<my_posts>`, the parents in `<thread>` and the
+  target in `<target>` (with the composer's "Replying to"), a "guess" line for a nearest-post
+  target, my instruction and the task (reply, continue my thread, or quote). Post times get an
+  approximate age (`XPostAge`). No `ReplyTarget`: the panel never shows "Nothing to reply to" on X.
+  `ParsedChat.messages` still carries PR 1's interim thread for the debug dump.
+- **Length** (`llm/XLength`): X's weighted count (twitter-text v3 weights, emoji clusters 2, URLs
+  23). `SuggestionOutputParser.parse(…, lengthLimit)` trims a card over "X post length" at a
+  sentence or word boundary (`Suggestion.trimmed`) or drops it; `Success.lengthLimit` and
+  `droppedOverLimit` reach the panel, which shows a counter on each card and a line for dropped
+  ones. One call per tap, never a retry.
+- **Settings**: "On X" section: My X handle, My X voice (`my_x_voice`), "Longer X posts"
+  (`x_post_length` 280/500). The feedback entry stores `x_mode` (`feedback.db` v3).
 
 ## Provider profiles (`settings/ProviderProfiles.kt`, `llm/`, `ui/settings/profiles/`)
 

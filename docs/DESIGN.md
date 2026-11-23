@@ -15,7 +15,8 @@ and "Remove animations". Tests and previews pin them: `ReplylyTheme(darkTheme = 
 | You need | Read |
 |---|---|
 | Colour roles (primary, surface, …) | `MaterialTheme.colorScheme` |
-| Intent chips, accent, backdrop | `ReplylyTheme.colors` (`forIntent("agree")` returns a `ColorPair`) |
+| Intent chips, accent, backdrop | `ReplylyTheme.colors` (`forIntent("agree")` returns a `ColorPair`; X intents too) |
+| The X length counter on a card | `colorScheme.onSurfaceVariant`, `colorScheme.error` when trimmed or at the limit |
 | Text styles | `MaterialTheme.typography` |
 | Corner shapes | `MaterialTheme.shapes`, `SheetShape` |
 | Spacing, radii, elevation | `Spacing.L`, `Radii.M`, `Elevation.Sheet` |
@@ -36,7 +37,9 @@ and "Remove animations". Tests and previews pin them: `ReplylyTheme(darkTheme = 
 | error(Container) | `#BA1A1A` / `#FFDAD6` | `#FFB4AB` / `#93000A` | Errors. |
 | `colors.agree` | `#D5F0DC` on `#0E5127` | `#1D4A2B` / `#B4EEC2` | Intent chip "agree". |
 | `colors.decline` | `#FFDAD4` / `#7A2318` | `#6B2A20` / `#FFDAD4` | Intent chip "decline". |
-| `colors.ask` | `#FFE2B0` / `#5C3D00` | `#5D4100` / `#FFDEA6` | Intent chip "ask". |
+| `colors.ask` | `#FFE2B0` / `#5C3D00` | `#5D4100` / `#FFDEA6` | Intent chip "ask" (and X "question"). |
+| `colors.insight` | `#CDEDEF` / `#00474D` | `#1E4A4E` / `#B5ECEF` | X intent chip "insight". |
+| `colors.humour` | `#F3DDF7` / `#5B2468` | `#533060` / `#F7D8FF` | X intent chip "humour". X "disagree" uses `colors.decline`, "agree" `colors.agree`. |
 | `colors.backdrop` | black 32 % | black 50 % | Dim behind the panel. |
 
 Rules:
