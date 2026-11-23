@@ -30,6 +30,8 @@ data class PromptLimits(
     val maxTitleChars: Int = 100,
     /** Messages listed in the `<reply_to>` block; the rest stay visible in the conversation. */
     val maxTargetMessages: Int = 8,
+    /** X (#30 PR 2): the text of one post (Premium posts can be long). */
+    val maxPostChars: Int = 1_000,
 )
 
 /**
@@ -98,10 +100,15 @@ object PromptBuilder {
         {"analysis":"Amit mentions me: confirm the Goa trip, tickets get booked today (Fri 20 Nov). Yes/no decision: one agree, one decline, one asks the dates.","suggestions":[{"intent":"agree","text":"I'm in, book kar de"},{"intent":"decline","text":"is baar skip karta hu yaar"},{"intent":"ask","text":"dates kya hai?"}]}
         """.trimIndent()
 
+    /**
+     * The chat prompt, or the X prompt ([XPromptBuilder], its own static system prompt) when
+     * [SuggestionRequest.x] is set.
+     */
     fun build(
         request: SuggestionRequest,
         limits: PromptLimits = PromptLimits(),
     ): ChatPrompt {
+        request.x?.let { return XPromptBuilder.build(request, it, limits) }
         val target = ReplyTarget.decide(request).let { if (it == ReplyTarget.NothingToReply) ASKED else it }
         val history = historyLines(request, limits)
         val sections = mutableListOf<String>()

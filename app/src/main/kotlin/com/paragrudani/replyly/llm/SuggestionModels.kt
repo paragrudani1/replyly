@@ -1,5 +1,6 @@
 package com.paragrudani.replyly.llm
 
+import com.paragrudani.replyly.parser.x.XContext
 import java.time.ZonedDateTime
 import kotlin.time.Duration
 
@@ -26,12 +27,23 @@ data class SuggestionRequest(
     val myNames: List<String> = emptyList(),
     /** The user tapped "Suggest follow-ups anyway" (see [ReplyTarget.decide]). */
     val followUpAnyway: Boolean = false,
+    /**
+     * The X reply or quote screen (issue #30, additive). Not null: [PromptBuilder] builds the X
+     * prompt ([XPromptBuilder]) and the output is held to [xPostLimit].
+     */
+    val x: XContext? = null,
+    /** "My X voice" from settings (topics, tone, emoji and hashtag habits); only in the X prompt. */
+    val myXVoice: String = "",
+    /** "X post length": the weighted limit ([XLength]) of each X suggestion, 280 or 500. */
+    val xPostLimit: Int = XLength.STANDARD_LIMIT,
 )
 
-/** One reply option. The 3 suggestions of a result each have a different [intent]. */
+/** One reply option. The suggestions of a result each have a different [intent]. */
 data class Suggestion(
     val intent: String,
     val text: String,
+    /** X only (#30 PR 2, additive): the model's text was over the post length and was cut ([XLength.trim]). */
+    val trimmed: Boolean = false,
 )
 
 data class TokenUsage(
@@ -48,7 +60,10 @@ data class TokenUsage(
 
 sealed interface SuggestionResult {
     data class Success(
-        /** Exactly 3, validated by the generator. */
+        /**
+         * Exactly 3, validated by the generator. On X ([lengthLimit] set) 1 to 3: a card that
+         * could not be trimmed to the limit is dropped ([droppedOverLimit]).
+         */
         val suggestions: List<Suggestion>,
         val usage: TokenUsage,
         val latency: Duration,
@@ -62,6 +77,10 @@ sealed interface SuggestionResult {
         val analysis: String = "",
         /** [PromptBuilder.VERSION] of the prompt that produced this result. */
         val promptVersion: Int = PromptBuilder.VERSION,
+        /** X only (#30 PR 2, additive): the weighted post length each suggestion was held to. */
+        val lengthLimit: Int? = null,
+        /** X only: suggestions dropped because no sentence or word cut fit [lengthLimit]. */
+        val droppedOverLimit: Int = 0,
     ) : SuggestionResult
 
     sealed interface Failure : SuggestionResult {

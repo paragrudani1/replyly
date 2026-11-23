@@ -40,6 +40,7 @@ class XParserTest {
 
         assertThat(report.method).isEqualTo(XParser.METHOD_VIEW_IDS)
         assertThat(x.mode).isEqualTo(XMode.REPLY)
+        assertThat(x.targetPick).isEqualTo(XContext.TargetPick.FOCAL)
         assertThat(x.target.handle).isEqualTo("meera_writes")
         assertThat(x.target.authorName).isEqualTo("Meera Iyer")
         assertThat(x.target.text)
@@ -109,6 +110,7 @@ class XParserTest {
     fun `link card and no replying-to line - the nearest post above is the target`() {
         val report = report("synthetic-reply_link_card-no_replying_line.json")
         val x = report.chat!!.x!!
+        assertThat(x.targetPick).isEqualTo(XContext.TargetPick.NEAREST)
 
         assertThat(x.target.handle).isEqualTo("dev_null_test")
         assertThat(x.target.text).isEqualTo("Good read on accessibility trees")
@@ -149,6 +151,7 @@ class XParserTest {
         val x = report.chat!!.x!!
 
         assertThat(x.mode).isEqualTo(XMode.QUOTE)
+        assertThat(x.targetPick).isEqualTo(XContext.TargetPick.QUOTED_CARD)
         assertThat(x.target.handle).isEqualTo("meera_writes")
         assertThat(x.target.text).isEqualTo("Per-field merge was worth the extra week.")
         assertThat(x.target.timeShown).isEqualTo("1h")

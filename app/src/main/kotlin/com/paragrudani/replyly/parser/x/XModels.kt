@@ -78,9 +78,31 @@ data class XContext(
     val myHandle: String? = null,
     /** Where [myHandle] came from. */
     val myHandleSource: HandleSource = HandleSource.NONE,
+    /**
+     * How [target] was picked (#30 PR 2, additive). [TargetPick.NEAREST] is a guess: the X prompt
+     * says so, and the model hedges.
+     */
+    val targetPick: TargetPick = TargetPick.UNKNOWN,
 ) {
     /** [parents], then [target]: the thread in screen order. */
     val thread: List<XPost> get() = parents + target
 
     enum class HandleSource { SETTING, COMPOSER_ACCOUNT, NONE }
+
+    enum class TargetPick {
+        /** The detail view's focal post (absolute time line): the post the composer answers. */
+        FOCAL,
+
+        /** The nearest post whose author the composer's "Replying to" line names. */
+        NAMED,
+
+        /** The nearest post above the composer: a guess. */
+        NEAREST,
+
+        /** The quoted card below the quote composer. */
+        QUOTED_CARD,
+
+        /** Not recorded (built by hand, or before #30 PR 2). */
+        UNKNOWN,
+    }
 }
