@@ -2,7 +2,7 @@
 
 Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECISIONS](../DECISIONS.md).
 
-## 2026-11-23: the planned work is done (#29, #27, #28, #30). Nothing in flight.
+## 2026-11-23: the planned work is done (#29, #27, #28, #30). In flight: follow-ups #38 and #46.
 
 **Merged.** v1 (#8–#16), polish (#19, #21–#24), profiles (#20), docs (#25), #29 (signing-key rotation), **#27 (message dates, `624939c`)**, **#28 (prompt v2, `ecb0b65`)**, **#40 (#30 PR 1, X detection and parser, `bee7cd9`)**, **#44 (#30 PR 2, X prompt mode, length, panel, `4b04bed`)**, and the wiki docs PRs #31–#39, #41–#43, #45 (and this one). Issues #26 and #30 are closed.
 - `latest-debug` is versionCode 93 (built from `4b04bed`), signed with the new key (certificate SHA-256 `2a5421c6…2737d6`).
@@ -19,9 +19,13 @@ Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECIS
 
 **Waiting on Parag.** S23 results for DEVICE_CHECKLIST 13 (dates), 14 (prompt v2) and 15 (X, 15.1–15.24 with 15.4a). They decide the view ids, the date-separator formats, the hint gate and whether 13.10 needs a stale-screen rule.
 
-**Follow-ups filed (not scheduled):** #38 (Nothing-to-reply subtitle wrong when I never wrote or their media is last); #46 (X: visible "trimmed" label, counting edge cases, X instruction placeholder, hashtag/mention stripping).
+**Follow-ups (in flight since 2026-11-23, Claude's go-ahead: "small and safe", no new feature scope):** #38 (Nothing-to-reply subtitle wrong when I never wrote or their media is last); #46 (X: visible "trimmed" label, counting edge cases, X instruction placeholder, hashtag/mention stripping).
 
-**Next for the CoS:** nothing scheduled. Wait for Parag's or Claude's next instruction or device results; then brief fixes like the earlier tickets.
+**In flight:** two ticket delegates (worktree isolation, opus-5-5 high), one PR each.
+- #38, branch `fu-38-nothing-subtitle`, brief `/root/.t3/cos/replyly/fu38-brief.md`: the reason travels from `ReplyTarget` to the panel; three subtitles.
+- #46, branch `fu-46-x-followups`, brief `/root/.t3/cos/replyly/fu46-brief.md`: "· trimmed" label; NFC, `localhost`/`http://x`, link touching CJK; X instruction placeholder; hashtag/@-mention stripping. Claude's decision: keep each kind only if "My X voice" or my own posts use it, else strip it (runs at the start or end are removed; inline ones lose the sigil). The delegate records this in DECISIONS.
+
+**Next for the CoS:** for each PR, a review delegate (a new `delegate_task`, brief `fuNN-review-brief.md`, review in `reviews/prNN-r1.md`). I fix small findings myself and merge on green; #46 may need a rebase after #38 (both touch `panel/`). Then a STATUS docs PR and a status post. **After that, stop and wait for Parag's S23 results (sections 13–15).** No new feature work.
 
 **Open risks**
 - Every date-separator format and every X view id is a guess until there are S23 dumps (DEVICE_CHECKLIST 13, 14, 15). 13.10 (chat open across midnight) decides whether the merge needs a rule for stale screens.
