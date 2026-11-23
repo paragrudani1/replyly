@@ -1237,16 +1237,20 @@ the line is absent. **Send:** latency per tap and the 3 cache-read numbers.
 14.13 **Do:** during the whole section, watch the logcat grep from the intro. **See:** no line with
 chat text, the analysis text or the prompt. **Send:** any line it prints (blur it).
 
-14.14 **Do:** in a 1:1 chat, send "photo bhej na?" and have the other person answer with a photo
-(no caption). Tap the button. **See:** "Nothing to reply to" (their photo answered you), not
-follow-ups, with the line under it "Nothing after your last message needs an answer." (issue
-#38; not "Your message is the last one in this chat."). Tap "Suggest follow-ups anyway" and open
-"Show details": the photo shows as a `[media]` line after your message. Then open a chat where
-you never wrote and the other person sent only a photo (or a new chat with no messages) and tap
-the button. **See:** "Nothing to reply to" with "No messages to reply to." under it. Last, send a
-recent message that is not a question ("ok done") and tap the button. **See:** "Your message is
-the last one in this chat." under the title, as before. **Send:** pass/fail for each of the three
-lines and the two conversation lines.
+14.14 Use chats with no saved Replyly history of your messages (a chat you never wrote in has
+none; otherwise the subtitle may differ and look like a failure). **Do:** in a 1:1 chat, send
+"photo bhej na?" and have the other person answer with a photo (no caption). Tap the button.
+**See:** "Nothing to reply to" (their photo answered you), not follow-ups, with the line under it
+"Nothing after your last message needs an answer." (issue #38; not "Your message is the last one
+in this chat."). Tap "Suggest follow-ups anyway" and open "Show details": the photo shows as a
+`[media]` line after your message. Then open a chat where you never wrote and the other person
+sent only a photo (or a new chat with no messages) and tap the button. **See:** "Nothing to reply
+to" with "You haven't written in this chat yet." under it. Tap "Suggest follow-ups anyway".
+**See:** 3 cards. Last, send a recent message that is not a question ("ok done") and tap the
+button. **See:** "Your message is the last one in this chat." under the title, as before.
+**Send:** pass/fail for each of the three subtitles; from the photo chat's "Show details", the
+line with your message and the `[media]` line after it; and the 3 cards from the never-wrote chat
+(they show how follow-ups read when you have no message yet).
 
 ## 15. X replies and quotes (issue #30, PRs 1 and 2)
 

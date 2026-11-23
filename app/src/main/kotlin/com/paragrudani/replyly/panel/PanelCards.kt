@@ -418,7 +418,7 @@ internal fun NothingToReplyReason.subtitle(): String =
     when (this) {
         NothingToReplyReason.MyMessageLast -> "Your message is the last one in this chat."
         NothingToReplyReason.TheirMediaAfterMine -> "Nothing after your last message needs an answer."
-        NothingToReplyReason.NoMessageOfMine -> "No messages to reply to."
+        NothingToReplyReason.NoMessageOfMine -> "You haven't written in this chat yet."
     }
 
 private fun ErrorKind.icon(): Int =

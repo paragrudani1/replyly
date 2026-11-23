@@ -72,7 +72,6 @@ class PanelScreenshotTest {
                 suggestions = SuggestionsUi.NothingToReply(NothingToReplyReason.TheirMediaAfterMine),
                 generation = 1,
             ),
-            variants = ShotVariant.LIGHT_DARK,
         )
 
     /** Issue #38: no message of mine (an empty chat, or only their media). */
@@ -84,7 +83,6 @@ class PanelScreenshotTest {
                 suggestions = SuggestionsUi.NothingToReply(NothingToReplyReason.NoMessageOfMine),
                 generation = 1,
             ),
-            variants = ShotVariant.LIGHT_DARK,
         )
 
     @Test
