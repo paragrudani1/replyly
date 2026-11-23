@@ -29,6 +29,16 @@ data class ReplylySettings(
      * `XHandles.normalize`), compared without case; empty when not set.
      */
     val myXHandle: String = "",
+    /**
+     * "My X voice" (#30 PR 2): free text on topics, tone, emoji and hashtag habits, for the X prompt
+     * only; empty when not set.
+     */
+    val myXVoice: String = "",
+    /**
+     * "X post length" (#30 PR 2): the weighted limit of an X suggestion, 280 (standard) or 500
+     * (medium, for X Premium). See [xPostLimit].
+     */
+    val xPostLength: Int = X_POST_STANDARD,
     /** Material You: colours from the wallpaper instead of the Replyly brand colours. */
     val useDynamicColor: Boolean = false,
 ) {
@@ -37,8 +47,16 @@ data class ReplylySettings(
 
         // Spec 6 shortlist; the model test picks the final default.
         const val DEFAULT_MODEL = "anthropic/claude-haiku-5.5"
+
+        /** "X post length" values; the same numbers as `XLength.STANDARD_LIMIT` / `MEDIUM_LIMIT`. */
+        const val X_POST_STANDARD = 280
+        const val X_POST_MEDIUM = 500
     }
 }
+
+/** [ReplylySettings.xPostLength], with any stored value other than medium read as standard. */
+fun ReplylySettings.xPostLimit(): Int =
+    if (xPostLength == ReplylySettings.X_POST_MEDIUM) ReplylySettings.X_POST_MEDIUM else ReplylySettings.X_POST_STANDARD
 
 /** Ticket #6 implements this on DataStore. */
 interface SettingsRepository {

@@ -45,7 +45,8 @@ interface ConnectionTester {
  * Order: active profile, API key (trimmed; visible ASCII only), endpoint (must be https: the key
  * and chat text never go over cleartext), [CostGuard.tryAcquire], then the call(s), then
  * [CostGuard.recordUsage] with whatever usage came back (also on bad output). One call per tap
- * asks for the analysis and 3 suggestions ([PromptBuilder], prompt v2).
+ * asks for the analysis and 3 suggestions ([PromptBuilder], prompt v2). On X the output parser holds
+ * each suggestion to "X post length" (trims or drops cards); it never makes a second call.
  *
  * JSON mode (OpenAI `response_format`, Anthropic `output_config`) is on by default; if the provider
  * rejects it for a model, the call is retried once without it and that endpoint+model skips it for
@@ -82,8 +83,9 @@ class LlmReplyGenerator(
         val usage = (outcome as? CallOutcome.Ok)?.usage
         if (usage != null && usage.totalTokens > 0) costGuard.recordUsage(usage)
 
+        val lengthLimit = request.xPostLimit.takeIf { request.x != null }
         val parsed =
-            when (val result = parse(outcome)) {
+            when (val result = parse(outcome, lengthLimit)) {
                 is Parsed.Fail -> return result.failure
                 is Parsed.Ok -> result
             }
@@ -96,6 +98,8 @@ class LlmReplyGenerator(
             promptSent = prompt.fullText,
             analysis = parsed.analysis,
             promptVersion = PromptBuilder.VERSION,
+            lengthLimit = lengthLimit,
+            droppedOverLimit = parsed.droppedOverLimit,
         )
     }
 
@@ -164,6 +168,7 @@ class LlmReplyGenerator(
         data class Ok(
             val suggestions: List<Suggestion>,
             val analysis: String,
+            val droppedOverLimit: Int = 0,
         ) : Parsed
 
         data class Fail(
@@ -171,7 +176,11 @@ class LlmReplyGenerator(
         ) : Parsed
     }
 
-    private fun parse(outcome: CallOutcome): Parsed {
+    /** [lengthLimit]: X only, see [SuggestionOutputParser.parse]. */
+    private fun parse(
+        outcome: CallOutcome,
+        lengthLimit: Int?,
+    ): Parsed {
         val content =
             when (outcome) {
                 is CallOutcome.Failed -> {
@@ -183,9 +192,9 @@ class LlmReplyGenerator(
                         ?: return Parsed.Fail(badOutput("empty reply", outcome))
                 }
             }
-        return when (val parsed = SuggestionOutputParser.parse(content)) {
+        return when (val parsed = SuggestionOutputParser.parse(content, lengthLimit = lengthLimit)) {
             is ParsedSuggestions.Invalid -> Parsed.Fail(badOutput(parsed.reason, outcome))
-            is ParsedSuggestions.Ok -> Parsed.Ok(parsed.suggestions, parsed.analysis)
+            is ParsedSuggestions.Ok -> Parsed.Ok(parsed.suggestions, parsed.analysis, parsed.droppedOverLimit)
         }
     }
 

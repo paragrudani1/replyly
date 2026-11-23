@@ -39,6 +39,8 @@ class DataStoreSettingsRepository(
             retentionDays = this[RETENTION_DAYS] ?: defaults.retentionDays,
             myNames = this[MY_NAMES] ?: defaults.myNames,
             myXHandle = this[MY_X_HANDLE] ?: defaults.myXHandle,
+            myXVoice = this[MY_X_VOICE] ?: defaults.myXVoice,
+            xPostLength = this[X_POST_LENGTH] ?: defaults.xPostLength,
             useDynamicColor = this[DYNAMIC_COLOR] ?: defaults.useDynamicColor,
         )
     }
@@ -54,6 +56,8 @@ class DataStoreSettingsRepository(
         this[RETENTION_DAYS] = settings.retentionDays
         this[MY_NAMES] = settings.myNames
         this[MY_X_HANDLE] = settings.myXHandle
+        this[MY_X_VOICE] = settings.myXVoice
+        this[X_POST_LENGTH] = settings.xPostLength
         this[DYNAMIC_COLOR] = settings.useDynamicColor
     }
 
@@ -68,6 +72,8 @@ class DataStoreSettingsRepository(
         val RETENTION_DAYS = intPreferencesKey("retention_days")
         val MY_NAMES = stringPreferencesKey("my_names")
         val MY_X_HANDLE = stringPreferencesKey("my_x_handle")
+        val MY_X_VOICE = stringPreferencesKey("my_x_voice")
+        val X_POST_LENGTH = intPreferencesKey("x_post_length")
         val DYNAMIC_COLOR = booleanPreferencesKey("use_dynamic_color")
     }
 }
