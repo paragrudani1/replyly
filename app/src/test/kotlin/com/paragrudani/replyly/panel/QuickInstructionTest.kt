@@ -43,7 +43,7 @@ class QuickInstructionTest {
     @Test
     fun `chip labels are short sentence-case words, prompts are full sentences`() {
         assertThat(QuickInstruction.entries.map { it.label })
-            .containsExactly("Shorter", "More formal", "In English", "Add emoji")
+            .containsExactly("Shorter", "More formal", "In English", "Add emoji", "Punchier")
             .inOrder()
         QuickInstruction.entries.forEach { assertThat(it.prompt).endsWith(".") }
     }

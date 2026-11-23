@@ -29,7 +29,8 @@ import com.paragrudani.replyly.screen.ScreenSnapshot
  *   nearest above; no parents.
  * - **Mine.** A post is mine when its handle equals [myHandle] (the "My X handle" setting, `@` and
  *   case ignored), or, with the setting empty, the handle shown on the composer's row.
- * - **Interim prompt path (until PR 2).** [ParsedChat.messages] = parents then the target, mine
+ * - **Messages.** [ParsedChat.messages] (PR 1's interim prompt path, now read only by the debug
+ *   dump; the X prompt reads [XContext]) = parents then the target, mine
  *   marked; the title is the target's author; not a group. A post by someone other than the
  *   target's author says so in a bracketed note, since a 1:1 prompt names every other line after
  *   the title. Alt text, link cards and quoted posts become short bracketed notes.
@@ -81,6 +82,7 @@ class XParser(
                 replyingTo = replyingTo,
                 myHandle = handle,
                 myHandleSource = source,
+                targetPick = pick.pick,
             )
         val chat = chat(snapshot, context)
         val notes =
@@ -101,6 +103,7 @@ class XParser(
         val target: XPost,
         val parents: List<XPost>,
         val how: String,
+        val pick: XContext.TargetPick,
     )
 
     private fun pickReplyTarget(
@@ -114,13 +117,19 @@ class XParser(
         val focal = posts.indexOfLast { it.isFocal }
         val named =
             posts.indexOfLast { p -> replyingTo.any { XHandles.same(it, p.post.handle) } }
-        val (index, how) =
+        val (index, pick) =
             when {
-                focal >= 0 -> focal to "focal post"
-                named >= 0 -> named to "named in replying-to line"
-                else -> posts.lastIndex to "nearest above composer"
+                focal >= 0 -> focal to XContext.TargetPick.FOCAL
+                named >= 0 -> named to XContext.TargetPick.NAMED
+                else -> posts.lastIndex to XContext.TargetPick.NEAREST
             }
-        return Pick(posts[index].post, posts.take(index).map { it.post }, how)
+        val how =
+            when (pick) {
+                XContext.TargetPick.FOCAL -> "focal post"
+                XContext.TargetPick.NAMED -> "named in replying-to line"
+                else -> "nearest above composer"
+            }
+        return Pick(posts[index].post, posts.take(index).map { it.post }, how, pick)
     }
 
     private fun pickQuoteTarget(
@@ -130,13 +139,13 @@ class XParser(
     ): Pick? {
         val below = reader.anchors.filter { it.top >= composer.bounds.top }
         reader.posts(below, screenBottom).firstOrNull()?.let {
-            return Pick(it.post, emptyList(), "quoted card below composer")
+            return Pick(it.post, emptyList(), "quoted card below composer", XContext.TargetPick.QUOTED_CARD)
         }
         val above = reader.anchors.filter { it.top < composer.bounds.top }
         return reader
             .posts(above, composer.bounds.top)
             .lastOrNull()
-            ?.let { Pick(it.post, emptyList(), "nearest above composer") }
+            ?.let { Pick(it.post, emptyList(), "nearest above composer", XContext.TargetPick.NEAREST) }
     }
 
     private class Composer(

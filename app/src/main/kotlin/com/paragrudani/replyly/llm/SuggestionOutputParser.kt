@@ -12,6 +12,8 @@ sealed interface ParsedSuggestions {
         val suggestions: List<Suggestion>,
         /** The model's short reasoning; empty when it is missing or not a string (tolerated). */
         val analysis: String = "",
+        /** X only: cards dropped because no cut fit the length limit sensibly. */
+        val droppedOverLimit: Int = 0,
     ) : ParsedSuggestions
 
     /** [reason] is fixed wording plus counts: it never quotes the model output (chat text). */
@@ -25,10 +27,19 @@ sealed interface ParsedSuggestions {
  * Tolerates code fences and prose around the JSON, and a missing `analysis` (read as empty, capped
  * at [MAX_ANALYSIS_CHARS]). Skips items with a blank text, a missing intent or a repeated intent,
  * then keeps the first [expected] valid ones; fewer than [expected] is [ParsedSuggestions.Invalid].
+ *
+ * **X post length** (issue #30, `lengthLimit` set): after that check, each card over the limit
+ * ([XLength.weighted]) is cut with [XLength.trim] (last sentence that fits, else last word, never
+ * mid-word or mid-grapheme) and marked [Suggestion.trimmed]. A card whose cut is empty or shorter
+ * than [MIN_TRIMMED_LENGTH] is dropped: the panel shows the others. All dropped is
+ * [ParsedSuggestions.Invalid]. There is no second LLM call (invariant 4: one call per tap).
  */
 object SuggestionOutputParser {
     /** The prompt asks for at most ~60 words; this only bounds what the feedback log stores. */
     const val MAX_ANALYSIS_CHARS = 1_000
+
+    /** A trimmed X card shorter than this (weighted) no longer makes sense on its own: dropped. */
+    const val MIN_TRIMMED_LENGTH = 20
 
     @OptIn(ExperimentalSerializationApi::class)
     private val json =
@@ -40,6 +51,8 @@ object SuggestionOutputParser {
     fun parse(
         raw: String,
         expected: Int = 3,
+        /** X only: the weighted post length; `null` for chats (no limit). */
+        lengthLimit: Int? = null,
     ): ParsedSuggestions {
         val root = findSuggestionsObject(raw) ?: return ParsedSuggestions.Invalid("no suggestions JSON in reply")
         val items = root["suggestions"] as JsonArray
@@ -53,18 +66,30 @@ object SuggestionOutputParser {
             if (intent.isNullOrEmpty() || text.isNullOrEmpty() || !seenIntents.add(intent)) continue
             valid += Suggestion(intent, text)
         }
-        return if (valid.size == expected) {
-            ParsedSuggestions.Ok(
-                valid,
-                root
-                    .string("analysis")
-                    ?.trim()
-                    ?.take(MAX_ANALYSIS_CHARS)
-                    .orEmpty(),
-            )
-        } else {
-            ParsedSuggestions.Invalid("${valid.size} valid suggestions of ${items.size}, expected $expected")
+        if (valid.size != expected) {
+            return ParsedSuggestions.Invalid("${valid.size} valid suggestions of ${items.size}, expected $expected")
         }
+        val kept = if (lengthLimit == null) valid else valid.mapNotNull { it.fitTo(lengthLimit) }
+        if (kept.isEmpty()) {
+            return ParsedSuggestions.Invalid("all $expected suggestions over the length limit of $lengthLimit")
+        }
+        return ParsedSuggestions.Ok(
+            kept,
+            root
+                .string("analysis")
+                ?.trim()
+                ?.take(MAX_ANALYSIS_CHARS)
+                .orEmpty(),
+            droppedOverLimit = valid.size - kept.size,
+        )
+    }
+
+    /** Within [limit]: unchanged. Over: trimmed and marked, or null (dropped) when too little is left. */
+    private fun Suggestion.fitTo(limit: Int): Suggestion? {
+        val cut = XLength.trim(text, limit)
+        if (!cut.trimmed) return this
+        if (XLength.weighted(cut.text) < MIN_TRIMMED_LENGTH) return null
+        return copy(text = cut.text, trimmed = true)
     }
 
     private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content

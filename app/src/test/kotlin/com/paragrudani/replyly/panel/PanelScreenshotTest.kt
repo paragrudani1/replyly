@@ -139,6 +139,24 @@ class PanelScreenshotTest {
             ),
         )
 
+    /** X (#30): counters on every card, the first one trimmed (error colour), X intents and chips. */
+    @Test
+    fun xCards() = shot("panel/x_cards", xReady, title = "Meera Iyer")
+
+    /** X: one card could not be trimmed and was dropped; the notice says so. */
+    @Test
+    fun xDropped() =
+        shot(
+            "panel/x_dropped",
+            xReady.copy(
+                suggestions =
+                    (xReady.suggestions as SuggestionsUi.Ready).let {
+                        it.copy(suggestions = it.suggestions.drop(1), droppedOverLimit = 1)
+                    },
+            ),
+            title = "Meera Iyer",
+        )
+
     private fun error(
         name: String,
         error: PanelError,
@@ -147,12 +165,46 @@ class PanelScreenshotTest {
     private fun shot(
         name: String,
         ui: PanelUiState,
-    ) = shots.component(name) { Sheet(ui) }
+        title: String = "Riya",
+    ) = shots.component(name) { Sheet(ui, title) }
 
     @Composable
-    private fun Sheet(ui: PanelUiState) {
-        PanelSheetSurface { PanelLayout(ui, "Riya", ComposeReplyPanel.DEFAULT_MAX_HEIGHT, PanelActions()) }
+    private fun Sheet(
+        ui: PanelUiState,
+        title: String,
+    ) {
+        PanelSheetSurface { PanelLayout(ui, title, ComposeReplyPanel.DEFAULT_MAX_HEIGHT, PanelActions()) }
     }
+
+    private val xReady =
+        PanelUiState(
+            suggestions =
+                SuggestionsUi.Ready(
+                    listOf(
+                        Suggestion(
+                            "insight",
+                            "Local-first is the easy half. The hard half is sync: pick a data model that can merge " +
+                                "from day one, or every later fix turns into a migration.",
+                            trimmed = true,
+                        ),
+                        Suggestion(
+                            "question",
+                            "How do you handle conflicts once sync lands? That seems like the hard part. 🤔",
+                        ),
+                        Suggestion(
+                            "humour",
+                            "Day one backend: when the side project gets a load balancer before it gets a user.",
+                        ),
+                    ),
+                    model = "anthropic/claude-haiku-5.5",
+                    latency = 1_600.milliseconds,
+                    feedbackEntryId = 1,
+                    lengthLimit = 280,
+                ),
+            generation = 1,
+            showChatActions = false,
+            isX = true,
+        )
 
     private val ready =
         PanelUiState(

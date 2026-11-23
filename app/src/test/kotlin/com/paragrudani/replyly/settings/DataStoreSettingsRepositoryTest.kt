@@ -49,6 +49,8 @@ class DataStoreSettingsRepositoryTest {
                     retentionDays = 30,
                     myNames = "Parag, Paru",
                     myXHandle = "kiran_test",
+                    myXVoice = "dev, dry humour, no hashtags",
+                    xPostLength = 500,
                     useDynamicColor = true,
                 )
             DataStoreSettingsRepository(stores.open("settings")).update { changed }

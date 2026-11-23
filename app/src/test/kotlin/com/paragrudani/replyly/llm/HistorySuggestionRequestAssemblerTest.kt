@@ -265,21 +265,39 @@ class HistorySuggestionRequestAssemblerTest {
         }
 
     @Test
-    fun `X stores nothing and sends the thread on screen, labelled X`() =
+    fun `X stores nothing and builds the X prompt from the posts, with My X voice and the post length`() =
         runBlocking {
+            settings.update { it.copy(myXVoice = "dry humour, no hashtags", xPostLength = 500) }
             val chat = XParser { "kiran_test" }.parse(Fixtures.snapshot("x/synthetic-reply_thread.json"))!!
 
             val request = assembler.assemble(chat, instruction = null)
 
             assertThat(request.appLabel).isEqualTo("X")
-            assertThat(request.chatTitle).isEqualTo("Meera Iyer")
-            assertThat(request.isGroup).isFalse()
+            assertThat(request.x).isEqualTo(chat.x)
+            assertThat(request.myXVoice).isEqualTo("dry humour, no hashtags")
+            assertThat(request.xPostLimit).isEqualTo(500)
+            // ParsedChat.messages stays filled (the debug dump reads it); the X prompt does not use it.
             assertThat(request.history.map { it.message }).isEqualTo(chat.messages)
             assertThat(history.lastMessages(chat.chatKey, 10)).isEmpty()
             val prompt = PromptBuilder.build(request).user
-            assertThat(prompt).contains("Chat: Meera Iyer (1:1 with Meera Iyer)")
-            assertThat(prompt).contains("[5h] Meera Iyer: [by Ravi K (@ravi_k)] Shipping the offline mode")
-            assertThat(prompt).contains("[6:42 PM · 21 Nov 26] Meera Iyer: We tried last-write-wins")
+            assertThat(prompt).contains("Mode: reply\nPost length: 500 (aim for at most 450)")
+            assertThat(prompt).contains("My X voice:\ndry humour, no hashtags")
+            assertThat(prompt).doesNotContain("<conversation>")
+            assertThat(prompt.substringAfter("<thread>").substringBefore("</thread>"))
+                .contains(
+                    "Ravi K (@ravi_k) · 5h (about 5 hours ago, yesterday, Sun 22 Nov):\n  Shipping the offline mode",
+                )
+            assertThat(prompt.substringAfter("<target>").substringBefore("</target>"))
+                .contains("Meera Iyer (@meera_writes) · 6:42 PM · 21 Nov 26")
+        }
+
+    @Test
+    fun `a chat request carries no X fields`() =
+        runBlocking {
+            settings.update { it.copy(myXVoice = "dry humour") }
+            val request = assembler.assemble(chat(messages = listOf(them("hi"))), instruction = null)
+            assertThat(request.x).isNull()
+            assertThat(request.myXVoice).isEmpty()
         }
 
     @Test

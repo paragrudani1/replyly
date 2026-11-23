@@ -11,6 +11,7 @@ import com.paragrudani.replyly.security.DatabaseKeyUnavailableException
 import com.paragrudani.replyly.settings.SettingsRepository
 import com.paragrudani.replyly.settings.current
 import com.paragrudani.replyly.settings.myNameList
+import com.paragrudani.replyly.settings.xPostLimit
 import java.time.Clock
 import java.time.ZoneId
 
@@ -24,6 +25,9 @@ import java.time.ZoneId
  * separator was seen above it); an on-screen-only message (generic apps, or a chat whose history is
  * empty) gets the date its separator showed ([ChatMessage.date], exact, or none). `repliesToMe`
  * comes from the parsed message either way.
+ *
+ * X (issue #30): the request carries [ParsedChat.x], "My X voice" and "X post length"; the X prompt
+ * reads the posts from there (my own posts on screen are its style examples), not from the messages.
  */
 class HistorySuggestionRequestAssembler(
     private val history: HistoryRepository,
@@ -93,6 +97,9 @@ class HistorySuggestionRequestAssembler(
             now = clock.instant().atZone(zoneNow),
             is24Hour = is24Hour(),
             myNames = current.myNameList(),
+            x = chat.x,
+            myXVoice = if (chat.x != null) current.myXVoice else "",
+            xPostLimit = current.xPostLimit(),
         )
     }
 

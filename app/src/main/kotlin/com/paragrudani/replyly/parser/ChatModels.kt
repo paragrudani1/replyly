@@ -56,8 +56,8 @@ data class ParsedChat(
     /** True only for apps with a full parser. Generic apps send visible text only, no history. */
     val historyApplies: Boolean,
     /**
-     * The X reply or quote screen (issue #30), `null` for every other app and for X DMs. Until the X
-     * prompt mode lands, [messages] also carries its thread so the chat prompt works.
+     * The X reply or quote screen (issue #30), `null` for every other app and for X DMs. The X prompt
+     * reads this; [messages] still carries the thread as PR 1's interim lines, for the debug dump.
      */
     val x: XContext? = null,
 ) {

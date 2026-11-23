@@ -45,6 +45,10 @@ sealed interface SuggestionsUi {
         val latency: Duration,
         /** Null when the feedback log could not store the entry; inserting still works. */
         val feedbackEntryId: Long?,
+        /** X only: the post length each card shows a counter against ("212/280"). */
+        val lengthLimit: Int? = null,
+        /** X only: cards dropped because they could not be trimmed to [lengthLimit]. */
+        val droppedOverLimit: Int = 0,
     ) : SuggestionsUi
 
     data class Error(
@@ -85,6 +89,8 @@ data class PanelUiState(
     val copied: Boolean = false,
     /** Successful copies so far; each new one plays the copy haptic once. */
     val copies: Int = 0,
+    /** An X reply or quote (#30): X's quick chips, and no "Nothing to reply to". */
+    val isX: Boolean = false,
 )
 
 data class NoteEditorUi(
@@ -113,7 +119,8 @@ const val COPIED_VISIBLE_MILLIS = 1_500L
  * panel finished. Before each call the assembled request is checked with [ReplyTarget.decide]:
  * when there is nothing to reply to, the panel shows [SuggestionsUi.NothingToReply] and makes no
  * call, until the user taps "Suggest follow-ups anyway", Regenerate, or a chip that leaves an
- * instruction (from then on, this panel's generations are follow-ups). Each of those is a user
+ * instruction (from then on, this panel's generations are follow-ups). On X there is no such check:
+ * replying to my own post continues my thread. Each of those is a user
  * tap and makes one call (invariant 4). The panel's out-and-in card animation only follows [PanelUiState.suggestions]; it
  * never starts or delays a call.
  *
@@ -129,7 +136,8 @@ class ReplyPanelState(
     private val clipboard: SuggestionClipboard = SuggestionClipboard.Unavailable,
 ) {
     private val chatKey = request.chat.chatKey
-    private val mutableState = MutableStateFlow(PanelUiState(showChatActions = request.chat.historyApplies))
+    private val mutableState =
+        MutableStateFlow(PanelUiState(showChatActions = request.chat.historyApplies, isX = request.chat.x != null))
     val state: StateFlow<PanelUiState> = mutableState.asStateFlow()
 
     // Created on first use, never during composition (the composition scope's context is not
@@ -244,8 +252,11 @@ class ReplyPanelState(
                             return@launch
                         }
                     }
-                // Pure and local: deciding there is nothing to reply to costs no call.
-                if (ReplyTarget.decide(suggestionRequest) == ReplyTarget.NothingToReply) {
+                // Pure and local: deciding there is nothing to reply to costs no call. Not on X:
+                // replying to my own post there is a normal reply (continuing my thread).
+                if (suggestionRequest.x == null &&
+                    ReplyTarget.decide(suggestionRequest) == ReplyTarget.NothingToReply
+                ) {
                     mutableState.update { it.copy(suggestions = SuggestionsUi.NothingToReply) }
                     return@launch
                 }
@@ -253,7 +264,14 @@ class ReplyPanelState(
                     when (val result = ignoringErrors { deps.generator.generate(suggestionRequest) }) {
                         is SuggestionResult.Success -> {
                             val entryId = recordOrNull(result)
-                            SuggestionsUi.Ready(result.suggestions, result.model, result.latency, entryId)
+                            SuggestionsUi.Ready(
+                                result.suggestions,
+                                result.model,
+                                result.latency,
+                                entryId,
+                                lengthLimit = result.lengthLimit,
+                                droppedOverLimit = result.droppedOverLimit,
+                            )
                         }
 
                         is SuggestionResult.Failure -> {
@@ -422,6 +440,7 @@ class ReplyPanelState(
                 promptVersion = result.promptVersion,
                 panelId = panelId,
                 cacheReadTokens = result.usage.cacheReadTokens,
+                xMode = request.chat.x?.mode,
             )
         }
 

@@ -2,9 +2,18 @@ package com.paragrudani.replyly.ui.settings
 
 import com.paragrudani.replyly.parser.x.XHandles
 import com.paragrudani.replyly.settings.ReplylySettings
+import com.paragrudani.replyly.settings.xPostLimit
 
 /** Endpoint and model moved to provider profiles; the form no longer edits or checks them. */
-enum class SettingsField { HistoryMessageCount, AboutMe, MyNames, MyXHandle, RetentionDays, DailyRequestLimit }
+enum class SettingsField {
+    HistoryMessageCount,
+    AboutMe,
+    MyNames,
+    MyXHandle,
+    RetentionDays,
+    DailyRequestLimit,
+    MyXVoice,
+}
 
 /** What the settings form edits: numbers stay text until saved, so half-typed input is fine. */
 data class SettingsDraft(
@@ -19,6 +28,10 @@ data class SettingsDraft(
     val myNames: String = "",
     /** Shown with a leading `@` when set. */
     val myXHandle: String = "",
+    /** "My X voice" (#30 PR 2). */
+    val myXVoice: String = "",
+    /** "X post length" medium (500, X Premium) instead of standard (280). */
+    val xPostMedium: Boolean = false,
 ) {
     companion object {
         fun from(settings: ReplylySettings) =
@@ -37,6 +50,8 @@ data class SettingsDraft(
                         .takeIf { it.isNotEmpty() }
                         ?.let { "@$it" }
                         .orEmpty(),
+                myXVoice = settings.myXVoice,
+                xPostMedium = settings.xPostLimit() == ReplylySettings.X_POST_MEDIUM,
             )
     }
 }
@@ -59,6 +74,9 @@ object SettingsValidator {
     const val MAX_DAILY_LIMIT = 5000
     const val MAX_ABOUT_ME = 1000
     const val MAX_MY_NAMES = 200
+
+    /** "My X voice": the prompt caps it like About me; a few lines is plenty. */
+    const val MAX_MY_X_VOICE = 500
     private const val MIN_API_KEY = 8
 
     private val packagePattern = Regex("""^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$""")
@@ -89,6 +107,11 @@ object SettingsValidator {
         val myXHandle = XHandles.normalize(draft.myXHandle)
         if (myXHandle == null) errors[SettingsField.MyXHandle] = "Letters, digits and _ only, up to 15 characters"
 
+        val myXVoice = draft.myXVoice.trim()
+        if (myXVoice.length > MAX_MY_X_VOICE) {
+            errors[SettingsField.MyXVoice] = "At most $MAX_MY_X_VOICE characters (now ${myXVoice.length})"
+        }
+
         val retention = draft.retentionDays.wholeIn(1..MAX_RETENTION_DAYS)
         if (retention ==
             null
@@ -108,6 +131,8 @@ object SettingsValidator {
                 dailyRequestLimit = limit!!,
                 myNames = myNames,
                 myXHandle = myXHandle!!,
+                myXVoice = myXVoice,
+                xPostLength = if (draft.xPostMedium) ReplylySettings.X_POST_MEDIUM else ReplylySettings.X_POST_STANDARD,
                 // Blocklists are saved on their own the moment they change; Save keeps the stored ones.
             )
         }

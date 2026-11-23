@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.paragrudani.replyly.R
 import com.paragrudani.replyly.llm.Suggestion
+import com.paragrudani.replyly.llm.XLength
 import com.paragrudani.replyly.ui.theme.MotionDurations
 import com.paragrudani.replyly.ui.theme.MotionEasing
 import com.paragrudani.replyly.ui.theme.Radii
@@ -172,6 +173,9 @@ internal fun StaggeredItem(
  * One suggestion. Tap inserts (with a brief highlight), long-press copies. The haptics play when
  * the insert or copy succeeded (see `ComposeReplyPanel`), not on press.
  * TalkBack reads the intent and the text once, with "Insert" and "Copy" actions.
+ *
+ * On X ([lengthLimit] set) a counter under the text shows the weighted length as X counts it
+ * ("212/280", [LengthCounter]).
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -181,6 +185,7 @@ internal fun SuggestionCard(
     enabled: Boolean,
     onInsert: () -> Unit,
     onCopy: () -> Unit,
+    lengthLimit: Int? = null,
 ) {
     val motion = ReplylyTheme.motion
     val colors = MaterialTheme.colorScheme
@@ -222,8 +227,44 @@ internal fun SuggestionCard(
         IntentChip(suggestion.intent)
         // No maxLines: long Hinglish replies wrap in full, the body scrolls.
         Text(suggestion.text, style = MaterialTheme.typography.bodyMedium, color = content)
+        if (lengthLimit != null) {
+            LengthCounter(suggestion, lengthLimit, Modifier.align(Alignment.End))
+        }
     }
 }
+
+/**
+ * "212/280": the card's weighted length ([XLength]) against the X post length. In the error colour
+ * when the card was trimmed to fit or sits at the limit. TalkBack reads "212 of 280 characters",
+ * plus "trimmed to fit".
+ */
+@Composable
+internal fun LengthCounter(
+    suggestion: Suggestion,
+    limit: Int,
+    modifier: Modifier = Modifier,
+) {
+    val used = XLength.weighted(suggestion.text)
+    val warn = suggestion.trimmed || used >= limit
+    val description = "$used of $limit characters" + if (suggestion.trimmed) ", trimmed to fit" else ""
+    Text(
+        "$used/$limit",
+        style = MaterialTheme.typography.labelSmall,
+        color = if (warn) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.semantics { contentDescription = description },
+    )
+}
+
+/** "1 reply was over 280 and was left out." under fewer than 3 X cards. */
+internal fun droppedNotice(
+    dropped: Int,
+    limit: Int,
+): String =
+    if (dropped == 1) {
+        "1 reply was over $limit characters and was left out. Regenerate for more."
+    } else {
+        "$dropped replies were over $limit characters and were left out. Regenerate for more."
+    }
 
 /** The intent as a small coloured tag ("Agree", "Decline", "Ask", or the model's own word). */
 @Composable

@@ -3,6 +3,10 @@ package com.paragrudani.replyly.llm
 import com.google.common.truth.Truth.assertThat
 import com.paragrudani.replyly.cost.InMemoryCostGuard
 import com.paragrudani.replyly.parser.ChatMessage
+import com.paragrudani.replyly.parser.TargetApps
+import com.paragrudani.replyly.parser.x.XContext
+import com.paragrudani.replyly.parser.x.XMode
+import com.paragrudani.replyly.parser.x.XPost
 import com.paragrudani.replyly.settings.ApiFormat
 import com.paragrudani.replyly.settings.InMemoryProfileRepository
 import com.paragrudani.replyly.settings.InMemoryProfileSecretStore
@@ -166,6 +170,44 @@ class OpenAiFormatGeneratorTest {
         assertThat(
             result.promptSent,
         ).isEqualTo(PromptBuilder.SYSTEM_PROMPT + "\n\n" + messages[1]["content"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `X - one call, the X system prompt, and every card held to the post length`() {
+        // The first sentence keeps over half the limit, so the cut ends there (review r1 S4).
+        val first =
+            "Agree on local-first: " + "pick a data model that can merge from day one, ".repeat(3).trimEnd(' ', ',') +
+                "."
+        val long = "$first " + "Sync later is the hard part, ".repeat(12) + "really."
+        val xJson =
+            """{"analysis":"a","suggestions":[{"intent":"agree","text":${JsonPrimitive(long)}},""" +
+                """{"intent":"question","text":"Which part?"},{"intent":"insight","text":${JsonPrimitive(
+                    "x".repeat(300),
+                )}}]}"""
+        server.enqueue(ok(completion(xJson)))
+        val post = XPost("Meera Iyer", "meera_writes", "Most apps don't need a backend on day one.", "2h")
+        val xRequest = request.copy(packageName = TargetApps.X, appLabel = "X", x = XContext(XMode.REPLY, post))
+
+        val result = runBlocking { generator().generate(xRequest) } as SuggestionResult.Success
+
+        assertThat(server.requestCount).isEqualTo(1)
+        val messages = server.takeRequest().json()["messages"]!!.jsonArray
+        assertThat(messages[0].jsonObject["content"]!!.jsonPrimitive.content).isEqualTo(XPromptBuilder.SYSTEM_PROMPT)
+        assertThat(result.lengthLimit).isEqualTo(280)
+        assertThat(result.droppedOverLimit).isEqualTo(1)
+        assertThat(result.suggestions)
+            .containsExactly(
+                Suggestion("agree", first, trimmed = true),
+                Suggestion("question", "Which part?"),
+            ).inOrder()
+    }
+
+    @Test
+    fun `chats carry no length limit`() {
+        server.enqueue(ok(completion(threeJson)))
+        val result = generate() as SuggestionResult.Success
+        assertThat(result.lengthLimit).isNull()
+        assertThat(result.droppedOverLimit).isEqualTo(0)
     }
 
     @Test

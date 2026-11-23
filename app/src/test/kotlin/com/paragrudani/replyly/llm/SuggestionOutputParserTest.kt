@@ -91,4 +91,103 @@ class SuggestionOutputParserTest {
         val parsed = SuggestionOutputParser.parse(raw) as ParsedSuggestions.Ok
         assertThat(parsed.suggestions.map { it.intent }).containsExactly("agree", "decline", "ask").inOrder()
     }
+
+    // --- X: the post length (#30 PR 2)
+
+    private fun json(vararg cards: Pair<String, String>) =
+        """{"analysis":"a","suggestions":[""" +
+            cards.joinToString(",") { (intent, text) -> """{"intent":"$intent","text":"$text"}""" } + "]}"
+
+    private fun x(
+        raw: String,
+        limit: Int = 280,
+    ) = SuggestionOutputParser.parse(raw, lengthLimit = limit)
+
+    @Test
+    fun `X - cards within the limit are unchanged and not marked`() {
+        val parsed =
+            x(
+                json("agree" to "Fair point.", "question" to "Which part?", "insight" to "Sync is the hard bit."),
+            ) as ParsedSuggestions.Ok
+        assertThat(parsed.suggestions.map { it.trimmed }).containsExactly(false, false, false)
+        assertThat(parsed.droppedOverLimit).isEqualTo(0)
+    }
+
+    @Test
+    fun `X - a card over the limit is trimmed at its last sentence that fits and marked`() {
+        val first =
+            "Agree with the local-first part: " + "start with a store that can merge, ".repeat(4).trimEnd(' ', ',') +
+                "."
+        val long = "$first " + "Sync later is where it gets hard, ".repeat(10) + "honestly."
+        val parsed =
+            x(
+                json("agree" to long, "question" to "Which part?", "insight" to "Sync is the hard bit."),
+            ) as ParsedSuggestions.Ok
+        assertThat(parsed.suggestions[0]).isEqualTo(Suggestion("agree", first, trimmed = true))
+        assertThat(parsed.suggestions[1].trimmed).isFalse()
+        // A first sentence under half the limit loses to the longest word cut (review r1 S4).
+        val shortFirst =
+            "Agree with the local-first part. " + "Sync later is where it gets hard, ".repeat(10) + "honestly."
+        val cut =
+            (
+                x(
+                    json("agree" to shortFirst, "question" to "Which part?", "insight" to "Sync is hard."),
+                ) as ParsedSuggestions.Ok
+            ).suggestions[0]
+        assertThat(cut.trimmed).isTrue()
+        assertThat(XLength.weighted(cut.text)).isAtLeast(XLength.STANDARD_LIMIT / 2)
+    }
+
+    @Test
+    fun `X - the limit follows the setting`() {
+        val text = "word ".repeat(100).trim() // 499
+        val short =
+            x(
+                json("agree" to text, "question" to "Which part?", "insight" to "ok then"),
+                limit = 280,
+            ) as ParsedSuggestions.Ok
+        val medium =
+            x(
+                json("agree" to text, "question" to "Which part?", "insight" to "ok then"),
+                limit = 500,
+            ) as ParsedSuggestions.Ok
+        assertThat(XLength.weighted(short.suggestions[0].text)).isAtMost(280)
+        assertThat(short.suggestions[0].trimmed).isTrue()
+        assertThat(medium.suggestions[0]).isEqualTo(Suggestion("agree", text))
+    }
+
+    @Test
+    fun `X - a card that cannot be trimmed to something sensible is dropped, the others stay`() {
+        val oneWord = "a".repeat(300)
+        val tiny = "Yes. " + "b".repeat(300)
+        val parsed =
+            x(
+                json("agree" to oneWord, "question" to "Which part do you mean?", "insight" to tiny),
+            ) as ParsedSuggestions.Ok
+        assertThat(parsed.suggestions).containsExactly(Suggestion("question", "Which part do you mean?"))
+        assertThat(parsed.droppedOverLimit).isEqualTo(2)
+    }
+
+    @Test
+    fun `X - every card dropped is invalid output`() {
+        val oneWord = "a".repeat(300)
+        val parsed = x(json("agree" to oneWord, "question" to oneWord, "insight" to oneWord))
+        assertThat(parsed).isEqualTo(ParsedSuggestions.Invalid("all 3 suggestions over the length limit of 280"))
+    }
+
+    @Test
+    fun `X - fewer than 3 valid cards from the model is still invalid, before any trimming`() {
+        val parsed = x(json("agree" to "ok", "agree" to "fine"))
+        assertThat(parsed).isInstanceOf(ParsedSuggestions.Invalid::class.java)
+    }
+
+    @Test
+    fun `chats ignore the length`() {
+        val long = "word ".repeat(100).trim()
+        val parsed =
+            SuggestionOutputParser.parse(
+                json("agree" to long, "decline" to "no", "ask" to "when?"),
+            ) as ParsedSuggestions.Ok
+        assertThat(parsed.suggestions[0]).isEqualTo(Suggestion("agree", long))
+    }
 }

@@ -18,6 +18,20 @@ enum class QuickInstruction(
     MoreFormal("More formal", "Make them more formal."),
     InEnglish("In English", "Write them in English."),
     AddEmoji("Add emoji", "Add a fitting emoji."),
+
+    /** X only (#30): a public post wants one clear point more than politeness. */
+    Punchier("Punchier", "Make them punchier: one clear point each."),
+    ;
+
+    companion object {
+        /** Chats: the original four. */
+        val CHAT: List<QuickInstruction> = listOf(Shorter, MoreFormal, InEnglish, AddEmoji)
+
+        /** X replies and quotes: "More formal" makes way for "Punchier". */
+        val X: List<QuickInstruction> = listOf(Shorter, Punchier, InEnglish, AddEmoji)
+
+        fun forPanel(isX: Boolean): List<QuickInstruction> = if (isX) X else CHAT
+    }
 }
 
 /**

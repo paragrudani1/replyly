@@ -68,6 +68,8 @@ class ThemeContrastTest {
                 "decline" to colors.decline,
                 "ask" to colors.ask,
                 "other" to colors.otherIntent,
+                "insight (X)" to colors.insight,
+                "humour (X)" to colors.humour,
             ).forEach { (name, pair) -> assertAa(mode, name, "chip", pair.content, pair.container, AA_TEXT) }
         }
     }

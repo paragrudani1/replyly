@@ -112,6 +112,12 @@ class ReplylyThemeTest {
         assertThat(colors.forIntent(" Decline ")).isEqualTo(colors.decline)
         assertThat(colors.forIntent("ask")).isEqualTo(colors.ask)
         assertThat(colors.forIntent("joke")).isEqualTo(colors.otherIntent)
+        // X intents (#30).
+        assertThat(colors.forIntent("insight")).isEqualTo(colors.insight)
+        assertThat(colors.forIntent("Humour")).isEqualTo(colors.humour)
+        assertThat(colors.forIntent("humor")).isEqualTo(colors.humour)
+        assertThat(colors.forIntent("question")).isEqualTo(colors.ask)
+        assertThat(colors.forIntent("disagree")).isEqualTo(colors.decline)
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)

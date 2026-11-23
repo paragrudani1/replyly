@@ -15,6 +15,7 @@ import com.paragrudani.replyly.settings.ReplylySettings
 import com.paragrudani.replyly.settings.SettingsRepository
 import com.paragrudani.replyly.settings.current
 import com.paragrudani.replyly.settings.myNameList
+import com.paragrudani.replyly.settings.xPostLimit
 import com.paragrudani.replyly.testing.MutableClock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -135,6 +136,51 @@ class SettingsViewModelTest {
             }
             assertThat(settings.current().myXHandle).isEmpty()
         }
+
+    @Test
+    fun `my X voice is saved trimmed, and too long is an error`() =
+        runTest {
+            val vm = viewModel()
+            vm.editDraft { it.copy(myXVoice = "  indie dev, lowercase, no hashtags \n") }
+            vm.save()
+            assertThat(settings.current().myXVoice).isEqualTo("indie dev, lowercase, no hashtags")
+
+            vm.editDraft { it.copy(myXVoice = "a".repeat(SettingsValidator.MAX_MY_X_VOICE + 1)) }
+            vm.save()
+            assertThat(vm.state.value.errors).containsKey(SettingsField.MyXVoice)
+            assertThat(settings.current().myXVoice).isEqualTo("indie dev, lowercase, no hashtags")
+        }
+
+    @Test
+    fun `X post length - standard by default, the switch saves medium and back`() =
+        runTest {
+            val vm = viewModel()
+            assertThat(
+                vm.state.value.draft
+                    ?.xPostMedium,
+            ).isFalse()
+            assertThat(settings.current().xPostLimit()).isEqualTo(280)
+
+            vm.editDraft { it.copy(xPostMedium = true) }
+            assertThat(vm.state.value.dirty).isTrue()
+            vm.save()
+            assertThat(settings.current().xPostLength).isEqualTo(500)
+            assertThat(
+                vm.state.value.draft
+                    ?.xPostMedium,
+            ).isTrue()
+
+            vm.editDraft { it.copy(xPostMedium = false) }
+            vm.save()
+            assertThat(settings.current().xPostLength).isEqualTo(280)
+        }
+
+    @Test
+    fun `an unknown stored X post length reads as standard`() {
+        assertThat(ReplylySettings(xPostLength = 0).xPostLimit()).isEqualTo(280)
+        assertThat(ReplylySettings(xPostLength = 1_000).xPostLimit()).isEqualTo(280)
+        assertThat(SettingsDraft.from(ReplylySettings(xPostLength = 1_000)).xPostMedium).isFalse()
+    }
 
     @Test
     fun `too many name characters are an error`() =
