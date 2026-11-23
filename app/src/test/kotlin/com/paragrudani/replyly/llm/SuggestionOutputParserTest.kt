@@ -115,15 +115,27 @@ class SuggestionOutputParserTest {
 
     @Test
     fun `X - a card over the limit is trimmed at its last sentence that fits and marked`() {
-        val long = "Agree with the local-first part. " + "Sync later is where it gets hard, ".repeat(10) + "honestly."
+        val first =
+            "Agree with the local-first part: " + "start with a store that can merge, ".repeat(4).trimEnd(' ', ',') +
+                "."
+        val long = "$first " + "Sync later is where it gets hard, ".repeat(10) + "honestly."
         val parsed =
             x(
                 json("agree" to long, "question" to "Which part?", "insight" to "Sync is the hard bit."),
             ) as ParsedSuggestions.Ok
-        assertThat(
-            parsed.suggestions[0],
-        ).isEqualTo(Suggestion("agree", "Agree with the local-first part.", trimmed = true))
+        assertThat(parsed.suggestions[0]).isEqualTo(Suggestion("agree", first, trimmed = true))
         assertThat(parsed.suggestions[1].trimmed).isFalse()
+        // A first sentence under half the limit loses to the longest word cut (review r1 S4).
+        val shortFirst =
+            "Agree with the local-first part. " + "Sync later is where it gets hard, ".repeat(10) + "honestly."
+        val cut =
+            (
+                x(
+                    json("agree" to shortFirst, "question" to "Which part?", "insight" to "Sync is hard."),
+                ) as ParsedSuggestions.Ok
+            ).suggestions[0]
+        assertThat(cut.trimmed).isTrue()
+        assertThat(XLength.weighted(cut.text)).isAtLeast(XLength.STANDARD_LIMIT / 2)
     }
 
     @Test

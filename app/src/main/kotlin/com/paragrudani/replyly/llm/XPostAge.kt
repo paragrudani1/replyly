@@ -35,7 +35,8 @@ object XPostAge {
         now: ZonedDateTime,
         is24Hour: Boolean = false,
     ): String? {
-        val text = shown.trim()
+        // X puts a narrow or plain no-break space before "PM"; Java's \s matches neither.
+        val text = shown.replace(NO_BREAK_SPACES, " ").trim()
         if (text.isEmpty()) return null
         if (text.equals("now", ignoreCase = true)) return "just now"
         RELATIVE.matchEntire(text)?.let { return relative(it.groupValues[1].toLong(), it.groupValues[2], now) }
@@ -43,6 +44,7 @@ object XPostAge {
         return dateOnly(text, now.toLocalDate())?.let { date -> dayAge(date, now.toLocalDate()) }
     }
 
+    private val NO_BREAK_SPACES = Regex("[\u00A0\u202F\u2007\u2009]")
     private val RELATIVE = Regex("""(\d{1,3})\s?([smhd])""")
     private val ABSOLUTE = Regex("""(\d{1,2}):(\d{2})\s*([AaPp][Mm])?\s*·\s*([^·]+?)\s*(?:·.*)?""")
     private val MONTH_DAY = Regex("""([A-Za-z]{3,9})\.?\s+(\d{1,2})(?:,?\s+(\d{2}|\d{4}))?""")
@@ -59,11 +61,53 @@ object XPostAge {
         now: ZonedDateTime,
     ): String =
         when (unit) {
-            "s" -> "under a minute ago"
-            "m" -> if (amount == 1L) "1 minute ago" else "$amount minutes ago"
-            "h" -> if (amount == 1L) "about 1 hour ago" else "about $amount hours ago"
-            else -> dayAge(now.toLocalDate().minusDays(amount), now.toLocalDate())
+            "s" -> {
+                "under a minute ago"
+            }
+
+            "m" -> {
+                sameDayOrNot(
+                    if (amount ==
+                        1L
+                    ) {
+                        "1 minute ago"
+                    } else {
+                        "$amount minutes ago"
+                    },
+                    now.minusMinutes(amount),
+                    now,
+                )
+            }
+
+            "h" -> {
+                sameDayOrNot(
+                    if (amount ==
+                        1L
+                    ) {
+                        "about 1 hour ago"
+                    } else {
+                        "about $amount hours ago"
+                    },
+                    now.minusHours(amount),
+                    now,
+                )
+            }
+
+            else -> {
+                dayAge(now.toLocalDate().minusDays(amount), now.toLocalDate())
+            }
         }
+
+    /** "about 2 hours ago", plus the day when that was not today: "about 2 hours ago, yesterday, Sun 22 Nov". */
+    private fun sameDayOrNot(
+        age: String,
+        posted: ZonedDateTime,
+        now: ZonedDateTime,
+    ): String {
+        val date = posted.toLocalDate()
+        val today = now.toLocalDate()
+        return if (date == today) age else "$age, ${dayAge(date, today)}"
+    }
 
     private fun absolute(
         match: MatchResult,

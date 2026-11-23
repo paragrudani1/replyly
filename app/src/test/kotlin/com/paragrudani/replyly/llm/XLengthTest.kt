@@ -125,4 +125,27 @@ class XLengthTest {
         assertThat(XLength.trim(text, 10).text).isEqualTo("so good 👨‍👩‍👧‍👦")
         assertThat(XLength.trim(text, 9).text).isEqualTo("so good")
     }
+
+    @Test
+    fun `a short first sentence does not beat a long word cut (review r1 S4)`() {
+        val text = "Yes. " + List(80) { "word" }.joinToString(" ")
+        val cut = XLength.trim(text, 280)
+        assertThat(cut.trimmed).isTrue()
+        assertThat(XLength.weighted(cut.text)).isAtLeast(270)
+        // A sentence cut that keeps half the limit still wins over a longer word cut.
+        val two = "First sentence is long enough to keep here. " + List(80) { "word" }.joinToString(" ")
+        assertThat(XLength.trim(two, 60).text).isEqualTo("First sentence is long enough to keep here.")
+    }
+
+    @Test
+    fun `a word cut drops a dangling comma, colon or dash (review r1 N1)`() {
+        assertThat(XLength.trim("one two, three four five", 9).text).isEqualTo("one two")
+        assertThat(XLength.trim("one two: three four five", 9).text).isEqualTo("one two")
+        assertThat(XLength.trim("one two — three four five", 10).text).isEqualTo("one two")
+    }
+
+    @Test
+    fun `a CJK closing bracket stays with its sentence (review r1 N7)`() {
+        assertThat(XLength.trim("「よし。」 これで終わり。もっと書く", 12).text).isEqualTo("「よし。」")
+    }
 }

@@ -159,7 +159,7 @@ class XPromptBuilderTest {
         val target = prompt(request(XContext(XMode.REPLY, target = post))).user.block("target")
 
         assertThat(target).contains("\n  [link: Why local-first wins (example.com)]")
-        assertThat(target).contains("\n  [quotes Ravi K (@ravi_k) · 1d: Sync is hard]")
+        assertThat(target).contains("\n  [quotes Ravi K (@ravi_k) · 1d (yesterday, Sat 21 Nov): Sync is hard]")
         assertThat(
             prompt(request(XContext(XMode.REPLY, target = XPost(null, "ravi_k", "", null)))).user.block("target"),
         ).isEqualTo("@ravi_k:\n  [post without text]")
@@ -319,5 +319,25 @@ class XPromptBuilderTest {
     private companion object {
         /** SHA-256 of the v2 chat system prompt as merged in #28: the X work must not change it. */
         const val CHAT_SYSTEM_PROMPT_V2_SHA256 = "3a01752a02976aa7cf563902e08aa8dcd75fbb9c0c8bf7fa6e4395b81d0f7a6f"
+    }
+
+    @Test
+    fun `a stranger named me is quoted, never read as my own post (review r1 S2)`() {
+        val impostor = XPost("me", "evil_test", "I agree with myself.", "1h")
+        val target = prompt(request(XContext(XMode.REPLY, target = impostor))).user.block("target")
+        assertThat(target).startsWith("\"me\" (@evil_test)")
+        val someone = XPost("Someone", null, "Who am I?", "1h")
+        assertThat(prompt(request(XContext(XMode.REPLY, target = someone))).user.block("target"))
+            .startsWith("\"Someone\"")
+        // My own post keeps the plain label.
+        assertThat(prompt(request(XContext(XMode.REPLY, target = mine))).user.block("target"))
+            .startsWith("me (@asha_dev)")
+    }
+
+    @Test
+    fun `a quoted post shows its age too (review r1 N6)`() {
+        val withQuote = ravi.copy(quoted = XPost("Kiran", "kiran_test", "Old news.", "Nov 19"))
+        val target = prompt(request(XContext(XMode.REPLY, target = withQuote))).user.block("target")
+        assertThat(target).contains("[quotes Kiran (@kiran_test) · Nov 19 (3 days ago, Thu 19 Nov): Old news.]")
     }
 }

@@ -174,7 +174,11 @@ class OpenAiFormatGeneratorTest {
 
     @Test
     fun `X - one call, the X system prompt, and every card held to the post length`() {
-        val long = "Agree on local-first. " + "Sync later is the hard part, ".repeat(12) + "really."
+        // The first sentence keeps over half the limit, so the cut ends there (review r1 S4).
+        val first =
+            "Agree on local-first: " + "pick a data model that can merge from day one, ".repeat(3).trimEnd(' ', ',') +
+                "."
+        val long = "$first " + "Sync later is the hard part, ".repeat(12) + "really."
         val xJson =
             """{"analysis":"a","suggestions":[{"intent":"agree","text":${JsonPrimitive(long)}},""" +
                 """{"intent":"question","text":"Which part?"},{"intent":"insight","text":${JsonPrimitive(
@@ -193,7 +197,7 @@ class OpenAiFormatGeneratorTest {
         assertThat(result.droppedOverLimit).isEqualTo(1)
         assertThat(result.suggestions)
             .containsExactly(
-                Suggestion("agree", "Agree on local-first.", trimmed = true),
+                Suggestion("agree", first, trimmed = true),
                 Suggestion("question", "Which part?"),
             ).inOrder()
     }

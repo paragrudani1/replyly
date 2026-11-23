@@ -20,7 +20,7 @@ class XPostAgeTest {
         assertThat(age("12m")).isEqualTo("12 minutes ago")
         assertThat(age("1h")).isEqualTo("about 1 hour ago")
         assertThat(age("2h")).isEqualTo("about 2 hours ago")
-        assertThat(age("23h")).isEqualTo("about 23 hours ago")
+        assertThat(age("23h")).isEqualTo("about 23 hours ago, yesterday, Sat 21 Nov")
         assertThat(age("3d")).isEqualTo("3 days ago, Thu 19 Nov")
     }
 
@@ -68,5 +68,20 @@ class XPostAgeTest {
     fun `a time in the future is not an age`() {
         assertThat(age("9:00 PM · 22 Nov 26")).isNull()
         assertThat(age("Nov 22, 2027")).isNull()
+    }
+
+    @Test
+    fun `hours and minutes across midnight name the day (review r1 S3)`() {
+        val justAfterMidnight = ZonedDateTime.of(2026, 11, 23, 0, 30, 0, 0, ZoneId.of("Asia/Kolkata"))
+        assertThat(XPostAge.describe("2h", justAfterMidnight)).isEqualTo("about 2 hours ago, yesterday, Sun 22 Nov")
+        assertThat(XPostAge.describe("45m", justAfterMidnight)).isEqualTo("45 minutes ago, yesterday, Sun 22 Nov")
+        assertThat(XPostAge.describe("20m", justAfterMidnight)).isEqualTo("20 minutes ago")
+    }
+
+    @Test
+    fun `a no-break space before PM is understood (review r1 N3)`() {
+        assertThat(age("10:42\u202FAM · 22 Nov 26")).isEqualTo(age("10:42 AM · 22 Nov 26"))
+        assertThat(age("10:42\u00A0AM · 22 Nov 26")).isEqualTo(age("10:42 AM · 22 Nov 26"))
+        assertThat(age("10:42 AM · 22 Nov 26")).isNotNull()
     }
 }

@@ -72,12 +72,17 @@ object XLength {
      * 1. The result's weighted length is at most [limit].
      * 2. The result is a prefix of the input with trailing whitespace removed.
      * 3. It never ends mid-word or mid-grapheme: in the input, the result is followed by the end,
-     *    by whitespace, or it ends with sentence punctuation ([SENTENCE_END]).
+     *    by whitespace (possibly after dangling `,;:` or dashes it dropped, [DANGLING]), or it ends
+     *    with sentence punctuation ([SENTENCE_END]).
      * 4. An input within the limit is returned unchanged, with `trimmed = false`.
+     * 5. A sentence cut is used only when it keeps at least half of [limit] (or is also the longest
+     *    word cut); otherwise the longest word cut wins, so "Yes. <one long sentence>" is not cut to
+     *    "Yes." and then dropped.
      *
      * Order: the longest prefix that ends a sentence (`.`, `!`, `?` before whitespace or the end;
-     * `。！？` anywhere) and fits; else the longest prefix that ends before whitespace and fits; else
-     * empty (the caller drops the card).
+     * `。！？` anywhere), fits and keeps half the limit; else the longest prefix that ends before
+     * whitespace and fits, without a dangling `,` `;` `:` or dash at its end; else empty (the caller
+     * drops the card).
      */
     fun trim(
         text: String,
@@ -95,8 +100,13 @@ object XLength {
             if (bestWord == null) bestWord = candidate
             if (endsSentence(input, end)) bestSentence = candidate
         }
-        return Trim(bestSentence ?: bestWord ?: "", trimmed = true)
+        val sentence = bestSentence?.takeIf { it == bestWord || weighted(it) * 2 >= limit }
+        val word = bestWord?.let { cut -> cut.trimEnd(*DANGLING).trimEnd().ifEmpty { cut } }
+        return Trim(sentence ?: word ?: "", trimmed = true)
     }
+
+    /** Punctuation a word cut must not end on: it promises more text that was cut. */
+    val DANGLING = charArrayOf(',', ';', ':', '-', '–', '—', '，', '；', '：', '、')
 
     /** Sentence-ending punctuation; the full-width ones end a sentence without a space after them. */
     const val SENTENCE_END = ".!?。！？"
@@ -123,7 +133,7 @@ object XLength {
         return c in FULL_WIDTH_END || (c in ".!?" && (end == text.length || text[end].isWhitespace()))
     }
 
-    private const val CLOSERS = "\"')]}”’»"
+    private const val CLOSERS = "\"')]}”’»」』）】"
 
     /** Weight of [text] from [start] to [end], with no URL in it. */
     private fun plain(

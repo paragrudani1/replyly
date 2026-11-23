@@ -284,7 +284,9 @@ class HistorySuggestionRequestAssemblerTest {
             assertThat(prompt).contains("My X voice:\ndry humour, no hashtags")
             assertThat(prompt).doesNotContain("<conversation>")
             assertThat(prompt.substringAfter("<thread>").substringBefore("</thread>"))
-                .contains("Ravi K (@ravi_k) · 5h (about 5 hours ago):\n  Shipping the offline mode")
+                .contains(
+                    "Ravi K (@ravi_k) · 5h (about 5 hours ago, yesterday, Sun 22 Nov):\n  Shipping the offline mode",
+                )
             assertThat(prompt.substringAfter("<target>").substringBefore("</target>"))
                 .contains("Meera Iyer (@meera_writes) · 6:42 PM · 21 Nov 26")
         }

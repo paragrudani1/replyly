@@ -1353,7 +1353,9 @@ Question, Humour or Disagree, each its own colour), written like your X voice. N
 your voice has them), no @-mentions, nothing like "Great post! 🔥" or "This 👆", no made-up
 numbers or links. Every card shows a counter like `142/280` at its bottom right. **Send:**
 pass/fail, and for a fail a screenshot of the panel plus the feedback log entry's prompt (it shows
-what the model saw; do not post it anywhere public).
+what the model saw; do not post it anywhere public). Then reply to a post with an image that has
+alt text (an "ALT" badge on the image). **See:** at least one card refers to what the image shows,
+and nothing contradicts it. **Send:** pass/fail.
 
 15.18 **Do:** in a thread (15.5, at least one post above the one you reply to), tap the button.
 **See:** the cards answer the post you reply to, not a post above it. Then reply to one of **your
@@ -1367,9 +1369,10 @@ to its author and not a summary of it. **Send:** pass/fail; on fail a panel scre
 15.20 **Do:** the counter against X's own. In a reply composer type in Replyly's instruction field
 `include 🔥 and end with example.com/test`, tap Regenerate, and pick a card that has both (tap
 Regenerate again if none does); note its counter, say `96/280`. Tap it to insert. X shows a
-number in its ring only when 20 or fewer characters are left: type `a` at the end until the number
-appears, and count your `a`s. **See:** card count + your `a`s + the number X shows = 280 (in the
-example, 96 + 164 + 20). **Send:** the three numbers and the card text.
+number in its ring only when 20 or fewer characters are left: type one **space** at the end (so
+your letters do not join the link), then type `a` until the number appears, and count your `a`s.
+**See:** card count + 1 (the space) + your `a`s + the number X shows = 280 (in the example,
+96 + 1 + 163 + 20). **Send:** the three numbers and the card text.
 
 15.21 **Do:** turn on Settings → On X → "Longer X posts", Save. Reply to a post and type the
 instruction `make each about 450 characters`, Regenerate. **See:** counters read `/500` and stay
