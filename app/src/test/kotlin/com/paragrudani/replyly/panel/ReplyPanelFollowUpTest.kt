@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.panel
 
 import com.google.common.truth.Truth.assertThat
+import com.paragrudani.replyly.llm.NothingToReplyReason
 import com.paragrudani.replyly.llm.PromptMessage
 import com.paragrudani.replyly.parser.ChatMessage
 import com.paragrudani.replyly.parser.ParsedChat
@@ -40,10 +41,42 @@ class ReplyPanelFollowUpTest {
             panel.start()
             advanceUntilIdle()
 
-            assertThat(panel.state.value.suggestions).isEqualTo(SuggestionsUi.NothingToReply)
+            assertThat(
+                panel.state.value.suggestions,
+            ).isEqualTo(SuggestionsUi.NothingToReply(NothingToReplyReason.MyMessageLast))
             assertThat(generator.calls).isEqualTo(0)
             assertThat(assembler.calls).hasSize(1)
             assertThat(feedback.recorded).isEmpty()
+        }
+
+    @Test
+    fun `the nothing-to-reply state says why, and the anyway tap still makes one call`() =
+        runTest {
+            // Issue #38: their media after my last message, and no message of mine.
+            val cases =
+                listOf(
+                    listOf(
+                        PromptMessage(ChatMessage(null, "photo bhej na?", null, isMe = true)),
+                        PromptMessage(ChatMessage("Riya", "", null, isMe = false)),
+                    ) to NothingToReplyReason.TheirMediaAfterMine,
+                    listOf(PromptMessage(ChatMessage("Riya", " ", null, isMe = false))) to
+                        NothingToReplyReason.NoMessageOfMine,
+                    emptyList<PromptMessage>() to NothingToReplyReason.NoMessageOfMine,
+                )
+            for ((history, reason) in cases) {
+                val generator = FakeGenerator()
+                assembler.historyOverride = history
+                val panel = panel(generator)
+                panel.start()
+                advanceUntilIdle()
+                assertThat(panel.state.value.suggestions).isEqualTo(SuggestionsUi.NothingToReply(reason))
+                assertThat(generator.calls).isEqualTo(0)
+
+                panel.suggestFollowUpsAnyway()
+                advanceUntilIdle()
+                assertThat(generator.calls).isEqualTo(1)
+                assertThat(generator.requests.single().followUpAnyway).isTrue()
+            }
         }
 
     @Test
@@ -148,13 +181,17 @@ class ReplyPanelFollowUpTest {
             assembler.historyOverride = listOf(PromptMessage(ChatMessage(null, "ok done", null, isMe = true)))
             panel.regenerate()
             advanceUntilIdle()
-            assertThat(panel.state.value.suggestions).isEqualTo(SuggestionsUi.NothingToReply)
+            assertThat(
+                panel.state.value.suggestions,
+            ).isEqualTo(SuggestionsUi.NothingToReply(NothingToReplyReason.MyMessageLast))
 
             panel.toggleChip(QuickInstruction.Shorter) // deselects the only chip: no instruction left
             advanceUntilIdle()
 
             assertThat(generator.calls).isEqualTo(2)
-            assertThat(panel.state.value.suggestions).isEqualTo(SuggestionsUi.NothingToReply)
+            assertThat(
+                panel.state.value.suggestions,
+            ).isEqualTo(SuggestionsUi.NothingToReply(NothingToReplyReason.MyMessageLast))
         }
 
     @Test

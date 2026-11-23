@@ -40,6 +40,33 @@ class ReplyTargetTest {
         anyway: Boolean = false,
     ) = ReplyTarget.decide(messages.toList(), now, isGroup, names, anyway)
 
+    private fun reason(
+        vararg messages: PromptMessage,
+        anyway: Boolean = false,
+    ) = ReplyTarget.nothingReason(messages.toList(), now, isGroup = false, followUpAnyway = anyway)
+
+    @Test
+    fun `nothing to reply to says why`() {
+        // Issue #38: the panel's subtitle comes from this.
+        assertThat(reason(them(), me("ok done", seen = Duration.ofMinutes(10))))
+            .isEqualTo(NothingToReplyReason.MyMessageLast)
+        assertThat(reason(me("photo bhej na?", seen = Duration.ofMinutes(5)), them("")))
+            .isEqualTo(NothingToReplyReason.TheirMediaAfterMine)
+        assertThat(reason(me("ok", seen = Duration.ofHours(5)), them(" "), them("")))
+            .isEqualTo(NothingToReplyReason.TheirMediaAfterMine)
+        assertThat(reason()).isEqualTo(NothingToReplyReason.NoMessageOfMine)
+        assertThat(reason(them(" "), them(""))).isEqualTo(NothingToReplyReason.NoMessageOfMine)
+    }
+
+    @Test
+    fun `no reason when there is something to do`() {
+        assertThat(reason(me(), them("kal?"))).isNull()
+        assertThat(reason(them("kal?"))).isNull()
+        assertThat(reason(me("kal free?", seen = Duration.ofMinutes(5)))).isNull()
+        assertThat(reason(me(seen = Duration.ofHours(3)))).isNull()
+        assertThat(reason(me(seen = Duration.ofMinutes(5)), anyway = true)).isNull()
+    }
+
     @Test
     fun `others after my last message are the targets`() {
         val a = them("a")
@@ -304,5 +331,9 @@ class ReplyTargetTest {
         assertThat(ReplyTarget.decide(request)).isEqualTo(ReplyTarget.NothingToReply)
         assertThat(ReplyTarget.decide(request.copy(followUpAnyway = true)))
             .isEqualTo(ReplyTarget.FollowUp(FollowUpReason.Asked))
+        assertThat(ReplyTarget.nothingReason(request)).isEqualTo(NothingToReplyReason.MyMessageLast)
+        assertThat(ReplyTarget.nothingReason(request.copy(history = emptyList())))
+            .isEqualTo(NothingToReplyReason.NoMessageOfMine)
+        assertThat(ReplyTarget.nothingReason(request.copy(followUpAnyway = true))).isNull()
     }
 }
