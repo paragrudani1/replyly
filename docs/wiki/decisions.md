@@ -7,3 +7,5 @@
 - 2026-11-24: Bubble drag, settings and snooze (spec #53): Parag's answers and the CoS decisions are in `/root/.t3/cos/replyly/bubble-decisions.md`; each decision goes one line into `docs/DECISIONS.md` with its ticket. Drag snaps to the nearer left/right edge and supersedes the "x fixed at right edge" rule; the button still never goes below its default spot. #56 starts before #54 merges, building the drag-independent parts first, to save time.
 - 2026-11-24: Tests must never read the wall clock (a date test broke `main`); an environment PR adds a guard.
 - 2026-11-24: Parag reconfirmed there is no subagent limit on the VM (same as the 2026-11-21 entry).
+- 2026-11-24: In #56's fix round (`99ffbcc`), shake ends a snooze only while the phone is unlocked (like Wispr Flow), and the TalkBack "Snooze…" action opens the snooze picker through the same path as a drop on the dismiss target.
+- 2026-11-24: A fix round whose commits the CoS has read and found complete may merge without a second review round (applied to #57, `a605d4f`).
