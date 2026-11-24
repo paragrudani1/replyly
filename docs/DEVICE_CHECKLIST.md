@@ -1435,6 +1435,53 @@ Settings → Bubble (#55, items 16.B*) and snoozed (#56, items 16.C*). Keep
 `adb logcat -v time -s ReplylyOverlay` open: it must show only event names such as
 `button hidden reason=TURNED_OFF`.
 
+16.A1 **Do:** in WhatsApp, Telegram and one generic app (e.g. Google Messages), open a chat so the
+keyboard shows, then drag the button from the right half to the left half of the screen and
+release it in the middle of the chat. **See:** it follows the finger in every direction while you
+drag; on release it glides (about a quarter of a second) to the left edge at the height where you
+let go, with one light tick when it lands (the same crisp tick as when a drag starts). No panel
+opens and the button does not dim. **Send:** a screen recording, and what the snap feels like
+(too slow, too fast, too abrupt).
+
+16.A2 **Do:** release the button just right of the middle of the keyboard, then just left of it,
+a few times each. **See:** it goes to the nearer side every time. **Send:** which release went to
+the wrong side, with a screenshot just before you let go.
+
+16.A3 **Do:** put the button on the left in WhatsApp and on the right in Telegram (different
+heights too). Switch between the two apps; close and reopen the keyboard; rotate the phone and
+back; restart the phone. **See:** each app keeps its own side and height every time (after
+rotation the side stays, the height above the keyboard stays). **Send:** pass/fail and which step
+lost the side.
+
+16.A4 **Do:** before installing this build, drag the button up in one app on the old build. Then
+install this build over it (no uninstall) and open that app. **See:** the button sits at the same
+height as before, on the right. **Send:** pass/fail.
+
+16.A5 **Do:** in WhatsApp, with the input bar resting on the keyboard, move the button to the
+left, then drag it down hard onto the keyboard and release. Do the same on the right. **See:** on
+both sides it stops above the input bar and never covers the emoji, attach, camera or Send
+buttons, nor the keys. **Send:** a screenshot of each side after release.
+
+16.A6 **Do:** Gboard floating mode (Gboard toolbar → ⋮ → Floating), move the floating keyboard
+to the middle of the screen; then one-handed mode (left and right); then Samsung Keyboard. In each,
+drag the button to the left and to the right. **See:** both edges hug the keyboard rectangle (the
+left one at the keyboard's left edge, not the screen's), and the button is always fully on
+screen, also when the floating keyboard is pushed against a screen edge. **Send:** a screenshot per
+mode and side.
+
+16.A7 **Do:** TalkBack on. Focus the button and open the actions menu (three-finger tap, or swipe
+up then right). **See:** "Move to right edge" is not offered while the button is on the right;
+"Move to left edge" is, next to "Move up" / "Move down". Choose it. **See:** the button glides to
+the left with the tick, and now only "Move to right edge" is offered. Close the chat and reopen
+it. **See:** it is still on the left. No panel opened. **Send:** pass/fail and the action names
+TalkBack reads.
+
+16.A8 **Do:** start dragging the button and, still holding it, press the power button. Turn the
+screen on and unlock. Then drag it again and, still holding, swipe Home with another finger (or
+let the chat close the keyboard). **See:** no button is left on the lock screen or over the home
+screen, and the next time the keyboard opens the button is back at a normal spot on an edge.
+**Send:** a screenshot if a button stays behind.
+
 16.B1 **Do:** Settings → Bubble → Size: try each of the 4 steps (0.85x, 1x, 1.15x, 1.3x), each
 time opening a WhatsApp chat with Gboard up. **See:** 0.85x is still easy to hit; 1.3x covers
 neither Gboard's top row nor WhatsApp's Send button; the shadow is not cut off at any size.
