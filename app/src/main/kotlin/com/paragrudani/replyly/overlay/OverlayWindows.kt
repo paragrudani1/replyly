@@ -149,12 +149,16 @@ class OverlayWindows(
         val existing = button
         if (existing != null) {
             val params = existing.layoutParams as WindowManager.LayoutParams
-            // Never pull the button from under the finger; the drag clamps to the new range.
-            if (!dragging) {
-                cancelSnap()
-                params.x = slot.position.x
-                params.y = slot.position.y
+            if (dragging) {
+                // Stays under the finger where the new range allows; otherwise to the nearest spot
+                // in it at once (a rotation or a taller keyboard must not leave it over the input
+                // bar until the next move). Later moves clamp to the new range too.
+                moveButtonTo(params.x, params.y)
+                return
             }
+            cancelSnap()
+            params.x = slot.position.x
+            params.y = slot.position.y
             windowManager.updateViewLayout(existing, params)
             return
         }

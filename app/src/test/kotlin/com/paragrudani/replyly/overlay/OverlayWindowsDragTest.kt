@@ -21,6 +21,7 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.Shadows.shadowOf
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowChoreographer
 import java.time.Duration
 
 /**
@@ -69,7 +70,10 @@ class OverlayWindowsDragTest {
         )
 
     @After
-    fun tearDown() = windows.hideButton(immediate = true)
+    fun tearDown() {
+        ShadowChoreographer.setPaused(false)
+        windows.hideButton(immediate = true)
+    }
 
     private fun show(slot: ButtonSlot = this.slot): OverlayButtonView {
         windows.showButton(slot)
@@ -172,6 +176,9 @@ class OverlayWindowsDragTest {
     @Test
     fun `with animations on it glides to the edge and ticks once it lands`() {
         reduced = false
+        // Frames only when the clock moves, 16 ms apart, so the glide can be watched mid-way.
+        ShadowChoreographer.setPaused(true)
+        ShadowChoreographer.setFrameDelay(Duration.ofMillis(16))
         val button = show()
         button.touch(MotionEvent.ACTION_DOWN, 1000f, 1100f)
         button.touch(MotionEvent.ACTION_MOVE, 400f, 1100f)
@@ -180,11 +187,28 @@ class OverlayWindowsDragTest {
         // Saved at once (where it will land); the window is still on its way.
         assertThat(moved).containsExactly(20 to 1000)
         assertThat(button.windowX).isEqualTo(300)
+        // The drag start ticked; mark the haptic log so that only a later tick shows.
+        assertThat(button.lastHaptic()).isEqualTo(HapticFeedbackConstants.SEGMENT_TICK)
+        button.markHaptics()
 
-        idle(MotionDurations.LONG + 100L)
+        frames(8) // 128 ms of 250
+        assertThat(button.windowX).isIn(21..299)
+        assertThat(button.lastHaptic()).isEqualTo(MARK)
+        frames(7) // 240 ms
+        assertThat(button.lastHaptic()).isEqualTo(MARK)
 
+        frames(2) // 272 ms: landed
         assertThat(button.windowX).isEqualTo(20)
+        assertThat(button.lastHaptic()).isEqualTo(HapticFeedbackConstants.SEGMENT_TICK)
+
+        // Exactly one landing tick.
+        button.markHaptics()
+        frames(20)
+        assertThat(button.lastHaptic()).isEqualTo(MARK)
     }
+
+    /** [count] Choreographer frames, 16 ms apart (with the paused Choreographer). */
+    private fun frames(count: Int) = repeat(count) { idle(16) }
 
     @Test
     fun `TalkBack offers only the edge that would move it, moves there and saves it`() {
@@ -299,6 +323,50 @@ class OverlayWindowsDragTest {
         assertThat(button.windowY).isEqualTo(800)
         button.touch(MotionEvent.ACTION_UP, 300f, 900f)
         assertThat(moved).containsExactly(20 to 800)
+    }
+
+    @Test
+    fun `a new slot while dragging that no longer holds the spot moves it into range at once`() {
+        val button = show()
+        button.touch(MotionEvent.ACTION_DOWN, 1000f, 1100f)
+        button.touch(MotionEvent.ACTION_MOVE, 300f, 1000f)
+        assertThat(button.windowY).isEqualTo(900)
+
+        // A narrow floating keyboard higher up: the held spot is right of and below the new range.
+        windows.showButton(
+            ButtonSlot(
+                ButtonPosition(130, 600),
+                minY = 200,
+                maxY = 600,
+                leftX = 20,
+                rightX = 130,
+                minX = 0,
+                maxX = 150,
+            ),
+        )
+
+        assertThat(button.windowX).isEqualTo(150)
+        assertThat(button.windowY).isEqualTo(600)
+        // Later moves still follow the finger, clamped to the new range.
+        button.touch(MotionEvent.ACTION_MOVE, 950f, 750f)
+        assertThat(button.windowX).isEqualTo(150)
+        assertThat(button.windowY).isEqualTo(600)
+        button.touch(MotionEvent.ACTION_MOVE, 1000f, 500f)
+        assertThat(button.windowX).isEqualTo(150)
+        assertThat(button.windowY).isEqualTo(400)
+        button.touch(MotionEvent.ACTION_UP, 1000f, 500f)
+        assertThat(moved).containsExactly(130 to 400)
+    }
+
+    private fun View.lastHaptic() = shadowOf(this).lastHapticFeedbackPerformed()
+
+    /** A constant no Replyly haptic uses, so [lastHaptic] tells "nothing since" apart. */
+    private fun View.markHaptics() {
+        performHapticFeedback(MARK)
+    }
+
+    private companion object {
+        const val MARK = HapticFeedbackConstants.KEYBOARD_RELEASE
     }
 
     private fun View.actionIds(): List<Int> {
