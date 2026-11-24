@@ -1,10 +1,13 @@
 package com.paragrudani.replyly.overlay
 
+import android.app.Activity
+import android.graphics.Rect
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.FrameLayout
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.toArgb
 import androidx.test.core.app.ApplicationProvider
@@ -15,9 +18,12 @@ import com.paragrudani.replyly.panel.ReplyPanel
 import com.paragrudani.replyly.ui.theme.ReplylyMotion
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowLooper
+import java.util.concurrent.TimeUnit
 
 /** The button View's touch handling (drag versus tap), accessibility, and the window it drags. */
 @RunWith(RobolectricTestRunner::class)
@@ -105,6 +111,47 @@ class OverlayButtonViewTest {
     }
 
     @Test
+    fun `a flick (down, then up past the slop with no move) clears the press look and never taps`() {
+        view.touch(MotionEvent.ACTION_DOWN, 500f)
+        view.touch(MotionEvent.ACTION_UP, 450f)
+
+        assertThat(taps).isEqualTo(0)
+        assertThat(dragEnds).isEqualTo(1)
+        assertThat(view.mark.scaleX).isEqualTo(1f)
+    }
+
+    @Test
+    fun `after a flick, Shrink when idle still shrinks the button`() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val look = BubbleLook(shrinkWhenIdle = true)
+        val shown = OverlayButtonView(activity, listener, ReplylyMotion(reduced = true)).apply { applyLook(look) }
+        val size = look.windowPx(context.resources.displayMetrics.density)
+        activity.setContentView(FrameLayout(activity).apply { addView(shown, FrameLayout.LayoutParams(size, size)) })
+        shown.animateIn()
+
+        shown.touch(MotionEvent.ACTION_DOWN, 500f)
+        shown.touch(MotionEvent.ACTION_UP, 450f)
+        ShadowLooper.idleMainLooper(5_100, TimeUnit.MILLISECONDS)
+
+        assertThat(shown.shrunk).isTrue()
+    }
+
+    @Test
+    fun `the whole button is excluded from the system back gesture, also after a resize`() {
+        view.layoutTo(104)
+        assertThat(view.systemGestureExclusionRects).containsExactly(Rect(0, 0, 104, 104))
+
+        view.layoutTo(126)
+        assertThat(view.systemGestureExclusionRects).containsExactly(Rect(0, 0, 126, 126))
+    }
+
+    private fun View.layoutTo(size: Int) {
+        val spec = View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.EXACTLY)
+        measure(spec, spec)
+        layout(0, 0, size, size)
+    }
+
+    @Test
     fun `busy dims the mark`() {
         view.setBusy(true)
         assertThat(view.mark.alpha).isEqualTo(OverlayButtonView.BUSY_ALPHA)
@@ -139,6 +186,99 @@ class OverlayButtonViewTest {
     }
 
     @Test
+    fun `a 2D drag reaches the listener with dx and dy and never taps`() {
+        val moves = mutableListOf<Pair<Int, Int>>()
+        var ends = 0
+        var twoDTaps = 0
+        val twoD =
+            OverlayButtonView(
+                context,
+                object : OverlayButtonView.Listener {
+                    override fun onTap() {
+                        twoDTaps++
+                    }
+
+                    override fun onDrag(
+                        dx: Int,
+                        dy: Int,
+                    ) {
+                        moves += dx to dy
+                    }
+
+                    override fun onDragEnd() {
+                        ends++
+                    }
+                },
+                ReplylyMotion(reduced = true),
+            )
+
+        twoD.touch(MotionEvent.ACTION_DOWN, y = 500f, x = 800f)
+        twoD.touch(MotionEvent.ACTION_MOVE, y = 490f, x = 700f)
+        twoD.touch(MotionEvent.ACTION_MOVE, y = 300f, x = 100f)
+        twoD.touch(MotionEvent.ACTION_UP, y = 320f, x = 90f)
+
+        assertThat(moves.first()).isEqualTo(-100 to -10)
+        assertThat(moves.last()).isEqualTo(-710 to -180)
+        assertThat(ends).isEqualTo(1)
+        assertThat(twoDTaps).isEqualTo(0)
+        // Released anywhere: the drag look clears and the button is never dimmed.
+        assertThat(twoD.mark.scaleX).isEqualTo(1f)
+        assertThat(twoD.mark.alpha).isEqualTo(1f)
+    }
+
+    @Test
+    fun `a sideways drag reaches an old vertical-only listener as dy`() {
+        view.touch(MotionEvent.ACTION_DOWN, y = 500f, x = 800f)
+        view.touch(MotionEvent.ACTION_MOVE, y = 520f, x = 300f)
+        view.touch(MotionEvent.ACTION_UP, y = 520f, x = 300f)
+
+        assertThat(drags.last()).isEqualTo(20)
+        assertThat(taps).isEqualTo(0)
+    }
+
+    @Test
+    fun `the edge actions are offered only when they would move the button, and never tap`() {
+        val edges = mutableListOf<ButtonSide>()
+        var onRight = true
+        val sided =
+            OverlayButtonView(
+                context,
+                object : OverlayButtonView.Listener {
+                    override fun onTap() {
+                        taps++
+                    }
+
+                    override fun onMoveToEdge(side: ButtonSide) {
+                        edges += side
+                        onRight = side == ButtonSide.RIGHT
+                    }
+
+                    override fun canMoveToEdge(side: ButtonSide): Boolean = (side == ButtonSide.RIGHT) != onRight
+                },
+                ReplylyMotion(reduced = true),
+            )
+        val labels = sided.actionLabels()
+        assertThat(labels).containsEntry(R.id.overlay_action_move_left_edge, "Move to left edge")
+        assertThat(labels).doesNotContainKey(R.id.overlay_action_move_right_edge)
+        assertThat(sided.performAccessibilityAction(R.id.overlay_action_move_right_edge, null)).isFalse()
+
+        assertThat(sided.performAccessibilityAction(R.id.overlay_action_move_left_edge, null)).isTrue()
+
+        assertThat(edges).containsExactly(ButtonSide.LEFT)
+        val after = sided.actionLabels()
+        assertThat(after).containsEntry(R.id.overlay_action_move_right_edge, "Move to right edge")
+        assertThat(after).doesNotContainKey(R.id.overlay_action_move_left_edge)
+        assertThat(taps).isEqualTo(0)
+    }
+
+    @Test
+    fun `a listener without sides offers no edge actions`() {
+        assertThat(
+            view.actionIds(),
+        ).containsNoneOf(R.id.overlay_action_move_left_edge, R.id.overlay_action_move_right_edge)
+    }
+
+    @Test
     fun `an accessibility click is a tap`() {
         view.performAccessibilityAction(AccessibilityNodeInfo.ACTION_CLICK, null)
         assertThat(taps).isEqualTo(1)
@@ -166,7 +306,7 @@ class OverlayButtonViewTest {
                 buttonSizePx = 104,
                 onButtonTap = { windowTaps++ },
                 onPanelDismiss = {},
-                onButtonMoved = { moved += it },
+                onButtonMoved = { _, y -> moved += y },
             )
         windows.showButton(ButtonSlot(ButtonPosition(900, 1000), minY = 400, maxY = 1200))
         val button = checkNotNull(windows.buttonView)
@@ -188,9 +328,8 @@ class OverlayButtonViewTest {
         val moved = mutableListOf<Int>()
         val windows =
             OverlayWindows(context, noPanel, buttonSizePx = 104, onButtonTap = {
-            }, onPanelDismiss = {}, onButtonMoved = {
-                moved +=
-                    it
+            }, onPanelDismiss = {}, onButtonMoved = { _, y ->
+                moved += y
             })
         windows.showButton(ButtonSlot(ButtonPosition(900, 1000), minY = 400, maxY = 1050))
 
@@ -265,6 +404,12 @@ class OverlayButtonViewTest {
         assertThat(view.mark.backgroundTintList?.defaultColor).isEqualTo(dark.primary.toArgb())
         assertThat(view.mark.imageTintList?.defaultColor).isEqualTo(dark.onPrimary.toArgb())
         assertThat(view.mark.backgroundTintList?.defaultColor).isNotEqualTo(light)
+    }
+
+    private fun View.actionLabels(): Map<Int, String?> {
+        val info = AccessibilityNodeInfo.obtain()
+        onInitializeAccessibilityNodeInfo(info)
+        return info.actionList.associate { it.id to it.label?.toString() }
     }
 
     private fun View.actionIds(): List<Int> {

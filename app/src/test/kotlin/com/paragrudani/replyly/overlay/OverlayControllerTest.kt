@@ -60,6 +60,8 @@ class OverlayControllerTest {
     private val remembered = mutableListOf<InputFieldRef>()
     private var taps = 0
     private val savedY = mutableMapOf<String, Int>()
+    private val savedSide = mutableMapOf<String, ButtonSide>()
+    private val logs = mutableListOf<String>()
 
     private fun TestScope.controller() =
         OverlayController(
@@ -70,7 +72,15 @@ class OverlayControllerTest {
             visibility = ButtonVisibility(ownPackage = "com.paragrudani.replyly", isAppAllowed = { true }),
             place = { shown ->
                 val y = savedY[shown.input.packageName] ?: shown.keyboard.top
-                ButtonSlot(ButtonPosition(shown.keyboard.right, y), minY = 100, maxY = shown.keyboard.top)
+                ButtonSlot(
+                    ButtonPosition(shown.keyboard.right, y),
+                    minY = 100,
+                    maxY = shown.keyboard.top,
+                    leftX = LEFT_X,
+                    rightX = shown.keyboard.right,
+                    minX = 0,
+                    maxX = shown.keyboard.right,
+                ).onSide(savedSide[shown.input.packageName] ?: ButtonSide.RIGHT)
             },
             ui = ui,
             tap = {
@@ -79,7 +89,11 @@ class OverlayControllerTest {
             },
             rememberTarget = { remembered += it },
             scope = this,
-            rememberPosition = { shown, y -> savedY[shown.input.packageName] = y },
+            rememberPosition = { shown, side, y ->
+                savedY[shown.input.packageName] = y
+                savedSide[shown.input.packageName] = side
+            },
+            log = { logs += it },
         )
 
     @Test
@@ -448,10 +462,11 @@ class OverlayControllerTest {
             controller.onEvent(OverlayEvent.WINDOWS)
             advanceUntilIdle()
 
-            controller.onButtonMoved(900)
+            controller.onButtonMoved(1080, 900)
             advanceUntilIdle()
 
             assertThat(savedY).containsExactly(WHATSAPP, 900)
+            assertThat(savedSide).containsExactly(WHATSAPP, ButtonSide.RIGHT)
             assertThat(taps).isEqualTo(0)
             assertThat(ui.busy).isEmpty()
             assertThat(ui.panel).isNull()
@@ -464,7 +479,7 @@ class OverlayControllerTest {
             controller.onEvent(OverlayEvent.WINDOWS)
             advanceUntilIdle()
 
-            controller.onButtonMoved(-50)
+            controller.onButtonMoved(1080, -50)
 
             assertThat(savedY).containsExactly(WHATSAPP, 100)
         }
@@ -477,7 +492,7 @@ class OverlayControllerTest {
             advanceUntilIdle()
             val shows = ui.buttonShows
 
-            controller.onButtonMoved(900)
+            controller.onButtonMoved(LEFT_X, 900)
             controller.onEvent(OverlayEvent.WINDOWS)
             advanceUntilIdle()
 
@@ -490,9 +505,77 @@ class OverlayControllerTest {
         runTest {
             val controller = controller()
 
-            controller.onButtonMoved(900)
+            controller.onButtonMoved(LEFT_X, 900)
 
             assertThat(savedY).isEmpty()
+            assertThat(savedSide).isEmpty()
+        }
+
+    @Test
+    fun `a move to the left remembers (left, lift) for the shown app and logs only the side`() =
+        runTest {
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+
+            controller.onButtonMoved(LEFT_X + 30, 700)
+
+            assertThat(savedSide).containsExactly(WHATSAPP, ButtonSide.LEFT)
+            assertThat(savedY).containsExactly(WHATSAPP, 700)
+            assertThat(logs).contains("button moved side=LEFT")
+            assertThat(logs.filter { it.startsWith("button moved") }).containsExactly("button moved side=LEFT")
+        }
+
+    @Test
+    fun `a drop nearer the right edge is remembered as right`() =
+        runTest {
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+            controller.onButtonMoved(LEFT_X, 700)
+
+            controller.onButtonMoved(1000, 650)
+
+            assertThat(savedSide).containsExactly(WHATSAPP, ButtonSide.RIGHT)
+            assertThat(savedY).containsExactly(WHATSAPP, 650)
+            assertThat(logs).contains("button moved side=RIGHT")
+        }
+
+    @Test
+    fun `each app keeps its own side`() =
+        runTest {
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+            controller.onButtonMoved(LEFT_X, 700)
+
+            facts = facts.copy(focusedInput = input.copy(packageName = TELEGRAM))
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+            assertThat(ui.button?.x).isEqualTo(1080)
+
+            facts = facts.copy(focusedInput = input)
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+            assertThat(ui.button).isEqualTo(ButtonPosition(LEFT_X, 700))
+        }
+
+    @Test
+    fun `moves never tap, dim the button or open the panel`() =
+        runTest {
+            val controller = controller()
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+
+            controller.onButtonMoved(LEFT_X, 700)
+            controller.onButtonMoved(500, 300)
+            controller.onButtonMoved(1080, 1440)
+            advanceUntilIdle()
+
+            assertThat(taps).isEqualTo(0)
+            assertThat(ui.busy).isEmpty()
+            assertThat(ui.panel).isNull()
+            assertThat(ui.notices).isEmpty()
         }
 
     private suspend fun TestScope.openPanel(): OverlayController {
@@ -507,6 +590,8 @@ class OverlayControllerTest {
 
     private companion object {
         const val WHATSAPP = "com.whatsapp"
+        const val TELEGRAM = "org.telegram.messenger"
+        const val LEFT_X = 20
         val CHAT = ParsedChat(WHATSAPP, "Asha", isGroup = false, messages = emptyList(), historyApplies = true)
     }
 }

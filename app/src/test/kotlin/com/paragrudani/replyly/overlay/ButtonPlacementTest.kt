@@ -88,4 +88,36 @@ class ButtonPlacementTest {
 
         assertThat(position).isEqualTo(ButtonPosition(x = 936, y = 1056))
     }
+
+    @Test
+    fun `left side - same height as the default spot, at the keyboard's left plus margin`() {
+        val keyboard = Bounds(0, 1440, 1080, 2340)
+        val input = Bounds(30, 1300, 900, 1420)
+
+        val slot = placement.slot(keyboard, input, 1080, 2340, savedSide = ButtonSide.LEFT)
+
+        assertThat(slot.position).isEqualTo(ButtonPosition(x = 24, y = 1156))
+    }
+
+    @Test
+    fun `landscape left side - the keyboard's left edge`() {
+        val slot =
+            placement.slot(
+                Bounds(0, 560, 2340, 1080),
+                Bounds(100, 460, 2000, 550),
+                2340,
+                1080,
+                savedSide = ButtonSide.LEFT,
+            )
+
+        assertThat(slot.position).isEqualTo(ButtonPosition(x = 24, y = 316))
+        assertThat(slot.rightX).isEqualTo(2196)
+    }
+
+    @Test
+    fun `one-handed keyboard shifted right - the left edge follows it`() {
+        val slot = placement.slot(Bounds(240, 1500, 1080, 2340), null, 1080, 2340, savedSide = ButtonSide.LEFT)
+
+        assertThat(slot.position).isEqualTo(ButtonPosition(x = 264, y = 1356))
+    }
 }

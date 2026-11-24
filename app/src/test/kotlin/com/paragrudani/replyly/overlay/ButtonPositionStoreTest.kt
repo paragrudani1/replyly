@@ -2,7 +2,9 @@ package com.paragrudani.replyly.overlay
 
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.floatPreferencesKey
 import com.google.common.truth.Truth.assertThat
 import com.paragrudani.replyly.testing.TestDataStores
 import kotlinx.coroutines.CompletableDeferred
@@ -57,7 +59,7 @@ class ButtonPositionStoreTest {
     @Test
     fun `a saved spot reads back at once, before it is on disk`() {
         val store = fresh()
-        store.save(WHATSAPP, 120f)
+        store.save(WHATSAPP, 120f, ButtonSide.RIGHT)
         assertThat(store.liftDp(WHATSAPP)).isEqualTo(120f)
     }
 
@@ -65,9 +67,9 @@ class ButtonPositionStoreTest {
     fun `spots are per app and survive a restart`() =
         runBlocking {
             val store = fresh()
-            store.save(WHATSAPP, 120f)
-            store.save(TELEGRAM, 40.5f)
-            store.save(WHATSAPP, 80f)
+            store.save(WHATSAPP, 120f, ButtonSide.RIGHT)
+            store.save(TELEGRAM, 40.5f, ButtonSide.RIGHT)
+            store.save(WHATSAPP, 80f, ButtonSide.RIGHT)
             store.sync()
 
             val after = restart()
@@ -81,8 +83,8 @@ class ButtonPositionStoreTest {
     fun `reset forgets one app, also after a restart`() =
         runBlocking {
             val store = fresh()
-            store.save(WHATSAPP, 120f)
-            store.save(TELEGRAM, 40f)
+            store.save(WHATSAPP, 120f, ButtonSide.RIGHT)
+            store.save(TELEGRAM, 40f, ButtonSide.RIGHT)
             store.reset(WHATSAPP)
             assertThat(store.liftDp(WHATSAPP)).isNull()
             store.sync()
@@ -97,8 +99,8 @@ class ButtonPositionStoreTest {
     fun `resetAll forgets every app, also after a restart`() =
         runBlocking {
             val store = fresh()
-            store.save(WHATSAPP, 120f)
-            store.save(TELEGRAM, 40f)
+            store.save(WHATSAPP, 120f, ButtonSide.RIGHT)
+            store.save(TELEGRAM, 40f, ButtonSide.RIGHT)
             store.sync()
             store.resetAll()
             assertThat(store.liftDp(TELEGRAM)).isNull()
@@ -114,8 +116,8 @@ class ButtonPositionStoreTest {
     fun `a change made while loading wins over the old value on disk`() =
         runBlocking {
             val first = fresh()
-            first.save(WHATSAPP, 120f)
-            first.save(TELEGRAM, 40f)
+            first.save(WHATSAPP, 120f, ButtonSide.RIGHT)
+            first.save(TELEGRAM, 40f, ButtonSide.RIGHT)
             first.sync()
             scopes
                 .removeLastOrNull()
@@ -125,7 +127,7 @@ class ButtonPositionStoreTest {
 
             // Changes right after start, maybe before the load finished.
             val second = ButtonPositionStore(stores.reopen(NAME), newScope())
-            second.save(WHATSAPP, 10f)
+            second.save(WHATSAPP, 10f, ButtonSide.RIGHT)
             second.reset(TELEGRAM)
             second.sync()
 
@@ -137,8 +139,8 @@ class ButtonPositionStoreTest {
     fun `resetAll before the load finishes keeps the old spots from coming back`() =
         runBlocking {
             val first = fresh()
-            first.save(WHATSAPP, 120f)
-            first.save(TELEGRAM, 40f)
+            first.save(WHATSAPP, 120f, ButtonSide.RIGHT)
+            first.save(TELEGRAM, 40f, ButtonSide.RIGHT)
             first.sync()
             scopes
                 .removeLastOrNull()
@@ -149,7 +151,7 @@ class ButtonPositionStoreTest {
             val disk = Gated(stores.reopen(NAME))
             val second = ButtonPositionStore(disk, newScope())
             second.resetAll()
-            second.save(TELEGRAM, 7f) // After the reset, still before the load.
+            second.save(TELEGRAM, 7f, ButtonSide.RIGHT) // After the reset, still before the load.
             disk.gate.complete(Unit)
             second.sync()
 
@@ -175,8 +177,120 @@ class ButtonPositionStoreTest {
             withTimeout(5_000) { store.sync() }
 
             assertThat(store.liftDp(WHATSAPP)).isNull()
-            store.save(WHATSAPP, 30f)
+            store.save(WHATSAPP, 30f, ButtonSide.RIGHT)
             assertThat(store.liftDp(WHATSAPP)).isEqualTo(30f)
+        }
+
+    // Sides (#54) --------------------------------------------------------------------------------
+
+    @Test
+    fun `a side is saved with the lift, reads back at once and survives a restart`() =
+        runBlocking {
+            val store = fresh()
+            store.save(WHATSAPP, 120f, ButtonSide.LEFT)
+            store.save(TELEGRAM, 40f, ButtonSide.RIGHT)
+            assertThat(store.side(WHATSAPP)).isEqualTo(ButtonSide.LEFT)
+            store.sync()
+
+            val after = restart()
+
+            assertThat(after.liftDp(WHATSAPP)).isEqualTo(120f)
+            assertThat(after.side(WHATSAPP)).isEqualTo(ButtonSide.LEFT)
+            assertThat(after.liftDp(TELEGRAM)).isEqualTo(40f)
+            assertThat(after.side(TELEGRAM)).isEqualTo(ButtonSide.RIGHT)
+        }
+
+    @Test
+    fun `moving back to the right is remembered too`() =
+        runBlocking {
+            val store = fresh()
+            store.save(WHATSAPP, 120f, ButtonSide.LEFT)
+            store.save(WHATSAPP, 90f, ButtonSide.RIGHT)
+            store.sync()
+
+            val after = restart()
+
+            assertThat(after.side(WHATSAPP)).isEqualTo(ButtonSide.RIGHT)
+            assertThat(after.liftDp(WHATSAPP)).isEqualTo(90f)
+        }
+
+    @Test
+    fun `an app never dragged reads as right`() =
+        runBlocking {
+            val store = fresh()
+            store.sync()
+            assertThat(store.side(WHATSAPP)).isEqualTo(ButtonSide.RIGHT)
+        }
+
+    @Test
+    fun `a file from before sides reads as the same lift on the right`() =
+        runBlocking {
+            // What the previous version wrote: only lift_dp:<pkg>.
+            stores.open(NAME).edit { it[floatPreferencesKey("lift_dp:$WHATSAPP")] = 75f }
+
+            val store = ButtonPositionStore(stores.reopen(NAME), newScope())
+            store.sync()
+
+            assertThat(store.liftDp(WHATSAPP)).isEqualTo(75f)
+            assertThat(store.side(WHATSAPP)).isEqualTo(ButtonSide.RIGHT)
+        }
+
+    @Test
+    fun `reset and resetAll clear sides as well as lifts`() =
+        runBlocking {
+            val store = fresh()
+            store.save(WHATSAPP, 120f, ButtonSide.LEFT)
+            store.save(TELEGRAM, 40f, ButtonSide.LEFT)
+            store.save(OTHER, 10f, ButtonSide.LEFT)
+            store.reset(WHATSAPP)
+            assertThat(store.side(WHATSAPP)).isEqualTo(ButtonSide.RIGHT)
+            store.sync()
+
+            var after = restart()
+            assertThat(after.liftDp(WHATSAPP)).isNull()
+            assertThat(after.side(WHATSAPP)).isEqualTo(ButtonSide.RIGHT)
+            assertThat(after.side(TELEGRAM)).isEqualTo(ButtonSide.LEFT)
+
+            after.resetAll()
+            assertThat(after.side(TELEGRAM)).isEqualTo(ButtonSide.RIGHT)
+            after.sync()
+            after = restart()
+
+            assertThat(after.side(TELEGRAM)).isEqualTo(ButtonSide.RIGHT)
+            assertThat(after.side(OTHER)).isEqualTo(ButtonSide.RIGHT)
+            assertThat(after.liftDp(OTHER)).isNull()
+            // Saving a lift alone after a reset is on the right, not on a side left over on disk.
+            after.save(TELEGRAM, 5f, ButtonSide.RIGHT)
+            assertThat(after.side(TELEGRAM)).isEqualTo(ButtonSide.RIGHT)
+        }
+
+    @Test
+    fun `a side changed before the load finishes wins over the old side on disk`() =
+        runBlocking {
+            val first = fresh()
+            first.save(WHATSAPP, 120f, ButtonSide.LEFT)
+            first.save(TELEGRAM, 40f, ButtonSide.LEFT)
+            first.sync()
+            scopes
+                .removeLastOrNull()
+                ?.coroutineContext
+                ?.get(Job)
+                ?.cancelAndJoin()
+
+            val disk = Gated(stores.reopen(NAME))
+            val second = ButtonPositionStore(disk, newScope())
+            second.save(WHATSAPP, 10f, ButtonSide.RIGHT)
+            assertThat(second.side(WHATSAPP)).isEqualTo(ButtonSide.RIGHT)
+            assertThat(second.side(TELEGRAM)).isEqualTo(ButtonSide.RIGHT) // Not loaded yet: default.
+            disk.gate.complete(Unit)
+            second.sync()
+
+            assertThat(second.side(WHATSAPP)).isEqualTo(ButtonSide.RIGHT)
+            assertThat(second.liftDp(WHATSAPP)).isEqualTo(10f)
+            assertThat(second.side(TELEGRAM)).isEqualTo(ButtonSide.LEFT)
+            val after = restart()
+            assertThat(after.side(WHATSAPP)).isEqualTo(ButtonSide.RIGHT)
+            assertThat(after.side(TELEGRAM)).isEqualTo(ButtonSide.LEFT)
         }
 
     /** A DataStore whose first read waits for [gate], so a test can act "before the load". */
@@ -201,5 +315,6 @@ class ButtonPositionStoreTest {
         const val NAME = "button_positions"
         const val WHATSAPP = "com.whatsapp"
         const val TELEGRAM = "org.telegram.messenger"
+        const val OTHER = "com.example.chat"
     }
 }

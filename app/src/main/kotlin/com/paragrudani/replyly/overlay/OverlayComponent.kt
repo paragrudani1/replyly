@@ -77,7 +77,7 @@ class OverlayComponent(
                 panel = panel(),
                 buttonSizePx = placementSizePx,
                 onButtonTap = { controller.onButtonTapped() },
-                onButtonMoved = { y -> controller.onButtonMoved(y) },
+                onButtonMoved = { x, y -> controller.onButtonMoved(x, y) },
                 // Posted: the panel's close button and Back run inside its own input dispatch,
                 // which must finish before the window is removed.
                 onPanelDismiss = { mainHandler.post { controller.onPanelClosed() } },
@@ -99,7 +99,8 @@ class OverlayComponent(
                         metrics.windowInsets
                             .getInsets(WindowInsets.Type.statusBars() or WindowInsets.Type.displayCutout())
                             .top
-                    val savedLift = positions?.liftDp(shown.input.packageName)?.let { (it * density).roundToInt() }
+                    val pkg = shown.input.packageName
+                    val savedLift = positions?.liftDp(pkg)?.let { (it * density).roundToInt() }
                     placement.slot(
                         shown.keyboard,
                         shown.input.bounds,
@@ -107,10 +108,11 @@ class OverlayComponent(
                         screen.height(),
                         topInset,
                         savedLift,
+                        positions?.side(pkg) ?: ButtonSide.RIGHT,
                     )
                 },
-                rememberPosition = { shown, y ->
-                    positions?.save(shown.input.packageName, placement.liftOf(y, shown.keyboard.top) / density)
+                rememberPosition = { shown, side, y ->
+                    positions?.save(shown.input.packageName, placement.liftOf(y, shown.keyboard.top) / density, side)
                 },
                 ui = ui,
                 // Reading and parsing the tree is many IPC calls: off the main thread.

@@ -68,8 +68,11 @@ class OverlayController(
     private val tap: suspend (FocusedInput) -> TapOutcome,
     private val rememberTarget: (InputFieldRef) -> Unit,
     private val scope: CoroutineScope,
-    /** Remembers a spot the user dragged the button to, for the app in [ButtonDecision.Show]. */
-    private val rememberPosition: (shown: ButtonDecision.Show, y: Int) -> Unit = { _, _ -> },
+    /**
+     * Remembers the spot the user moved the button to, for the app in [ButtonDecision.Show]: the
+     * edge it rests on and its window top [y].
+     */
+    private val rememberPosition: (shown: ButtonDecision.Show, side: ButtonSide, y: Int) -> Unit = { _, _, _ -> },
     private val settleMillis: Long = 60,
     /** Event names and enum values only, never chat text. */
     private val log: (String) -> Unit = {},
@@ -120,16 +123,23 @@ class OverlayController(
     }
 
     /**
-     * The user dragged the button (or moved it with TalkBack) so its window top is at [y]. Only
-     * remembers the spot: a drag never counts as a tap (the view tells them apart).
+     * The user dragged the button (or moved it with TalkBack) and let go with its window at
+     * ([x], [y]). Remembers (the nearer edge, the clamped height) for the shown app; the window
+     * itself glides to that edge. Only remembers: a drag never counts as a tap (the view tells
+     * them apart), so no panel, no busy look and no LLM call.
      */
-    fun onButtonMoved(y: Int) {
+    fun onButtonMoved(
+        x: Int,
+        y: Int,
+    ) {
         val current = shown ?: return
         val at = shownAt ?: return
+        val side = at.snap(at.clampX(x))
         val clamped = at.clampY(y)
-        shownAt = at.copy(position = at.position.copy(y = clamped))
-        log("button moved")
-        rememberPosition(current, clamped)
+        val moved = at.onSide(side)
+        shownAt = moved.copy(position = moved.position.copy(y = clamped))
+        log("button moved side=$side")
+        rememberPosition(current, side, clamped)
     }
 
     fun onPanelClosed() {

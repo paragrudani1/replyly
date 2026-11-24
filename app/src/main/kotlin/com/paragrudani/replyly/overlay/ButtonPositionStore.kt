@@ -4,6 +4,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.stringPreferencesKey
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
@@ -13,11 +14,13 @@ import kotlinx.coroutines.launch
 
 /**
  * Where the user dragged the floating button, per app (package name): the gap between the
- * button and the keyboard top, in dp (see [ButtonPlacement.liftOf]). Not secret: package names
- * and a number, no chat content. Lives in its own DataStore file
- * ([com.paragrudani.replyly.settings.ReplylyDataStores.BUTTON_POSITIONS]).
+ * button and the keyboard top, in dp (see [ButtonPlacement.liftOf]), and the edge it rests on
+ * ([ButtonSide]). Not secret: package names, a number and a side, no chat content. Lives in its
+ * own DataStore file ([com.paragrudani.replyly.settings.ReplylyDataStores.BUTTON_POSITIONS]):
+ * `lift_dp:<pkg>` (float) and, since #54, `side:<pkg>` (`left` / `right`). A lift without a side
+ * (saved before #54) reads as right; a side without a lift is ignored. No migration.
  *
- * Reads are synchronous ([liftDp]) because the button is placed on the main thread on every
+ * Reads are synchronous ([liftDp], [side]) because the button is placed on the main thread on every
  * window change. They come from an in-memory copy that is loaded once at start and updated at
  * once by [save] / [reset] / [resetAll]; the disk writes run after, one at a time, in call order.
  * Until the first load finishes, apps read as "never dragged" (default spot).
@@ -26,7 +29,13 @@ class ButtonPositionStore(
     private val dataStore: DataStore<Preferences>,
     scope: CoroutineScope,
 ) {
-    @Volatile private var cache: Map<String, Float> = emptyMap()
+    /** One app's remembered spot. */
+    private data class Spot(
+        val liftDp: Float,
+        val side: ButtonSide,
+    )
+
+    @Volatile private var cache: Map<String, Spot> = emptyMap()
 
     /** Keys changed before the load finished: the load must not bring back their old values. */
     private val touchedBeforeLoad = mutableSetOf<String>()
@@ -63,14 +72,20 @@ class ButtonPositionStore(
     }
 
     /** Every saved spot on disk; empty if the file can't be read (default spots, nothing lost in memory). */
-    private suspend fun readDisk(): Map<String, Float> =
+    private suspend fun readDisk(): Map<String, Spot> =
         try {
-            dataStore.data
-                .first()
-                .asMap()
+            val prefs = dataStore.data.first().asMap()
+            val sides =
+                prefs
+                    .mapNotNull { (key, value) ->
+                        val pkg = key.name.removePrefix(SIDE_PREFIX).takeIf { key.name.startsWith(SIDE_PREFIX) }
+                        val side = (value as? String)?.let(::sideOf)
+                        if (pkg != null && side != null) pkg to side else null
+                    }.toMap()
+            prefs
                 .mapNotNull { (key, value) ->
                     val pkg = key.name.removePrefix(PREFIX).takeIf { key.name.startsWith(PREFIX) }
-                    if (pkg != null && value is Float) pkg to value else null
+                    if (pkg != null && value is Float) pkg to Spot(value, sides[pkg] ?: ButtonSide.RIGHT) else null
                 }.toMap()
         } catch (e: CancellationException) {
             throw e
@@ -79,23 +94,41 @@ class ButtonPositionStore(
         }
 
     /** The remembered gap for [packageName] in dp, or `null` if the user never dragged it there. */
-    fun liftDp(packageName: String): Float? = cache[packageName]
+    fun liftDp(packageName: String): Float? = cache[packageName]?.liftDp
 
+    /** The edge the button rests on in [packageName]; right if never moved there or saved before sides. */
+    fun side(packageName: String): ButtonSide = cache[packageName]?.side ?: ButtonSide.RIGHT
+
+    /**
+     * Remembers (lift, side) for [packageName]; both keys go to disk in one write. No default
+     * side: a caller that forgot it would silently move the app's button back to the right.
+     */
     fun save(
         packageName: String,
         liftDp: Float,
+        side: ButtonSide,
     ) {
-        change(packageName) { it + (packageName to liftDp) }
-        writes.trySend { dataStore.edit { it[key(packageName)] = liftDp } }
+        change(packageName) { it + (packageName to Spot(liftDp, side)) }
+        writes.trySend {
+            dataStore.edit {
+                it[key(packageName)] = liftDp
+                it[sideKey(packageName)] = side.name.lowercase()
+            }
+        }
     }
 
     /** Back to the default spot in [packageName]. */
     fun reset(packageName: String) {
         change(packageName) { it - packageName }
-        writes.trySend { dataStore.edit { it.remove(key(packageName)) } }
+        writes.trySend {
+            dataStore.edit {
+                it.remove(key(packageName))
+                it.remove(sideKey(packageName))
+            }
+        }
     }
 
-    /** Back to the default spot in every app (for a future "Reset button position" setting). */
+    /** Back to the default spot (right side) in every app ("Reset button positions" in Settings). */
     fun resetAll() {
         synchronized(lock) {
             if (!loadedFlag) clearedBeforeLoad = true
@@ -106,7 +139,7 @@ class ButtonPositionStore(
                 prefs
                     .asMap()
                     .keys
-                    .filter { it.name.startsWith(PREFIX) }
+                    .filter { it.name.startsWith(PREFIX) || it.name.startsWith(SIDE_PREFIX) }
                     .forEach { prefs.remove(it) }
             }
         }
@@ -122,7 +155,7 @@ class ButtonPositionStore(
 
     private fun change(
         packageName: String,
-        transform: (Map<String, Float>) -> Map<String, Float>,
+        transform: (Map<String, Spot>) -> Map<String, Spot>,
     ) {
         synchronized(lock) {
             if (!loadedFlag) touchedBeforeLoad += packageName
@@ -132,7 +165,12 @@ class ButtonPositionStore(
 
     private fun key(packageName: String) = floatPreferencesKey(PREFIX + packageName)
 
+    private fun sideKey(packageName: String) = stringPreferencesKey(SIDE_PREFIX + packageName)
+
+    private fun sideOf(value: String): ButtonSide? = ButtonSide.entries.firstOrNull { it.name.lowercase() == value }
+
     private companion object {
         const val PREFIX = "lift_dp:"
+        const val SIDE_PREFIX = "side:"
     }
 }
