@@ -2,29 +2,31 @@
 
 Overwritten at every checkpoint. The history lives in [plan](plan.md) and [DECISIONS](../DECISIONS.md).
 
-## 2026-11-24: Bubble work (spec #53) in flight. #55 merged; #54 in fixes; #56 started early.
+## 2026-11-24 (later): Bubble work (spec #53) done. Waiting on Parag's device results.
 
-**Request (2026-11-24).** Parag asked for a Wispr-Flow-style bubble: drag anywhere, bubble settings, snooze. His answers: snap to edge; settings for size, opacity, shrink when idle, show/reset; snooze with a choice of durations, shake to end and a home card; usual delivery flow. CoS decisions (2D drag with left/right edge snap, dismiss target opens a snooze picker with 10 min / 1 h / until 6 AM / until turned on, snooze survives restarts, shake only listens while snoozed, Settings "Bubble" section): `/root/.t3/cos/replyly/bubble-decisions.md`. Spec issue #53; tickets #54 (A, drag), #55 (B, settings), #56 (C, snooze; blocked by #54).
+**Merged.** Everything in the earlier 2026-11-24 checkpoint (see [plan](plan.md)), plus:
+- **PR #57 (#54, drag, `a605d4f`)** after one fix round (`reviews/pr57-r1.md`: S1 back-gesture exclusion, N1–N4; gate 1237 tests). CoS read the fix commits and skipped round 2.
+- **PR #60 (wall-clock guard, `bed8f9b`)**: `NoWallClockInTestsTest` and a CLAUDE.md testing rule. CoS read the diff and ran the guard against `main` before merging.
+- **PR #61 (#56, snooze, `99ffbcc`)** after one fix round (`reviews/pr61-r1.md`: S1 sleep-delayed expiry → 60 s chunked waits; S2 one shake counted as two → 250 ms stillness and 1.2 s end-to-start window; S3 zone read each time; N1–N8; gate 1362 tests). CoS decisions: shake ends a snooze only while unlocked; TalkBack "Snooze…" opens the picker via the drop path.
+- Spec #53 closed. `latest-debug` is versionCode 118 from `99ffbcc`.
 
-**Merged.** Everything listed in the 2026-11-23 checkpoint (see [plan](plan.md)), plus **PR #58 (#55, Bubble settings, `77af568`)**. Review `reviews/pr58-r1.md`; the CoS fixed S2 (no shadow below 100 % opacity) and N7 (device checks) in `0498c67`. Gate 1186 tests. #58 also fixed a test that read the wall-clock date and broke `main` on 2026-11-24.
+**In flight.** Nothing.
 
-**In flight.**
-- PR #57 (#54, drag): review `reviews/pr57-r1.md` says merge after should-fixes S1 (back-gesture exclusion) and S2 (rebase); a fix delegate is rebasing and fixing it.
-- #56 (snooze): started early on `origin/main`, building the parts that don't depend on the drag first.
-- Environment PR (branch `env-no-wallclock-tests`): a guard so tests never read the wall clock.
-
-**Still waiting on Parag.** S23 results for DEVICE_CHECKLIST 13–15 (dates, prompt v2, X) and now section 16 (Bubble #53).
+**Waiting on Parag.** S23 results for DEVICE_CHECKLIST section 16 (16.A1–A9, 16.B1–B7, 16.C1–C17) plus the earlier 13–15 (dates, prompt v2, X).
 
 **Follow-ups (not scheduled):** #51.
 
-**Next for the CoS:** review and merge #57 after its fixes, then rebase #56 on it, review, merge; merge the wall-clock guard PR on green.
+**Next for the CoS:** act on device results when they arrive.
 
-**Open risks**
+**Open risks (as of 2026-11-24)**
+- One UI may not honour gesture exclusion for an accessibility overlay (16.A9).
+- Background accelerometer delivery and shake thresholds (16.C6, 16.C9); slow shakes along gravity may count twice.
+- TalkBack focus moving into the snooze picker (16.C13).
+- Bubble visibility at 40 % opacity over real chats (16.B2).
 - Date-separator formats and X view ids are guesses until S23 dumps (13–15).
-- Snap feel, dismiss-target placement over Gboard on One UI, shake sensitivity and opacity over real chats are device-only (section 16).
 - History merge's identical-short-message limits (DECISIONS, about 0.05–0.25 %).
 
-**Briefs and reviews.** In `/root/.t3/cos/replyly/`: earlier briefs (`x-*.md`, `v2-*.md`, `issue-*.md`, `fu38-*.md`, `fu46-*.md`), bubble briefs `bubble-common.md` and `bubble-decisions.md`; reviews under `reviews/` up to `pr57-r1.md` and `pr58-r1.md`.
+**Briefs and reviews.** In `/root/.t3/cos/replyly/`: earlier briefs (`x-*.md`, `v2-*.md`, `issue-*.md`, `fu38-*.md`, `fu46-*.md`), bubble briefs `bubble-common.md` and `bubble-decisions.md`; reviews under `reviews/` up to `pr57-r1.md`, `pr58-r1.md` and `pr61-r1.md`.
 
 **How the CoS works.**
 - **GitHub token:** `GH_TOKEN="$(cat /root/.config/replyly/gh_token)" gh … -R paragrudani1/replyly`. Never print it. The T3 PR and issue tools use another login and fail for this repo.
