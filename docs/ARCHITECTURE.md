@@ -64,7 +64,7 @@ One lazy binding per interface, all real implementations:
 | `feedbackLog` | `RoomFeedbackLog` | `feedback.db` (schema 3: `prompt_version`, `analysis`, `panel_id`, `cache_read_tokens`, `x_mode`), opened on first use off the main thread. |
 | `themeSettings` | `ThemeSettings` | The "Material You colours" flag as a hot `StateFlow`, so overlay windows theme their first frame. |
 | `bubbleSettings` | `BubbleSettings` | Settings → Bubble (show, size, opacity, shrink when idle) as a hot `StateFlow<BubbleLook>`: the button's first frame is right, and `OverlayComponent` applies changes live (`followBubbleLook`, then `onEvent(WINDOWS)`). |
-| `snoozeStore` | `SnoozeStore` (`snooze/`) | The bubble's snoozed-until time (#56), own DataStore file `snooze`, hot `StateFlow`. `OverlayComponent` runs a `SnoozeKeeper` on it (refresh on every change and at expiry, shake listener only while snoozed with the screen on); the drag-to-snooze target and the snooze card are `overlay/DismissTarget.kt` and `overlay/SnoozePicker.kt`; the Settings status card reads it. |
+| `snoozeStore` | `SnoozeStore` (`snooze/`) | The bubble's snoozed-until time (#56), own DataStore file `snooze`, hot `StateFlow`. `OverlayComponent` runs a `SnoozeKeeper` on it (refresh on every change and at expiry, shake listener only while snoozed, the screen on and the phone unlocked); the drag-to-snooze target and the snooze card are `overlay/DismissTarget.kt` and `overlay/SnoozePicker.kt`; the Settings status card reads it. |
 
 `InMemory…` classes next to the interfaces are test fakes. Add behaviour to the service as a new
 `AccessibilityComponent`, never in the service itself.

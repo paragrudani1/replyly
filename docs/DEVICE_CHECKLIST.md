@@ -1535,8 +1535,10 @@ It must show only event names and enum values (`snooze target drop`, `snooze sta
 repeat with Samsung Keyboard (Settings → General management → Keyboard list and default). **See:**
 after about a third of a second a dark circle with an alarm-clock mark fades in at the bottom
 centre, just above the keyboard (not over the keys, not over the input bar); when your finger
-reaches it the circle turns blue and grows a little, with one tick. **Send:** a screenshot with the
-target showing, for each keyboard.
+reaches it the circle turns into a blue ring with a faint blue tint and grows a little, with one
+tick, and the button under your finger stays clearly visible through it (the target's window is
+above the button's). **Send:** a screenshot with the target showing and one with your finger on
+it, for each keyboard, and whether the button is easy to see on the target.
 
 16.C2 **Do:** flick the button quickly up, down and toward the bottom centre, several times.
 **See:** the target never appears, not even for a frame; each flick snaps the button to an edge as
@@ -1573,8 +1575,9 @@ on"; tap "End snooze now". **See:** the card disappears and the button is back i
 snoozed until 6:00 AM", and the next morning after 6:00 the button is back. **Send:** pass/fail and
 the exact toast text.
 
-16.C9 **Do:** snooze "1 hour", lock the phone, shake it twice, unlock. **See:** the button is still
-snoozed (a shake with the screen off does nothing). Then, unlocked, shake twice. **See:** it ends.
+16.C9 **Do:** snooze "1 hour", lock the phone, shake it twice. Then turn the screen on but stay on
+the lock screen, and shake twice again. Unlock. **See:** the button is still snoozed (a shake with
+the screen off or on the lock screen does nothing). Then, unlocked, shake twice. **See:** it ends.
 Also try with the screen on but Replyly not used for 30 minutes (another app open). **Send:**
 whether a double shake with the screen on ever fails (One UI may limit sensors for background
 apps).
@@ -1587,3 +1590,39 @@ text is read when it appears and the button reads "Turn back on, button". **Send
 16.C11 **Do:** drop on the target so the card opens, then (a) press Home, (b) open the card again
 and lock the phone, (c) open it again and close the keyboard with Back. **See:** each time the card
 is gone at once, nothing left over another app or the lock screen. **Send:** pass/fail.
+
+16.C12 **Do:** TalkBack on. Drop the button on the target (or use 16.C13) so the card opens, and
+swipe right through it. **See:** TalkBack says "Snooze the bubble" when the card appears; the four
+rows read as "10 minutes, button, double-tap to snooze" (and so on), then "Cancel, button".
+Choose "1 hour". **See:** TalkBack reads the toast ("Snoozed for 1 hour. Shake your phone to bring
+it back."). **Send:** what TalkBack reads at each step.
+
+16.C13 **Do:** TalkBack on, a WhatsApp chat with the keyboard up. Focus the button and open the
+actions menu (three-finger tap, or swipe up then right). **See:** "Snooze…" is offered next to the
+move actions. Choose it. **See:** the snooze card opens above the keyboard, the button does not
+move, no panel opens, and Settings → Limits and usage → Requests today did not go up. **See:**
+TalkBack focus moves into the card by itself (it reads "Snooze the bubble" or the first row); if it
+stays on the button, swipe right once and note whether the next item is the card's title.
+**Send:** pass/fail and where TalkBack focus was right after the card opened.
+
+16.C14 **Do:** Settings (phone) → Sounds and vibration → System sound/vibration control → turn
+off touch interactions vibration (Touch feedback). Snooze "1 hour", then shake twice. **See:** the
+toast "Replyly is back" and the button back, but no tick. Turn Touch feedback back on, repeat:
+the tick plays, at the strength of the phone's touch vibration intensity setting. **Send:**
+pass/fail.
+
+16.C15 **Do:** in a WhatsApp chat, snooze "1 hour" and note the time. Lock the phone and leave it
+untouched for 40 minutes. Unlock, open the same chat with the keyboard up and keep the screen on.
+**See:** the button comes back at the hour mark, at most about a minute late (not 40 minutes
+late). **Send:** the snooze time and the time it came back.
+
+16.C16 **Do:** Settings → Display → Navigation bar → Buttons. Open a chat, drop the button on the
+target so the card opens, then tap Home once. Repeat with Back and with Recents. **See:** each
+works on the first tap (the card closes with the chat), none needs a second tap. Also check the
+card still sits just above the keyboard. **Send:** pass/fail per button.
+
+16.C17 **Do:** Settings → General management → Date and time: turn off automatic time zone and pick
+a zone a few hours away. Without restarting the phone, open a chat and snooze "Until tomorrow
+(6 AM)". **See:** the toast says 6:00 AM, Replyly's Settings card says "Bubble snoozed until 6:00
+AM", and the button comes back at 6:00 in the new zone. Set the zone back afterwards. **Send:**
+pass/fail and the toast text.
