@@ -68,6 +68,20 @@ class OverlayButtonView(
         /** The finger went up (or the gesture was cancelled): the window snaps to the nearer edge. */
         fun onDragEnd() {}
 
+        /**
+         * Where the finger is during a drag (#56): screen px ([rawX], [rawY]) and the event's
+         * uptime ([timeMs]). Sent before each [onDrag], after [onDragStart]; not for a cancelled
+         * gesture (see [onDragAborted]).
+         */
+        fun onFingerAt(
+            rawX: Float,
+            rawY: Float,
+            timeMs: Long,
+        ) {}
+
+        /** The system took the gesture away mid-drag (#56): this drag ends, but it was never "released". */
+        fun onDragAborted() {}
+
         /** Accessibility action: move one step up (`-1`) or down (`+1`). */
         fun onMoveStep(direction: Int) {}
 
@@ -167,14 +181,21 @@ class OverlayButtonView(
                 setDragging(true)
                 performReplylyHaptic(HapticEvent.DragSnap)
                 listener.onDragStart()
+                listener.onFingerAt(event.rawX, event.rawY, event.eventTime)
                 listener.onDrag(step.dx, step.dy)
             }
 
             is DragStep.Drag -> {
+                listener.onFingerAt(event.rawX, event.rawY, event.eventTime)
                 listener.onDrag(step.dx, step.dy)
             }
 
             is DragStep.DragEnd -> {
+                if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
+                    listener.onDragAborted()
+                } else {
+                    listener.onFingerAt(event.rawX, event.rawY, event.eventTime)
+                }
                 listener.onDrag(step.dx, step.dy)
                 // A flick (DOWN, then UP past the slop, no MOVE) ends here straight from the press.
                 setPressedLook(false)

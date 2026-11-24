@@ -6,13 +6,30 @@ import com.paragrudani.replyly.panel.PanelRequest
 import com.paragrudani.replyly.parser.ParsedChat
 import com.paragrudani.replyly.policy.BlockReason
 import com.paragrudani.replyly.screen.Bounds
+import com.paragrudani.replyly.snooze.SnoozeChoice
+import com.paragrudani.replyly.snooze.SnoozeKeeper
+import com.paragrudani.replyly.snooze.SnoozeStore
+import com.paragrudani.replyly.testing.TestDataStores
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
+import org.junit.Rule
 import org.junit.Test
+import org.junit.rules.TemporaryFolder
+import java.time.ZoneId
 
 class OverlayControllerTest {
+    @get:Rule val tmp = TemporaryFolder()
+
     private class FakeUi : OverlayUi {
         var button: ButtonPosition? = null
         var buttonShows = 0
@@ -48,6 +65,17 @@ class OverlayControllerTest {
         override fun setButtonBusy(busy: Boolean) {
             this.busy += busy
         }
+
+        /** The snooze card (#56): the keyboard top it opened above, `null` while closed. */
+        var picker: Int? = null
+
+        override fun openSnoozePicker(keyboardTop: Int) {
+            picker = keyboardTop
+        }
+
+        override fun closeSnoozePicker() {
+            picker = null
+        }
     }
 
     private val ui = FakeUi()
@@ -63,13 +91,22 @@ class OverlayControllerTest {
     private val savedSide = mutableMapOf<String, ButtonSide>()
     private val logs = mutableListOf<String>()
 
+    /** The snooze (#56) the visibility reads, against virtual time. */
+    private var snoozedUntil: () -> Long? = { null }
+
     private fun TestScope.controller() =
         OverlayController(
             readFacts = {
                 factReads++
                 facts
             },
-            visibility = ButtonVisibility(ownPackage = "com.paragrudani.replyly", isAppAllowed = { true }),
+            visibility =
+                ButtonVisibility(
+                    ownPackage = "com.paragrudani.replyly",
+                    isAppAllowed = { true },
+                    snoozedUntil = { snoozedUntil() },
+                    now = { testScheduler.currentTime },
+                ),
             place = { shown ->
                 val y = savedY[shown.input.packageName] ?: shown.keyboard.top
                 ButtonSlot(
@@ -576,6 +613,127 @@ class OverlayControllerTest {
             assertThat(ui.busy).isEmpty()
             assertThat(ui.panel).isNull()
             assertThat(ui.notices).isEmpty()
+        }
+
+    // Snooze (#56) --------------------------------------------------------------------------------
+
+    private suspend fun TestScope.shownController(): OverlayController {
+        val controller = controller()
+        controller.onEvent(OverlayEvent.WINDOWS)
+        advanceUntilIdle()
+        assertThat(ui.button).isNotNull()
+        return controller
+    }
+
+    @Test
+    fun `a drop on the target opens the snooze card above the keyboard and never taps`() =
+        runTest {
+            val controller = shownController()
+
+            controller.onDroppedOnTarget()
+            advanceUntilIdle()
+
+            assertThat(ui.picker).isEqualTo(1440)
+            assertThat(taps).isEqualTo(0)
+            assertThat(ui.busy).isEmpty()
+            assertThat(ui.panel).isNull()
+            assertThat(savedY).isEmpty()
+            assertThat(logs).contains("snooze target drop")
+        }
+
+    @Test
+    fun `a drop with no button shown opens nothing`() =
+        runTest {
+            val controller = controller()
+            controller.onDroppedOnTarget()
+            assertThat(ui.picker).isNull()
+        }
+
+    @Test
+    fun `the snooze card closes when the button would hide`() =
+        runTest {
+            val controller = shownController()
+            controller.onDroppedOnTarget()
+
+            facts = facts.copy(windows = listOf(chatWindow))
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+
+            assertThat(ui.picker).isNull()
+        }
+
+    @Test
+    fun `the snooze card closes on screen off and on stop`() =
+        runTest {
+            val controller = shownController()
+            controller.onDroppedOnTarget()
+            controller.onScreenOff()
+            assertThat(ui.picker).isNull()
+
+            controller.onEvent(OverlayEvent.WINDOWS)
+            advanceUntilIdle()
+            controller.onDroppedOnTarget()
+            controller.stop()
+            assertThat(ui.picker).isNull()
+        }
+
+    @Test
+    fun `a snooze hides the button with no event, and expiry brings it back with none`() =
+        runTest {
+            val stores = TestDataStores(tmp.root)
+            val storeScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+            try {
+                val store = SnoozeStore(stores.open("snooze"), storeScope)
+                withContext(Dispatchers.Default) { store.sync() }
+                snoozedUntil = { store.until.value }
+                val controller = shownController()
+                val keeper =
+                    SnoozeKeeper(
+                        store = store,
+                        now = { testScheduler.currentTime },
+                        zone = ZoneId.of("UTC"),
+                        scope = backgroundScope,
+                        shake = {},
+                        refresh = { controller.onEvent(OverlayEvent.WINDOWS) },
+                        onShakeEnded = {},
+                        log = { logs += it },
+                    )
+                keeper.start(screenOn = true)
+                runCurrent()
+                advanceTimeBy(100)
+                runCurrent()
+                val readsBefore = factReads
+
+                keeper.snooze(SnoozeChoice.TEN_MINUTES)
+                runCurrent()
+                advanceTimeBy(100)
+                runCurrent()
+                assertThat(ui.button).isNull()
+                assertThat(logs).contains("button hidden reason=SNOOZED")
+
+                advanceTimeBy(10 * 60_000L)
+                runCurrent()
+                advanceTimeBy(100)
+                runCurrent()
+                assertThat(ui.button).isNotNull()
+                assertThat(factReads).isGreaterThan(readsBefore)
+                assertThat(taps).isEqualTo(0)
+
+                keeper.snooze(SnoozeChoice.UNTIL_TURNED_ON)
+                runCurrent()
+                advanceTimeBy(100)
+                runCurrent()
+                assertThat(ui.button).isNull()
+                store.end()
+                runCurrent()
+                advanceTimeBy(100)
+                runCurrent()
+                assertThat(ui.button).isNotNull()
+                keeper.stop()
+            } finally {
+                storeScope.coroutineContext[Job]?.cancelAndJoin()
+                stores.closeAll()
+            }
         }
 
     private suspend fun TestScope.openPanel(): OverlayController {

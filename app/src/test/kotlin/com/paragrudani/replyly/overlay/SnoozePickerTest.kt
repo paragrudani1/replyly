@@ -53,7 +53,12 @@ class SnoozePickerTest {
             compose
                 .onNodeWithText(label)
                 .assertHeightIsAtLeast(48.dp)
-                .assert(SemanticsMatcher("click label Snooze") { it.config.getOrNull(SemanticsActions.OnClick)?.label == "Snooze" })
+                .assert(
+                    SemanticsMatcher("click label Snooze") {
+                        it.config.getOrNull(SemanticsActions.OnClick)?.label ==
+                            "Snooze"
+                    },
+                )
         }
         compose.onAllNodesWithText("Snooze the bubble").assertCountEquals(1)
     }

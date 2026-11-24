@@ -52,7 +52,13 @@ class SnoozeChoiceTest {
         val now = LocalDateTime.parse("2026-03-08T00:30").atZone(zone).toInstant()
         val result = nextLocalTime(now, zone, hour = 2)
         // 02:00 does not exist that night (02:00 -> 03:00): the first valid instant after the gap is 03:00 EDT.
-        assertThat(result).isEqualTo(LocalDateTime.parse("2026-03-08T03:00").atZone(zone).toInstant().toEpochMilli())
+        assertThat(result).isEqualTo(
+            LocalDateTime
+                .parse("2026-03-08T03:00")
+                .atZone(zone)
+                .toInstant()
+                .toEpochMilli(),
+        )
     }
 
     @Test

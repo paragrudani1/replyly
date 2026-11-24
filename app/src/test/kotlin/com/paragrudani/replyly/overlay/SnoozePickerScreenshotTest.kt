@@ -18,5 +18,6 @@ class SnoozePickerScreenshotTest {
     @get:Rule val shots = ScreenshotRule()
 
     @Test
-    fun picker() = shots.screen("overlay/snooze_picker") { SnoozePicker(onChoose = {}, onCancel = {}, bottomGap = 300.dp) }
+    fun picker() =
+        shots.screen("overlay/snooze_picker") { SnoozePicker(onChoose = {}, onCancel = {}, bottomGap = 300.dp) }
 }

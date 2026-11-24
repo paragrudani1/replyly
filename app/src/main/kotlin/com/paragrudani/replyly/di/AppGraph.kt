@@ -222,7 +222,12 @@ class AppGraph(
     }
 
     // Bubble C #56: the snoozed-until time (snooze/SnoozeStore), read synchronously by the overlay.
-    val snoozeStore: SnoozeStore by lazy { SnoozeStore(ReplylyDataStores.create(app, ReplylyDataStores.SNOOZE), appScope) }
+    val snoozeStore: SnoozeStore by lazy {
+        SnoozeStore(
+            ReplylyDataStores.create(app, ReplylyDataStores.SNOOZE),
+            appScope,
+        )
+    }
 
     // Skeleton: the order components receive events in.
     fun accessibilityComponents(): List<AccessibilityComponent> = listOf(overlayComponent, captureComponent)

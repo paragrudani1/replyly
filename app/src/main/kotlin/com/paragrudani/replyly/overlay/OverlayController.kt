@@ -27,6 +27,12 @@ interface OverlayUi {
 
     /** Dims the button while a tap is being read (it can take a few seconds). */
     fun setButtonBusy(busy: Boolean)
+
+    /** Opens the snooze card above the keyboard top [keyboardTop] (#56). */
+    fun openSnoozePicker(keyboardTop: Int) {}
+
+    /** Closes the snooze card if it is open (#56). */
+    fun closeSnoozePicker() {}
 }
 
 enum class Notice {
@@ -142,6 +148,18 @@ class OverlayController(
         rememberPosition(current, side, clamped)
     }
 
+    /**
+     * The user let go of the button on the snooze target (#56): nothing is remembered (the window
+     * went back to its spot) and the snooze card opens above the keyboard. Like a drag, this
+     * never reaches the tap path: no panel, no busy look, no LLM call.
+     */
+    fun onDroppedOnTarget() {
+        val current = shown ?: return
+        if (panelOpen) return
+        log("snooze target drop")
+        ui.openSnoozePicker(current.keyboard.top)
+    }
+
     fun onPanelClosed() {
         if (!panelOpen) return
         closePanel()
@@ -162,6 +180,7 @@ class OverlayController(
         tapJob?.cancel()
         shown = null
         shownAt = null
+        ui.closeSnoozePicker()
         // Always, even when already hidden: a button may still be fading out.
         ui.hideButton(immediate = true)
         if (panelOpen) closePanel()
@@ -217,7 +236,9 @@ class OverlayController(
         }
     }
 
+    /** The button would hide: so does the snooze card (#56), so nothing lingers over another app. */
     private fun hide() {
+        ui.closeSnoozePicker()
         shown = null
         if (shownAt != null) {
             shownAt = null

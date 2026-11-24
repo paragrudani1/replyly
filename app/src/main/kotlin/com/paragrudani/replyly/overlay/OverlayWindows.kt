@@ -58,6 +58,12 @@ class OverlayWindows(
     private val moveStepPx: Int = buttonSizePx,
     /** Read at each snap, so "Remove animations" applies without a restart. */
     private val motion: () -> ReplylyMotion = { ReplylyMotion.forContext(context) },
+    /** The drag-to-snooze target (#56); `null`: no target, every drag snaps to an edge. */
+    private val dismissTarget: DismissTargetWindow? = null,
+    /** The button was let go on the target (#56): it is back at its pre-drag spot, nothing saved. */
+    private val onDroppedOnTarget: () -> Unit = {},
+    /** The snooze card's window (#56), opened by the controller after a drop on the target. */
+    private val snoozePicker: SnoozePickerWindow? = null,
 ) : OverlayUi {
     private val windowManager = context.getSystemService(WindowManager::class.java)
     private var button: OverlayButtonView? = null
@@ -68,6 +74,14 @@ class OverlayWindows(
     private var dragStartX = 0
     private var dragStartY = 0
     private var dragging = false
+
+    /** Where the button rested before this drag (#56): a drop on the target puts it back there. */
+    private var preDragX = 0
+
+    /** This drag against the snooze target (#56), from its first finger position; `null` without one. */
+    private var targetDrag: DismissTargetDrag? = null
+    private var targetDragStartMs = 0L
+    private var dragAborted = false
 
     /** The glide to an edge, while it runs, and the x it ends at. */
     private var snap: ValueAnimator? = null
@@ -88,10 +102,26 @@ class OverlayWindows(
 
             override fun onDragStart() {
                 val params = buttonParams() ?: return
+                preDragX = restingX(params)
                 cancelSnap()
                 dragging = true
                 dragStartX = params.x
                 dragStartY = params.y
+                endTargetDrag()
+                dragAborted = false
+            }
+
+            override fun onFingerAt(
+                rawX: Float,
+                rawY: Float,
+                timeMs: Long,
+            ) {
+                if (!dragging) return
+                trackTarget(rawX, rawY, timeMs)
+            }
+
+            override fun onDragAborted() {
+                dragAborted = true
             }
 
             override fun onDrag(
@@ -105,6 +135,14 @@ class OverlayWindows(
             override fun onDragEnd() {
                 if (!dragging) return
                 dragging = false
+                val onTarget = targetDrag?.releasedInside() == true && !dragAborted
+                endTargetDrag()
+                if (onTarget) {
+                    // Back where it was, nothing remembered; the controller opens the snooze card.
+                    moveButtonTo(preDragX, dragStartY)
+                    onDroppedOnTarget()
+                    return
+                }
                 val params = buttonParams() ?: return
                 val target = slot?.let { it.edgeX(it.snap(params.x)) } ?: params.x
                 val y = params.y
@@ -143,6 +181,56 @@ class OverlayWindows(
 
     /** Where the button rests: the end of a running glide, else where it is. */
     private fun restingX(params: WindowManager.LayoutParams): Int = snapTargetX ?: params.x
+
+    /**
+     * The drag-to-snooze target (#56): the first finger position starts the rule's clock; the
+     * circle shows once [DismissTargetRule] reveals it, centred between the two edges at the
+     * height of the button's lowest allowed spot, and the finger entering it ticks once.
+     */
+    private fun trackTarget(
+        rawX: Float,
+        rawY: Float,
+        timeMs: Long,
+    ) {
+        val window = dismissTarget ?: return
+        val current = slot ?: return
+        val drag =
+            targetDrag ?: run {
+                val rule = DismissTargetRule(context.resources.displayMetrics.density)
+                val center =
+                    DismissTargetRule.Center(
+                        x = (current.leftX + current.rightX + buttonSizePx) / 2f,
+                        y = current.maxY + buttonSizePx / 2f,
+                    )
+                targetCenter = center
+                targetRule = rule
+                targetDragStartMs = timeMs
+                DismissTargetDrag(rule, rawY, center).also { targetDrag = it }
+            }
+        val update = drag.onMove(timeMs - targetDragStartMs, rawX, rawY)
+        if (update.revealed && !window.isShown) window.show(targetCenter ?: return, targetRule?.radiusPx ?: return)
+        window.setActive(update.inside)
+        if (update.entered) button?.performReplylyHaptic(HapticEvent.DragSnap)
+    }
+
+    private var targetCenter: DismissTargetRule.Center? = null
+    private var targetRule: DismissTargetRule? = null
+
+    /** The drag is over (release, hide, screen off): the target goes. */
+    private fun endTargetDrag() {
+        targetDrag = null
+        targetCenter = null
+        targetRule = null
+        dismissTarget?.remove()
+    }
+
+    override fun openSnoozePicker(keyboardTop: Int) {
+        snoozePicker?.open(keyboardTop)
+    }
+
+    override fun closeSnoozePicker() {
+        snoozePicker?.close()
+    }
 
     override fun showButton(slot: ButtonSlot) {
         this.slot = slot
@@ -211,6 +299,7 @@ class OverlayWindows(
 
     override fun hideButton(immediate: Boolean) {
         cancelSnap()
+        endTargetDrag()
         val view = button
         button = null
         slot = null
