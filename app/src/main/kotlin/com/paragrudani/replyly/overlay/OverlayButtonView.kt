@@ -99,6 +99,15 @@ class OverlayButtonView(
          * a button on the right offers "Move to left edge" only. Default: never (no sides).
          */
         fun canMoveToEdge(side: ButtonSide): Boolean = false
+
+        /**
+         * Accessibility action "Snooze…" (#56): opens the snooze card the way a drop on the
+         * drag-to-snooze target does. Never a tap.
+         */
+        fun onSnoozeAction() {}
+
+        /** Whether "Snooze…" is offered now. Default: never. */
+        fun canSnooze(): Boolean = false
     }
 
     private val density = resources.displayMetrics.density
@@ -244,6 +253,14 @@ class OverlayButtonView(
                 info.addAction(AccessibilityNodeInfo.AccessibilityAction(id, context.getString(label)))
             }
         }
+        if (listener.canSnooze()) {
+            info.addAction(
+                AccessibilityNodeInfo.AccessibilityAction(
+                    R.id.overlay_action_snooze,
+                    context.getString(R.string.overlay_button_snooze),
+                ),
+            )
+        }
     }
 
     override fun performAccessibilityAction(
@@ -267,6 +284,10 @@ class OverlayButtonView(
                 moveToEdge(ButtonSide.RIGHT)
             }
 
+            R.id.overlay_action_snooze -> {
+                snooze()
+            }
+
             else -> {
                 super.performAccessibilityAction(action, arguments)
             }
@@ -282,6 +303,13 @@ class OverlayButtonView(
     private fun moveToEdge(side: ButtonSide): Boolean {
         if (!listener.canMoveToEdge(side)) return false
         listener.onMoveToEdge(side)
+        return true
+    }
+
+    /** Never a tap: the snooze card's own path (#56). */
+    private fun snooze(): Boolean {
+        if (!listener.canSnooze()) return false
+        listener.onSnoozeAction()
         return true
     }
 

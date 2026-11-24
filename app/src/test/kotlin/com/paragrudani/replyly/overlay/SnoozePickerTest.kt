@@ -98,7 +98,7 @@ class SnoozePickerTest {
     }
 
     @Test
-    fun `the window is full screen, not focusable, and a choice stores, closes and shows the toast`() {
+    fun `the window stops at the nav bar, is titled and not focusable, and a choice stores, closes, toasts`() {
         val context: Context = ApplicationProvider.getApplicationContext()
         var stored: SnoozeChoice? = null
         val window =
@@ -110,9 +110,12 @@ class SnoozePickerTest {
         val params = window.root!!.layoutParams as WindowManager.LayoutParams
         assertThat(params.flags and WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE).isNotEqualTo(0)
         assertThat(params.flags and WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE).isEqualTo(0)
-        assertThat(params.width).isEqualTo(WindowManager.LayoutParams.MATCH_PARENT)
-        assertThat(params.height).isEqualTo(WindowManager.LayoutParams.MATCH_PARENT)
+        // Robolectric has no navigation bar inset: the whole screen.
+        val bounds = context.getSystemService(WindowManager::class.java).currentWindowMetrics.bounds
+        assertThat(params.width).isEqualTo(bounds.width())
+        assertThat(params.height).isEqualTo(bounds.height())
         assertThat(params.type).isEqualTo(WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY)
+        assertThat(params.title.toString()).isEqualTo("Snooze the bubble")
 
         window.choose(SnoozeChoice.ONE_HOUR)
         ShadowLooper.idleMainLooper()
@@ -137,5 +140,20 @@ class SnoozePickerTest {
         window.choose(SnoozeChoice.TEN_MINUTES)
         assertThat(window.isOpen).isFalse()
         assertThat(stores).isEqualTo(0)
+    }
+
+    @Test
+    fun `the layer stops at a 3-button navigation bar, at the bottom or the side`() {
+        // Portrait: a 48 px bar at the bottom; the keyboard's top is 1,400 of 2,340.
+        assertThat(PickerLayer.of(1080, 2340, navLeft = 0, navRight = 0, navBottom = 48, keyboardTop = 1400))
+            .isEqualTo(PickerLayer(x = 0, width = 1080, height = 2292, bottomGapPx = 892))
+        // Landscape: the bar on the right.
+        assertThat(PickerLayer.of(2340, 1080, navLeft = 0, navRight = 126, navBottom = 0, keyboardTop = 600))
+            .isEqualTo(PickerLayer(x = 0, width = 2214, height = 1080, bottomGapPx = 480))
+        // Seascape: on the left.
+        assertThat(PickerLayer.of(2340, 1080, navLeft = 126, navRight = 0, navBottom = 0, keyboardTop = 600).x)
+            .isEqualTo(126)
+        // No keyboard below the layer's bottom: no gap.
+        assertThat(PickerLayer.of(1080, 2340, 0, 0, 48, keyboardTop = 2340).bottomGapPx).isEqualTo(0)
     }
 }

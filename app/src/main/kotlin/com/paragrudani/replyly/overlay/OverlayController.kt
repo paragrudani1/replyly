@@ -149,14 +149,15 @@ class OverlayController(
     }
 
     /**
-     * The user let go of the button on the snooze target (#56): nothing is remembered (the window
-     * went back to its spot) and the snooze card opens above the keyboard. Like a drag, this
-     * never reaches the tap path: no panel, no busy look, no LLM call.
+     * The user let go of the button on the snooze target, or ran TalkBack's "Snooze…" on it
+     * ([via], #56): nothing is remembered (the window is at its spot) and the snooze card opens
+     * above the keyboard. Like a drag, this never reaches the tap path: no panel, no busy look,
+     * no LLM call.
      */
-    fun onDroppedOnTarget() {
+    fun onDroppedOnTarget(via: SnoozeOpenedBy = SnoozeOpenedBy.DROP) {
         val current = shown ?: return
         if (panelOpen) return
-        log("snooze target drop")
+        log("snooze picker open via=${via.name}")
         ui.openSnoozePicker(current.keyboard.top)
     }
 
@@ -254,3 +255,6 @@ private val TapOutcome.logName: String
             is TapOutcome.Blocked -> "blocked reason=$reason"
             TapOutcome.NotAChat -> "no_chat"
         }
+
+/** How the snooze card was opened (#56; log values): a drop on the target, or TalkBack's "Snooze…". */
+enum class SnoozeOpenedBy { DROP, ACTION }

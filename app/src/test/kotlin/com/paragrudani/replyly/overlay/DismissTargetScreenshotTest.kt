@@ -19,7 +19,8 @@ import kotlin.math.roundToInt
 
 /**
  * The drag-to-snooze target (#56) over the bottom of a WhatsApp-like chat, just above the
- * keyboard: idle, and active (the finger is on it).
+ * keyboard: idle, and active (the finger is on it, the dragged button under the target's window,
+ * which must show through it; review r1 N4).
  */
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -57,6 +58,25 @@ class DismissTargetScreenshotTest {
                         },
                         FrameLayout.LayoutParams(width, height - keyboardTop).apply { topMargin = keyboardTop },
                     )
+                    if (active) {
+                        // The button window is below the target window: drawn first here too.
+                        val button =
+                            OverlayButtonView(
+                                activity,
+                                object : OverlayButtonView.Listener {
+                                    override fun onTap() = Unit
+                                },
+                                ReplylyMotion(reduced = true),
+                            )
+                        val buttonSize = dp(OverlayComponent.TOUCH_DP)
+                        addView(
+                            button,
+                            FrameLayout.LayoutParams(buttonSize, buttonSize).apply {
+                                leftMargin = (width - buttonSize) / 2
+                                topMargin = keyboardTop - dp(8) - size / 2 - buttonSize / 2
+                            },
+                        )
+                    }
                     val target = DismissTargetView(activity, rule.radiusPx, ReplylyMotion(reduced = true))
                     target.setActive(active)
                     addView(

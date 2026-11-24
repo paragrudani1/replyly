@@ -20,8 +20,10 @@ import kotlin.math.roundToInt
 
 /**
  * The drag-to-snooze target (#56): a circle with the snooze mark, drawn with theme roles
- * (`inverseSurface` / `inverseOnSurface`; `primary` / `onPrimary` while the finger is on it,
- * slightly larger). Not interactive: it only shows where to drop the button.
+ * (`inverseSurface` / `inverseOnSurface`). While the finger is on it, it grows a little and turns
+ * into a `primary` ring over a faint `primary` tint, without the mark: its window draws above the
+ * button's, so the dragged button must show through it (review r1 N4). Not interactive: it only
+ * shows where to drop the button.
  */
 @SuppressLint("ViewConstructor")
 class DismissTargetView(
@@ -31,6 +33,12 @@ class DismissTargetView(
 ) : View(context) {
     private val scheme = overlayButtonScheme(context)
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
+    private val ring =
+        Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = RING_DP * resources.displayMetrics.density
+            color = scheme.primary.toArgb()
+        }
     private val icon: Drawable = ContextCompat.getDrawable(context, R.drawable.ic_snooze)!!.mutate()
     private val iconPx = (ICON_DP * resources.displayMetrics.density).roundToInt()
 
@@ -68,14 +76,27 @@ class DismissTargetView(
     }
 
     private fun applyColors() {
-        fill.color = (if (active) scheme.primary else scheme.inverseSurface).toArgb()
-        icon.setTint((if (active) scheme.onPrimary else scheme.inverseOnSurface).toArgb())
+        fill.color =
+            if (active) scheme.primary.copy(alpha = ACTIVE_FILL_ALPHA).toArgb() else scheme.inverseSurface.toArgb()
+        icon.setTint(scheme.inverseOnSurface.toArgb())
     }
+
+    /** The fill's alpha, 0–255 (tests: the active target is see-through). */
+    @VisibleForTesting
+    internal val fillAlpha: Int get() = fill.alpha
+
+    /** Whether the snooze mark is drawn (tests: not while active, the button sits there). */
+    @VisibleForTesting
+    internal val drawsIcon: Boolean get() = !active
 
     override fun onDraw(canvas: Canvas) {
         val cx = width / 2f
         val cy = height / 2f
         canvas.drawCircle(cx, cy, radiusPx, fill)
+        if (active) {
+            canvas.drawCircle(cx, cy, radiusPx - ring.strokeWidth / 2, ring)
+            return
+        }
         val half = iconPx / 2
         icon.setBounds(cx.roundToInt() - half, cy.roundToInt() - half, cx.roundToInt() + half, cy.roundToInt() + half)
         icon.draw(canvas)
@@ -84,6 +105,12 @@ class DismissTargetView(
     companion object {
         const val ACTIVE_SCALE = 1.15f
         const val ICON_DP = 28
+
+        /** The active ring's width. */
+        const val RING_DP = 3
+
+        /** The active tint: faint enough that the button under it reads clearly. */
+        const val ACTIVE_FILL_ALPHA = 0.24f
 
         /** The view's side: the circle at its active size plus a little room. */
         fun sizePx(radiusPx: Float): Int = (radiusPx * 2 * ACTIVE_SCALE).roundToInt() + 2

@@ -60,8 +60,11 @@ class OverlayWindows(
     private val motion: () -> ReplylyMotion = { ReplylyMotion.forContext(context) },
     /** The drag-to-snooze target (#56); `null`: no target, every drag snaps to an edge. */
     private val dismissTarget: DismissTargetWindow? = null,
-    /** The button was let go on the target (#56): it is back at its pre-drag spot, nothing saved. */
-    private val onDroppedOnTarget: () -> Unit = {},
+    /**
+     * The button was let go on the target, or TalkBack's "Snooze…" ran (#56): it is at its
+     * pre-drag spot, nothing saved; the controller opens the snooze card.
+     */
+    private val onDroppedOnTarget: (SnoozeOpenedBy) -> Unit = {},
     /** The snooze card's window (#56), opened by the controller after a drop on the target. */
     private val snoozePicker: SnoozePickerWindow? = null,
 ) : OverlayUi {
@@ -140,7 +143,7 @@ class OverlayWindows(
                 if (onTarget) {
                     // Back where it was, nothing remembered; the controller opens the snooze card.
                     moveButtonTo(preDragX, dragStartY)
-                    onDroppedOnTarget()
+                    onDroppedOnTarget(SnoozeOpenedBy.DROP)
                     return
                 }
                 val params = buttonParams() ?: return
@@ -176,6 +179,16 @@ class OverlayWindows(
                 val params = buttonParams() ?: return false
                 val edge = slot?.edgeX(side) ?: return false
                 return edge != restingX(params)
+            }
+
+            // TalkBack's "Snooze…" (#56): the drop's own path; nothing moves and nothing is saved.
+            override fun onSnoozeAction() {
+                if (canSnooze()) onDroppedOnTarget(SnoozeOpenedBy.ACTION)
+            }
+
+            override fun canSnooze(): Boolean {
+                val picker = snoozePicker ?: return false
+                return slot != null && panelWindow == null && !picker.isOpen && !dragging
             }
         }
 

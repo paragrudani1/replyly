@@ -5,4 +5,6 @@
   <item name="overlay_action_move_down" type="id" />
   <item name="overlay_action_move_left_edge" type="id" />
   <item name="overlay_action_move_right_edge" type="id" />
+  <!-- #56: opens the snooze card, like a drop on the drag-to-snooze target. -->
+  <item name="overlay_action_snooze" type="id" />
 </resources>

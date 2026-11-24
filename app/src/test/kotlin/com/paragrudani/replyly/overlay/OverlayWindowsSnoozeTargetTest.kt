@@ -8,6 +8,7 @@ import android.view.WindowManager
 import androidx.compose.runtime.Composable
 import androidx.test.core.app.ApplicationProvider
 import com.google.common.truth.Truth.assertThat
+import com.paragrudani.replyly.R
 import com.paragrudani.replyly.panel.PanelRequest
 import com.paragrudani.replyly.panel.ReplyPanel
 import com.paragrudani.replyly.ui.theme.ReplylyMotion
@@ -30,6 +31,7 @@ class OverlayWindowsSnoozeTargetTest {
     private val moved = mutableListOf<Pair<Int, Int>>()
     private var taps = 0
     private var drops = 0
+    private val vias = mutableListOf<SnoozeOpenedBy>()
     private val start = SystemClock.uptimeMillis()
 
     private val noPanel =
@@ -53,7 +55,10 @@ class OverlayWindowsSnoozeTargetTest {
             onButtonMoved = { x, y -> moved += x to y },
             motion = { ReplylyMotion(reduced = true) },
             dismissTarget = target,
-            onDroppedOnTarget = { drops++ },
+            onDroppedOnTarget = { via ->
+                drops++
+                vias += via
+            },
         )
 
     private val slot =
@@ -206,5 +211,78 @@ class OverlayWindowsSnoozeTargetTest {
         button.touch(MotionEvent.ACTION_UP, 520f, 1250f, 440)
         assertThat(moved).hasSize(1)
         plain.hideButton(immediate = true)
+    }
+
+    // TalkBack's "Snooze…" (#56) -------------------------------------------------------------------
+
+    private var pickerChoices = 0
+    private val picker =
+        SnoozePickerWindow(context) {
+            pickerChoices++
+            ""
+        }
+
+    /** Like the app: the drop path opens the picker (the controller's job, inlined here). */
+    private val withPicker: OverlayWindows by lazy {
+        lateinit var windows: OverlayWindows
+        windows =
+            OverlayWindows(
+                context = context,
+                panel = noPanel,
+                buttonSizePx = 104,
+                onButtonTap = { taps++ },
+                onPanelDismiss = {},
+                onButtonMoved = { x, y -> moved += x to y },
+                motion = { ReplylyMotion(reduced = true) },
+                dismissTarget = target,
+                onDroppedOnTarget = { via ->
+                    vias += via
+                    windows.openSnoozePicker(keyboardTop = 1400)
+                },
+                snoozePicker = picker,
+            )
+        windows
+    }
+
+    private fun View.snoozeActionLabel(): String? {
+        val info = createAccessibilityNodeInfo()
+        return info.actionList
+            .firstOrNull { it.id == R.id.overlay_action_snooze }
+            ?.label
+            ?.toString()
+    }
+
+    @Test
+    fun `TalkBack's Snooze action opens the card by the drop's path, with no move, save or tap`() {
+        withPicker.showButton(slot)
+        val button = checkNotNull(withPicker.buttonView)
+        try {
+            assertThat(button.snoozeActionLabel()).isEqualTo("Snooze…")
+
+            assertThat(button.performAccessibilityAction(R.id.overlay_action_snooze, null)).isTrue()
+
+            assertThat(vias).containsExactly(SnoozeOpenedBy.ACTION)
+            assertThat(picker.isOpen).isTrue()
+            assertThat(moved).isEmpty()
+            assertThat(taps).isEqualTo(0)
+            assertThat(button.windowX to button.windowY).isEqualTo(900 to 1000)
+            assertThat(target.isShown).isFalse()
+
+            // While the card is open the action is not offered, and does nothing.
+            assertThat(button.snoozeActionLabel()).isNull()
+            assertThat(button.performAccessibilityAction(R.id.overlay_action_snooze, null)).isFalse()
+            assertThat(vias).hasSize(1)
+        } finally {
+            withPicker.closeSnoozePicker()
+            withPicker.hideButton(immediate = true)
+        }
+    }
+
+    @Test
+    fun `without a snooze card window the action is not offered`() {
+        val button = show()
+        assertThat(button.snoozeActionLabel()).isNull()
+        assertThat(button.performAccessibilityAction(R.id.overlay_action_snooze, null)).isFalse()
+        assertThat(drops).isEqualTo(0)
     }
 }

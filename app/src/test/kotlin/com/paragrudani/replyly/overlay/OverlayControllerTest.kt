@@ -638,7 +638,23 @@ class OverlayControllerTest {
             assertThat(ui.busy).isEmpty()
             assertThat(ui.panel).isNull()
             assertThat(savedY).isEmpty()
-            assertThat(logs).contains("snooze target drop")
+            assertThat(logs).contains("snooze picker open via=DROP")
+        }
+
+    @Test
+    fun `TalkBack's Snooze action takes the drop's path, opens the card and never taps`() =
+        runTest {
+            val controller = shownController()
+
+            controller.onDroppedOnTarget(SnoozeOpenedBy.ACTION)
+            advanceUntilIdle()
+
+            assertThat(ui.picker).isEqualTo(1440)
+            assertThat(taps).isEqualTo(0)
+            assertThat(ui.busy).isEmpty()
+            assertThat(ui.panel).isNull()
+            assertThat(savedY).isEmpty()
+            assertThat(logs).contains("snooze picker open via=ACTION")
         }
 
     @Test
@@ -691,7 +707,7 @@ class OverlayControllerTest {
                     SnoozeKeeper(
                         store = store,
                         now = { testScheduler.currentTime },
-                        zone = ZoneId.of("UTC"),
+                        zone = { ZoneId.of("UTC") },
                         scope = backgroundScope,
                         shake = {},
                         refresh = { controller.onEvent(OverlayEvent.WINDOWS) },

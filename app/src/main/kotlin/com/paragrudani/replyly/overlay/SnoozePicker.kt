@@ -4,7 +4,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.PixelFormat
 import android.view.Gravity
-import android.view.ViewGroup
+import android.view.WindowInsets
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.annotation.VisibleForTesting
@@ -138,13 +138,47 @@ fun SnoozePicker(
 
 internal const val SNOOZE_OUTSIDE_TAG = "snooze_outside"
 internal const val SNOOZE_CARD_TAG = "snooze_card"
-private const val TITLE = "Snooze the bubble"
+
+/** The card's title, its pane title and its window's accessibility title. */
+internal const val TITLE = "Snooze the bubble"
 private val CARD_MAX_WIDTH = 360.dp
 
 /**
- * The snooze card's own accessibility overlay window (#56): full screen, so a tap outside the
- * card lands on it and cancels, and not focusable, so the chat keeps its input focus and
- * keyboard. [onChoose] stores the snooze and returns the toast text; the window closes on a
+ * Where the snooze card's layer goes (screen px): the whole screen except the navigation bar, so
+ * with 3-button navigation Home and Back keep working while the card is open (review r1 N5).
+ * [bottomGapPx] is the room between the keyboard's top and the layer's bottom.
+ */
+internal data class PickerLayer(
+    val x: Int,
+    val width: Int,
+    val height: Int,
+    val bottomGapPx: Int,
+) {
+    companion object {
+        fun of(
+            screenWidth: Int,
+            screenHeight: Int,
+            navLeft: Int,
+            navRight: Int,
+            navBottom: Int,
+            keyboardTop: Int,
+        ): PickerLayer {
+            val height = (screenHeight - navBottom).coerceAtLeast(0)
+            return PickerLayer(
+                x = navLeft,
+                width = (screenWidth - navLeft - navRight).coerceAtLeast(0),
+                height = height,
+                bottomGapPx = (height - keyboardTop).coerceAtLeast(0),
+            )
+        }
+    }
+}
+
+/**
+ * The snooze card's own accessibility overlay window (#56): the screen except the navigation bar
+ * ([PickerLayer]), so a tap outside the card lands on it and cancels, and not focusable, so the
+ * chat keeps its input focus and keyboard. Its window title is [TITLE], for TalkBack's window
+ * announcement. [onChoose] stores the snooze and returns the toast text; the window closes on a
  * choice, on cancel, and on [close] (the controller closes it whenever the button would hide).
  * Main thread only.
  */
@@ -161,9 +195,19 @@ class SnoozePickerWindow(
     /** Opens the card above [keyboardTop] (a screen y in px). */
     fun open(keyboardTop: Int) {
         close()
-        val metrics = context.resources.displayMetrics
-        val screenHeight = windowManager.currentWindowMetrics.bounds.height()
-        val gapDp = ((screenHeight - keyboardTop).coerceAtLeast(0) / metrics.density).dp
+        val density = context.resources.displayMetrics.density
+        val windowMetrics = windowManager.currentWindowMetrics
+        val nav = windowMetrics.windowInsets.getInsets(WindowInsets.Type.navigationBars())
+        val layer =
+            PickerLayer.of(
+                screenWidth = windowMetrics.bounds.width(),
+                screenHeight = windowMetrics.bounds.height(),
+                navLeft = nav.left,
+                navRight = nav.right,
+                navBottom = nav.bottom,
+                keyboardTop = keyboardTop,
+            )
+        val gapDp = (layer.bottomGapPx / density).dp
         val owners = OverlayViewOwners()
         val compose =
             ComposeView(context).apply {
@@ -173,7 +217,7 @@ class SnoozePickerWindow(
                 }
             }
         owners.attach(compose)
-        windowManager.addView(compose, params())
+        windowManager.addView(compose, params(layer))
         view = compose
         this.owners = owners
     }
@@ -205,11 +249,11 @@ class SnoozePickerWindow(
     internal val root: ComposeView? get() = view
 
     @SuppressLint("RtlHardcoded")
-    private fun params() =
+    private fun params(layer: PickerLayer) =
         WindowManager
             .LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT,
+                layer.width,
+                layer.height,
                 WindowManager.LayoutParams.TYPE_ACCESSIBILITY_OVERLAY,
                 WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                     WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN or
@@ -217,7 +261,12 @@ class SnoozePickerWindow(
                 PixelFormat.TRANSLUCENT,
             ).apply {
                 gravity = Gravity.TOP or Gravity.LEFT
+                x = layer.x
+                y = 0
                 fitInsetsTypes = 0
                 layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+                // The window's name for TalkBack (review r1 N7). `accessibilityTitle` is hidden API;
+                // the card's pane title is announced as it appears.
+                title = TITLE
             }
 }

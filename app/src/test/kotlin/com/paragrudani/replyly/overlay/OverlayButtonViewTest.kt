@@ -272,6 +272,42 @@ class OverlayButtonViewTest {
     }
 
     @Test
+    fun `Snooze is offered only when the listener can snooze, and running it never taps`() {
+        var snoozes = 0
+        var canSnooze = true
+        val snoozable =
+            OverlayButtonView(
+                context,
+                object : OverlayButtonView.Listener {
+                    override fun onTap() {
+                        taps++
+                    }
+
+                    override fun onSnoozeAction() {
+                        snoozes++
+                    }
+
+                    override fun canSnooze(): Boolean = canSnooze
+                },
+                ReplylyMotion(reduced = true),
+            )
+        assertThat(snoozable.actionLabels()).containsEntry(R.id.overlay_action_snooze, "Snooze…")
+        assertThat(snoozable.performAccessibilityAction(R.id.overlay_action_snooze, null)).isTrue()
+        assertThat(snoozes).isEqualTo(1)
+
+        canSnooze = false
+        assertThat(snoozable.actionLabels()).doesNotContainKey(R.id.overlay_action_snooze)
+        assertThat(snoozable.performAccessibilityAction(R.id.overlay_action_snooze, null)).isFalse()
+        assertThat(snoozes).isEqualTo(1)
+        assertThat(taps).isEqualTo(0)
+    }
+
+    @Test
+    fun `a listener that cannot snooze offers no Snooze action`() {
+        assertThat(view.actionIds()).doesNotContain(R.id.overlay_action_snooze)
+    }
+
+    @Test
     fun `a listener without sides offers no edge actions`() {
         assertThat(
             view.actionIds(),
