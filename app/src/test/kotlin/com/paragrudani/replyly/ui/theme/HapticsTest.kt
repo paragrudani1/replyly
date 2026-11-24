@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.ui.theme
 
 import android.content.Context
+import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
@@ -69,6 +70,13 @@ class HapticsTest {
     fun `context entry point plays the predefined effect on the system vibrator`() {
         assertThat(context.performReplylyHaptic(HapticEvent.SnoozeEnd)).isTrue()
         assertThat(shadowOf(vibrator()).effectId).isEqualTo(VibrationEffect.EFFECT_CLICK)
+    }
+
+    @Test
+    fun `the view-less vibration is touch feedback, so One UI's touch intensity governs it`() {
+        context.performReplylyHaptic(HapticEvent.SnoozeEnd)
+        val attributes = shadowOf(vibrator()).vibrationAttributesFromLastVibration as VibrationAttributes
+        assertThat(attributes.usage).isEqualTo(VibrationAttributes.USAGE_TOUCH)
     }
 
     @Test

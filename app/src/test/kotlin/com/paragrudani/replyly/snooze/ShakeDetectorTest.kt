@@ -37,7 +37,7 @@ class ShakeDetectorTest {
     }
 
     @Test
-    fun `samples of one shake within the debounce count once`() {
+    fun `samples less than 250 ms apart are one shake, however long`() {
         assertThat(sample(1_000, 3f)).isFalse()
         assertThat(sample(1_020, 3.2f)).isFalse()
         assertThat(sample(1_100, 3.1f)).isFalse()
@@ -65,5 +65,28 @@ class ShakeDetectorTest {
         sample(1_000, 3f)
         detector.reset()
         assertThat(sample(1_500, 3f)).isFalse()
+    }
+
+    @Test
+    fun `a long continuous shake is one shake`() {
+        // An over sample every 150 ms for 3 s: never 250 ms quiet, so never a second shake.
+        assertThat((0L..3_000L step 150).count { sample(it, 3.5f) }).isEqualTo(0)
+    }
+
+    @Test
+    fun `the window runs from the end of the first shake`() {
+        // First shake 0..900 ms, then still, then a second shake 1.1 s after its end: 2 s start to start.
+        assertThat((0L..900L step 100).count { sample(it, 3.5f) }).isEqualTo(0)
+        assertThat(sample(950, 1f)).isFalse()
+        assertThat(sample(2_000, 3.5f)).isTrue()
+    }
+
+    @Test
+    fun `a second shake needs 250 ms quiet before it`() {
+        assertThat(sample(0, 3f)).isFalse()
+        assertThat(sample(249, 3f)).isFalse()
+        assertThat(sample(498, 3f)).isFalse()
+        // 250 ms after the last over sample: a new shake, the second of the pair.
+        assertThat(sample(748, 3f)).isTrue()
     }
 }

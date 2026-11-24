@@ -1,5 +1,6 @@
 package com.paragrudani.replyly.overlay
 
+import android.app.KeyguardManager
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -39,6 +40,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import java.time.Clock
+import java.time.ZoneId
 import kotlin.math.roundToInt
 
 /**
@@ -99,7 +101,7 @@ class OverlayComponent(
                 // which must finish before the window is removed.
                 onPanelDismiss = { mainHandler.post { controller.onPanelClosed() } },
                 dismissTarget = snooze?.let { DismissTargetWindow(service) },
-                onDroppedOnTarget = { controller.onDroppedOnTarget() },
+                onDroppedOnTarget = { via -> controller.onDroppedOnTarget(via) },
                 // A choice is a tap on Replyly's own window: store it, the button hides on the change.
                 snoozePicker = snooze?.let { SnoozePickerWindow(service) { choice -> keeper.snooze(choice) } },
             )
@@ -147,14 +149,16 @@ class OverlayComponent(
         this.scope = scope
         this.controller = controller
         // Snooze (#56): every change and the expiry re-decide at once; the accelerometer runs only
-        // while snoozed with the screen on.
+        // while snoozed, with the screen on and the phone unlocked.
         snooze?.let { store ->
             val sensors = service.getSystemService(SensorManager::class.java)
+            val keyguard = service.getSystemService(KeyguardManager::class.java)
             keeper =
                 SnoozeKeeper(
                     store = store,
                     now = clock::millis,
-                    zone = clock.zone,
+                    // Read at each choice: the JVM default follows a time zone change (review r1 S3).
+                    zone = ZoneId::systemDefault,
                     scope = scope,
                     shake = sensors?.let { ShakeListener(it, onShake = { keeper.onShake() }) } ?: ShakeSwitch {},
                     refresh = { controller.onEvent(OverlayEvent.WINDOWS) },
@@ -164,6 +168,8 @@ class OverlayComponent(
                     },
                     log = { Log.d(TAG, it) },
                     is24Hour = { DateFormat.is24HourFormat(service) },
+                    // Shake ends a snooze only while unlocked, like Wispr Flow (DECISIONS 2026-11-24).
+                    locked = { keyguard?.isKeyguardLocked ?: false },
                 )
             keeper.start(screenOn = service.getSystemService(PowerManager::class.java)?.isInteractive ?: true)
             this.keeper = keeper
@@ -199,6 +205,10 @@ class OverlayComponent(
                         Intent.ACTION_SCREEN_ON -> {
                             this@OverlayComponent.keeper?.setScreenOn(true)
                         }
+
+                        Intent.ACTION_USER_PRESENT -> {
+                            this@OverlayComponent.keeper?.onUnlocked()
+                        }
                     }
                 }
             }
@@ -206,6 +216,7 @@ class OverlayComponent(
             IntentFilter().apply {
                 addAction(Intent.ACTION_SCREEN_OFF)
                 addAction(Intent.ACTION_SCREEN_ON)
+                addAction(Intent.ACTION_USER_PRESENT)
             }
         service.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
         screenOff = service to receiver

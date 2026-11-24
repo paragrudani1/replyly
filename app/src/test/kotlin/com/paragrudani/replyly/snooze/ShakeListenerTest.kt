@@ -56,7 +56,7 @@ class ShakeListenerTest {
         lateinit var keeper: SnoozeKeeper
         listener = ShakeListener(sensorManager, onShake = { keeper.onShake() })
         keeper =
-            SnoozeKeeper(store, { testScheduler.currentTime }, ZoneId.of("UTC"), backgroundScope, listener, {}, {
+            SnoozeKeeper(store, { testScheduler.currentTime }, { ZoneId.of("UTC") }, backgroundScope, listener, {}, {
                 backs++
             }, {})
         keeper.start(screenOn)

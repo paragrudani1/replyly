@@ -1,5 +1,8 @@
 package com.paragrudani.replyly.ui.settings
 
+import androidx.compose.material3.Text
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.snapshots.Snapshot
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
@@ -9,6 +12,10 @@ import androidx.compose.ui.test.assertHasClickAction
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.LifecycleRegistry
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.common.truth.Truth.assertThat
 import com.paragrudani.replyly.cost.InMemoryCostGuard
 import com.paragrudani.replyly.feedback.InMemoryFeedbackLog
@@ -26,6 +33,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.time.Duration
 import java.time.LocalDateTime
+import java.time.ZoneId
 
 /** The status card at the top of Settings (#56): each variant and its button. */
 @RunWith(RobolectricTestRunner::class)
@@ -40,6 +48,7 @@ class BubbleStatusCardTest {
     private fun screen(
         settings: InMemorySettingsRepository,
         until: Long?,
+        zone: () -> ZoneId = clock::getZone,
     ): SettingsViewModel {
         val vm = SettingsViewModel(settings, InMemoryCostGuard(), InMemoryFeedbackLog(clock), clock)
         compose.setContent {
@@ -50,7 +59,14 @@ class BubbleStatusCardTest {
                     onOpenDebug = {},
                     onOpenFeedbackLog = {},
                     aiProvider = {},
-                    snooze = BubbleSnoozeInput(until = until, onEnd = { ends++ }, clock = clock, is24Hour = false),
+                    snooze =
+                        BubbleSnoozeInput(
+                            until = until,
+                            onEnd = { ends++ },
+                            clock = clock,
+                            is24Hour = false,
+                            zone = zone,
+                        ),
                 )
             }
         }
@@ -128,5 +144,58 @@ class BubbleStatusCardTest {
         compose.mainClock.advanceTimeByFrame()
 
         compose.onNodeWithText("End snooze now").assertDoesNotExist()
+    }
+
+    @Test
+    fun `the end time is in the zone read now, not the clock's`() {
+        // 21:25 in Kolkata (+05:30) is 15:55 in UTC.
+        screen(
+            InMemorySettingsRepository(),
+            until = clock.instant().plus(Duration.ofMinutes(10)).toEpochMilli(),
+            zone = { ZoneId.of("UTC") },
+        )
+        compose.onNodeWithText("Bubble snoozed until 3:55 PM").assertExists()
+    }
+
+    @Test
+    fun `after deep sleep the card goes within one step of the wall clock`() {
+        // Review r1 N2: the wall clock passes the end while the uptime (the compose clock) stands still.
+        compose.mainClock.autoAdvance = false
+        screen(InMemorySettingsRepository(), until = clock.instant().plus(Duration.ofMinutes(10)).toEpochMilli())
+        compose.mainClock.advanceTimeByFrame()
+        clock.advance(Duration.ofMinutes(11))
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithText("End snooze now").assertExists()
+
+        compose.mainClock.advanceTimeBy(ACTIVE_SNOOZE_STEP_MS)
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithText("End snooze now").assertDoesNotExist()
+    }
+
+    @Test
+    fun `coming back to the front re-checks the end at once`() {
+        val owner = TestLifecycleOwner()
+        val until = clock.instant().plus(Duration.ofMinutes(10)).toEpochMilli()
+        compose.mainClock.autoAdvance = false
+        compose.setContent {
+            CompositionLocalProvider(LocalLifecycleOwner provides owner) {
+                Text(if (rememberActiveSnooze(until, clock) != null) "snoozed" else "back")
+            }
+        }
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithText("snoozed").assertExists()
+
+        owner.registry.currentState = Lifecycle.State.STARTED
+        clock.advance(Duration.ofMinutes(11))
+        owner.registry.currentState = Lifecycle.State.RESUMED
+        // The observer writes the state outside a composition: publish it, then draw a frame.
+        Snapshot.sendApplyNotifications()
+        compose.mainClock.advanceTimeByFrame()
+        compose.onNodeWithText("back").assertExists()
+    }
+
+    private class TestLifecycleOwner : LifecycleOwner {
+        val registry = LifecycleRegistry.createUnsafe(this).apply { currentState = Lifecycle.State.RESUMED }
+        override val lifecycle: Lifecycle get() = registry
     }
 }

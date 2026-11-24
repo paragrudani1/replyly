@@ -6,8 +6,8 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 
 /**
- * The accelerometer while the bubble is snoozed and the screen is on (#56; [SnoozeKeeper] decides
- * when). Feeds [ShakeDetector] and calls [onShake] on a double shake. Local only: no network, and
+ * The accelerometer while the bubble is snoozed, the screen is on and the phone is unlocked (#56;
+ * [SnoozeKeeper] decides when). Feeds [ShakeDetector] and calls [onShake] on a double shake. Local only: no network, and
  * no sensor value ever leaves this class (not logged, not stored).
  */
 class ShakeListener(

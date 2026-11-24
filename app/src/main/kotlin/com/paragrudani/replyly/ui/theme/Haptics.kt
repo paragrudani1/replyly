@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.ui.theme
 
 import android.content.Context
+import android.os.VibrationAttributes
 import android.os.VibrationEffect
 import android.os.VibratorManager
 import android.provider.Settings
@@ -96,7 +97,11 @@ fun Context.performReplylyHaptic(event: HapticEvent): Boolean {
     if (!systemTouchFeedbackEnabled(this)) return false
     val vibrator = getSystemService(VibratorManager::class.java)?.defaultVibrator ?: return false
     if (!vibrator.hasVibrator()) return false
-    vibrator.vibrate(VibrationEffect.createPredefined(effect))
+    // Touch usage: the phone's touch vibration intensity applies, as for the view path (review r1 N3).
+    vibrator.vibrate(
+        VibrationEffect.createPredefined(effect),
+        VibrationAttributes.createForUsage(VibrationAttributes.USAGE_TOUCH),
+    )
     return true
 }
 
