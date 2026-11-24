@@ -1427,3 +1427,45 @@ after them stays); where the model put them mid-sentence the word stays without 
 Kotlin for this", "as ravi_k said"). `C#` and `asha@example.com` stay as written. Then add `#buildinpublic` to "My X voice", Save, and tap Regenerate with the same
 instruction. **See:** hashtags now stay as written, while `@` mentions are still removed. Remove it
 again afterwards. **Send:** pass/fail and screenshots of both panels.
+
+## 16. Bubble: drag, settings, snooze (issue #53)
+
+The floating button ("bubble") can be dragged to either edge (#54, items 16.A*), styled in
+Settings → Bubble (#55, items 16.B*) and snoozed (#56, items 16.C*). Keep
+`adb logcat -v time -s ReplylyOverlay` open: it must show only event names such as
+`button hidden reason=TURNED_OFF`.
+
+16.B1 **Do:** Settings → Bubble → Size: try each of the 4 steps (0.85x, 1x, 1.15x, 1.3x), each
+time opening a WhatsApp chat with Gboard up. **See:** 0.85x is still easy to hit; 1.3x covers
+neither Gboard's top row nor WhatsApp's Send button; the shadow is not cut off at any size.
+**Send:** a screenshot at 0.85x and at 1.3x.
+
+16.B2 **Do:** Settings → Bubble → Opacity 40 %, then open a chat with a light wallpaper, a chat
+with a dark wallpaper and a chat whose last message is a photo (keyboard up). **See:** the button
+is still easy to find in all three; tap it once: while it reads the chat it gets fainter still,
+then the panel opens. **Send:** the three screenshots, and whether 40 % is too faint.
+
+16.B3 **Do:** turn on Settings → Bubble → Shrink when idle. Open a chat with the keyboard up and
+don't touch the button for 5 s. **See:** it shrinks to a small dot without the mark. Tap the dot
+once. **See:** the panel opens on that first tap (no second tap needed), and Requests today
+(Settings → Limits and usage) went up by exactly 1. Then press and hold the dot without moving:
+**See:** it grows back to full size while held. **Send:** pass/fail, and whether the dot is easy to
+hit.
+
+16.B4 **Do:** with Shrink when idle on, turn on TalkBack and open a chat with the keyboard up;
+wait 10 s. **See:** the button stays full size. Turn TalkBack off. **Send:** pass/fail.
+
+16.B5 **Do:** split screen: Replyly's Settings on one half, a WhatsApp chat with the keyboard up on
+the other. In Settings move the Size and Opacity sliders, flip Shrink when idle, then flip Show
+bubble off and on. **See:** the button in WhatsApp changes size or opacity as soon as you lift your
+finger from a slider, and disappears and comes back at once with Show bubble, without touching the
+chat. **Send:** pass/fail (a short screen recording if anything lags).
+
+16.B6 **Do:** Show bubble off, then open a WhatsApp chat and a Telegram chat with the keyboard up.
+**See:** no button in either, and logcat shows `button hidden reason=TURNED_OFF`. Turn Show bubble
+back on (Settings): **See:** the button is back in the chat. **Send:** pass/fail.
+
+16.B7 **Do:** drag the button to another spot in WhatsApp and in Telegram. Settings → Bubble →
+Reset button positions → Cancel. **See:** both apps keep the dragged spot. Then Reset button
+positions → Reset. **See:** in both apps the button is back at its default spot (right side, just
+above the input bar). **Send:** pass/fail.
