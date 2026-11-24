@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.ColorStateList
 import android.content.res.Configuration
+import android.graphics.Rect
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -129,6 +130,22 @@ class OverlayButtonView(
 
     // Touch -------------------------------------------------------------------------------------
 
+    /**
+     * The whole window is excluded from the system Back gesture: the button rests 2 dp from a
+     * screen edge, and dragging it inwards has exactly the Back-swipe shape. The window is at most
+     * ~70 dp, well under the 200 dp per-edge exclusion budget.
+     */
+    override fun onLayout(
+        changed: Boolean,
+        left: Int,
+        top: Int,
+        right: Int,
+        bottom: Int,
+    ) {
+        super.onLayout(changed, left, top, right, bottom)
+        if (changed) systemGestureExclusionRects = listOf(Rect(0, 0, right - left, bottom - top))
+    }
+
     @SuppressLint("ClickableViewAccessibility") // Taps call performClick(); TalkBack clicks too.
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (!isEnabled) return true // Leaving: swallow, never tap.
@@ -159,6 +176,8 @@ class OverlayButtonView(
 
             is DragStep.DragEnd -> {
                 listener.onDrag(step.dx, step.dy)
+                // A flick (DOWN, then UP past the slop, no MOVE) ends here straight from the press.
+                setPressedLook(false)
                 setDragging(false)
                 listener.onDragEnd()
             }

@@ -1482,6 +1482,13 @@ let the chat close the keyboard). **See:** no button is left on the lock screen 
 screen, and the next time the keyboard opens the button is back at a normal spot on an edge.
 **Send:** a screenshot if a button stays behind.
 
+16.A9 **Do:** Settings → Display → Navigation bar → Swipe gestures. In a WhatsApp chat with the
+keyboard up, drag the button from the right edge to the left half of the screen and let go; then
+drag it from the left edge back to the right half. Repeat a few times, starting the drag quickly.
+**See:** the button moves and snaps every time; the chat stays open and the keyboard stays up (no
+Back, no back-arrow peeking in from the edge). **Send:** pass/fail, and a screen recording if Back
+fires or the button jumps back to where it started.
+
 16.B1 **Do:** Settings → Bubble → Size: try each of the 4 steps (0.85x, 1x, 1.15x, 1.3x), each
 time opening a WhatsApp chat with Gboard up. **See:** 0.85x is still easy to hit; 1.3x covers
 neither Gboard's top row nor WhatsApp's Send button; the shadow is not cut off at any size.

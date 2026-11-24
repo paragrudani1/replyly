@@ -1,10 +1,13 @@
 package com.paragrudani.replyly.overlay
 
+import android.app.Activity
+import android.graphics.Rect
 import android.os.SystemClock
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
 import android.view.accessibility.AccessibilityNodeInfo
+import android.widget.FrameLayout
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.toArgb
 import androidx.test.core.app.ApplicationProvider
@@ -15,9 +18,12 @@ import com.paragrudani.replyly.panel.ReplyPanel
 import com.paragrudani.replyly.ui.theme.ReplylyMotion
 import org.junit.Test
 import org.junit.runner.RunWith
+import org.robolectric.Robolectric
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
+import org.robolectric.shadows.ShadowLooper
+import java.util.concurrent.TimeUnit
 
 /** The button View's touch handling (drag versus tap), accessibility, and the window it drags. */
 @RunWith(RobolectricTestRunner::class)
@@ -102,6 +108,47 @@ class OverlayButtonViewTest {
 
         view.touch(MotionEvent.ACTION_UP, 500f)
         assertThat(view.mark.scaleX).isEqualTo(1f)
+    }
+
+    @Test
+    fun `a flick (down, then up past the slop with no move) clears the press look and never taps`() {
+        view.touch(MotionEvent.ACTION_DOWN, 500f)
+        view.touch(MotionEvent.ACTION_UP, 450f)
+
+        assertThat(taps).isEqualTo(0)
+        assertThat(dragEnds).isEqualTo(1)
+        assertThat(view.mark.scaleX).isEqualTo(1f)
+    }
+
+    @Test
+    fun `after a flick, Shrink when idle still shrinks the button`() {
+        val activity = Robolectric.buildActivity(Activity::class.java).setup().get()
+        val look = BubbleLook(shrinkWhenIdle = true)
+        val shown = OverlayButtonView(activity, listener, ReplylyMotion(reduced = true)).apply { applyLook(look) }
+        val size = look.windowPx(context.resources.displayMetrics.density)
+        activity.setContentView(FrameLayout(activity).apply { addView(shown, FrameLayout.LayoutParams(size, size)) })
+        shown.animateIn()
+
+        shown.touch(MotionEvent.ACTION_DOWN, 500f)
+        shown.touch(MotionEvent.ACTION_UP, 450f)
+        ShadowLooper.idleMainLooper(5_100, TimeUnit.MILLISECONDS)
+
+        assertThat(shown.shrunk).isTrue()
+    }
+
+    @Test
+    fun `the whole button is excluded from the system back gesture, also after a resize`() {
+        view.layoutTo(104)
+        assertThat(view.systemGestureExclusionRects).containsExactly(Rect(0, 0, 104, 104))
+
+        view.layoutTo(126)
+        assertThat(view.systemGestureExclusionRects).containsExactly(Rect(0, 0, 126, 126))
+    }
+
+    private fun View.layoutTo(size: Int) {
+        val spec = View.MeasureSpec.makeMeasureSpec(size, View.MeasureSpec.EXACTLY)
+        measure(spec, spec)
+        layout(0, 0, size, size)
     }
 
     @Test
