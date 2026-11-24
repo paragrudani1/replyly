@@ -155,6 +155,51 @@ class ButtonVisibilityTest {
         assertThat(decide(input, chatWindow)).isEqualTo(hidden(HideReason.KEYBOARD_CLOSED))
     }
 
+    @Test
+    fun `a running snooze hides with SNOOZED, after TURNED_OFF and before the keyboard check`() {
+        var off = false
+        val snoozed =
+            ButtonVisibility(
+                ownPackage = OWN,
+                isAppAllowed = { true },
+                isTurnedOff = { off },
+                snoozedUntil = { 5_000L },
+                now = { 1_000L },
+            )
+        val keyboardClosed = ScreenFacts(listOf(chatWindow), input)
+        val open = ScreenFacts(listOf(chatWindow, keyboardWindow), input)
+
+        assertThat(snoozed.decide(open)).isEqualTo(hidden(HideReason.SNOOZED))
+        assertThat(snoozed.decide(keyboardClosed)).isEqualTo(hidden(HideReason.SNOOZED))
+        off = true
+        assertThat(snoozed.decide(open)).isEqualTo(hidden(HideReason.TURNED_OFF))
+    }
+
+    @Test
+    fun `an expired snooze shows again`() {
+        var now = 4_999L
+        val snoozed =
+            ButtonVisibility(ownPackage = OWN, isAppAllowed = { true }, snoozedUntil = { 5_000L }, now = { now })
+        val open = ScreenFacts(listOf(chatWindow, keyboardWindow), input)
+
+        assertThat(snoozed.decide(open)).isEqualTo(hidden(HideReason.SNOOZED))
+        now = 5_000L
+        assertThat(snoozed.decide(open)).isEqualTo(ButtonDecision.Show(input, KEYBOARD))
+    }
+
+    @Test
+    fun `until turned back on never expires`() {
+        val snoozed =
+            ButtonVisibility(
+                ownPackage = OWN,
+                isAppAllowed = { true },
+                snoozedUntil = { Long.MAX_VALUE },
+                now = { Long.MAX_VALUE - 1 },
+            )
+        assertThat(snoozed.decide(ScreenFacts(listOf(chatWindow, keyboardWindow), input)))
+            .isEqualTo(hidden(HideReason.SNOOZED))
+    }
+
     private companion object {
         const val OWN = "com.paragrudani.replyly"
         const val WHATSAPP = "com.whatsapp"

@@ -145,6 +145,7 @@ private fun SettingsRouteContent(
             // Issue #18: endpoint, key and model live in provider profiles (ui/settings/profiles/).
             aiProvider = { SettingsGroupPadding { ProviderProfilesSection() } },
             onOpenWhatsNew = if (notes.isEmpty()) null else ({ showWhatsNew = true }),
+            snooze = rememberBubbleSnooze(graph),
         )
     }
     if (showWhatsNew && notes.isNotEmpty()) {
@@ -165,6 +166,8 @@ private fun SettingsRouteContent(
  * @param onOpenWhatsNew null hides the "What's new" row (no notes in this build).
  * @param appVersion shown under About; tests pass a fixed value so screenshots do not change
  *   with the CI build number.
+ * @param snooze the bubble's snooze (#56) for the status card above "AI provider"; the default is
+ *   never snoozed, so the card then shows only when "Show bubble" is off.
  */
 @Composable
 fun SettingsScreen(
@@ -176,8 +179,10 @@ fun SettingsScreen(
     onOpenWhatsNew: (() -> Unit)? = null,
     appVersion: String = rememberAppVersionName(),
     listState: LazyListState = rememberLazyListState(),
+    snooze: BubbleSnoozeInput = BubbleSnoozeInput.NONE,
 ) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val activeSnooze = rememberActiveSnooze(snooze.until, snooze.clock)
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { vm.refreshUsage() }
     val haptics = rememberReplylyHaptics()
     // Confirm only once the write succeeded (DESIGN.md > Haptics); a rotation does not replay it.
@@ -223,6 +228,10 @@ fun SettingsScreen(
             if (draft == null) {
                 item { Text("Loading…") }
                 return@LazyColumn
+            }
+            // Bubble C #56: only when the bubble is off or snoozed.
+            bubbleStatus(state.bubble.show, activeSnooze)?.let { status ->
+                item(key = "status") { BubbleStatusCard(status, snooze, onTurnBackOn = { vm.setShowBubble(true) }) }
             }
             item(key = "ai") {
                 SettingsSection("AI provider") {

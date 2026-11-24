@@ -36,6 +36,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 import java.time.LocalDateTime
+import java.time.ZoneId
 
 @RunWith(RobolectricTestRunner::class)
 @GraphicsMode(GraphicsMode.Mode.NATIVE)
@@ -59,6 +60,7 @@ class SettingsScreenshotTest {
     private fun Screen(
         vm: SettingsViewModel,
         firstItem: Int = 0,
+        snooze: BubbleSnoozeInput = BubbleSnoozeInput.NONE,
     ) = SettingsScreen(
         vm,
         onOpenOnboarding = {},
@@ -72,7 +74,38 @@ class SettingsScreenshotTest {
         onOpenWhatsNew = {},
         appVersion = "0.1.42",
         listState = LazyListState(firstVisibleItemIndex = firstItem),
+        snooze = snooze,
     )
+
+    /** A snooze for the status card (#56), on the screenshot clock (21 Nov, 10:00 in Kolkata). */
+    private fun snoozed(until: Long) =
+        BubbleSnoozeInput(
+            until = until,
+            onEnd = {},
+            clock = MutableClock.atLocal(LocalDateTime.of(2026, 11, 21, 10, 0)),
+            is24Hour = false,
+        )
+
+    /** Bubble C #56: snoozed "Until tomorrow (6 AM)": the card above AI provider. */
+    @Test
+    fun statusSnoozed() =
+        shots.screen("settings/status_snoozed") {
+            val until = LocalDateTime.of(2026, 11, 22, 6, 0).atZone(ZoneId.of("Asia/Kolkata")).toInstant()
+            Screen(viewModel(), snooze = snoozed(until.toEpochMilli()))
+        }
+
+    @Test
+    fun statusSnoozedIndefinite() =
+        shots.screen("settings/status_snoozed_indefinite", listOf(ShotVariant.Light)) {
+            Screen(viewModel(), snooze = snoozed(Long.MAX_VALUE))
+        }
+
+    /** "Show bubble" off (#55's switch): the card says so; it wins over a snooze. */
+    @Test
+    fun statusOff() =
+        shots.screen("settings/status_off") {
+            Screen(viewModel(filled.copy(showBubble = false)), snooze = snoozed(Long.MAX_VALUE))
+        }
 
     @Test
     fun top() = shots.screen("settings/top") { Screen(viewModel()) }

@@ -1,5 +1,9 @@
 package com.paragrudani.replyly.ui.theme
 
+import android.content.Context
+import android.os.VibrationAttributes
+import android.os.VibrationEffect
+import android.os.VibratorManager
 import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import android.view.View
@@ -15,6 +19,11 @@ import androidx.compose.ui.platform.LocalView
 enum class HapticEvent(
     /** The [HapticFeedbackConstants] value played for this event. */
     val feedbackConstant: Int,
+    /**
+     * The [VibrationEffect] predefined effect for the view-less path ([Context.performReplylyHaptic]);
+     * `null`: the event only plays on a view.
+     */
+    val predefinedEffect: Int? = null,
 ) {
     /** A plain tap on the floating button or a control without its own feedback. */
     Tap(HapticFeedbackConstants.VIRTUAL_KEY),
@@ -36,6 +45,9 @@ enum class HapticEvent(
 
     /** Settings (or a note) were saved. */
     Save(HapticFeedbackConstants.CONFIRM),
+
+    /** A shake ended the bubble's snooze (#56). No Replyly view is on screen: plays on the vibrator. */
+    SnoozeEnd(HapticFeedbackConstants.CONFIRM, VibrationEffect.EFFECT_CLICK),
     ;
 
     companion object {
@@ -74,5 +86,26 @@ fun View.performReplylyHaptic(event: HapticEvent): Boolean {
     return performHapticFeedback(event.feedbackConstant)
 }
 
-private fun systemTouchFeedbackEnabled(view: View): Boolean =
-    Settings.System.getInt(view.context.contentResolver, Settings.System.HAPTIC_FEEDBACK_ENABLED, 1) != 0
+/**
+ * The view-less path (#56): for feedback with no Replyly view on screen (a shake ending the
+ * snooze). Plays [HapticEvent.predefinedEffect] on the system vibrator (the `VIBRATE`
+ * permission, a normal one). Nothing plays when the system "Touch feedback" setting is off, the
+ * event has no predefined effect, or the phone has no vibrator. Returns true if it played.
+ */
+fun Context.performReplylyHaptic(event: HapticEvent): Boolean {
+    val effect = event.predefinedEffect ?: return false
+    if (!systemTouchFeedbackEnabled(this)) return false
+    val vibrator = getSystemService(VibratorManager::class.java)?.defaultVibrator ?: return false
+    if (!vibrator.hasVibrator()) return false
+    // Touch usage: the phone's touch vibration intensity applies, as for the view path (review r1 N3).
+    vibrator.vibrate(
+        VibrationEffect.createPredefined(effect),
+        VibrationAttributes.createForUsage(VibrationAttributes.USAGE_TOUCH),
+    )
+    return true
+}
+
+private fun systemTouchFeedbackEnabled(view: View): Boolean = systemTouchFeedbackEnabled(view.context)
+
+private fun systemTouchFeedbackEnabled(context: Context): Boolean =
+    Settings.System.getInt(context.contentResolver, Settings.System.HAPTIC_FEEDBACK_ENABLED, 1) != 0

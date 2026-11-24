@@ -5,6 +5,11 @@
   <uses-permission android:name="android.permission.INTERNET" />
   <!-- Onboarding (ticket #7) asks for "Unrestricted" battery. -->
   <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
+  <!--
+    Bubble C (#56): the tick when a shake ends the snooze plays with no Replyly view on screen, so
+    it goes through the vibrator. A normal permission: granted at install, no prompt.
+  -->
+  <uses-permission android:name="android.permission.VIBRATE" />
 
   <!--
     Package visibility (Android 11+): without this, PackageManager cannot see other apps, so the

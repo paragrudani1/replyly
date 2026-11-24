@@ -123,6 +123,7 @@ One helper, `ui/theme/Haptics.kt`, one feedback type per event. Never call
 | Drag snap | `DragSnap` | `SEGMENT_TICK` | The dragged button snaps to an edge. |
 | Toggle | `ToggleOn` / `ToggleOff` (`HapticEvent.toggle(on)`) | `TOGGLE_ON` / `TOGGLE_OFF` | A switch changed. |
 | Save | `Save` | `CONFIRM` | Settings or a note were saved. |
+| Snooze end | `SnoozeEnd` | `CONFIRM` (view) / `EFFECT_CLICK` (vibrator) | A shake ended the bubble's snooze (#56). No Replyly view is on screen, so it plays through `context.performReplylyHaptic(event)` on the system vibrator (`VIBRATE`). |
 
 ```kotlin
 val haptics = rememberReplylyHaptics()          // Compose

@@ -9,6 +9,7 @@
   <string name="overlay_button_move_down">Move down</string>
   <string name="overlay_button_move_left_edge">Move to left edge</string>
   <string name="overlay_button_move_right_edge">Move to right edge</string>
+  <string name="overlay_button_snooze">Snooze…</string>
   <string name="overlay_notice_off_here">Replyly is off here</string>
   <string name="overlay_notice_no_chat">Replyly can\'t read a chat here</string>
   <string name="settings_unavailable_paused">Replyly couldn\'t load settings and is paused</string>
