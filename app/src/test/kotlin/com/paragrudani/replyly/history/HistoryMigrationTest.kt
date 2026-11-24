@@ -83,7 +83,11 @@ class HistoryMigrationTest {
                     .allowMainThreadQueries()
                     .build()
             helper.closeWhenFinished(database)
-            val history = RoomHistoryRepository(HistoryDatabaseHandle { database }, Clock.system(india))
+            val history =
+                RoomHistoryRepository(
+                    HistoryDatabaseHandle { database },
+                    Clock.fixed(Instant.parse("2026-11-22T10:00:00Z"), india),
+                )
 
             val stored = history.lastMessages(ChatKey("com.whatsapp", "Asha"), 10).single()
 

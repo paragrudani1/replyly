@@ -40,6 +40,7 @@ class FeedbackLogScreenTest {
                 onClear = {},
                 onBack = {},
                 onRetry = { retries++ },
+                today = LocalDate.of(2026, 11, 21),
             )
         }
 
@@ -52,7 +53,15 @@ class FeedbackLogScreenTest {
 
     @Test
     fun `without an error the empty-log hint shows`() {
-        compose.setContent { FeedbackLogScreen(entries = emptyList(), error = null, onClear = {}, onBack = {}) }
+        compose.setContent {
+            FeedbackLogScreen(
+                entries = emptyList(),
+                error = null,
+                onClear = {},
+                onBack = {},
+                today = LocalDate.of(2026, 11, 21),
+            )
+        }
 
         compose.onNodeWithText("No entries yet", substring = true).assertExists()
         compose.onNodeWithText("Secure storage is locked", substring = true).assertDoesNotExist()
