@@ -96,6 +96,17 @@ class OverlayButtonLookTest {
     }
 
     @Test
+    fun `below full opacity the circle has no shadow, at 100 percent it has one`() {
+        val view = OverlayButtonView(context, listener, ReplylyMotion(reduced = true))
+
+        view.applyLook(BubbleLook(opacityPercent = 60))
+        assertThat(view.mark.elevation).isEqualTo(0f)
+
+        view.applyLook(BubbleLook(opacityPercent = 100))
+        assertThat(view.mark.elevation).isGreaterThan(0f)
+    }
+
+    @Test
     fun `a new window takes the window size and look of the current settings`() {
         val windows = OverlayWindows(context, noPanel, buttonSizePx = 112, onButtonTap = {}, onPanelDismiss = {})
         windows.applyLook(BubbleLook(size = 0.85f, opacityPercent = 60))

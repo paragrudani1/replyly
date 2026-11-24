@@ -1443,14 +1443,17 @@ neither Gboard's top row nor WhatsApp's Send button; the shadow is not cut off a
 16.B2 **Do:** Settings → Bubble → Opacity 40 %, then open a chat with a light wallpaper, a chat
 with a dark wallpaper and a chat whose last message is a photo (keyboard up). **See:** the button
 is still easy to find in all three; tap it once: while it reads the chat it gets fainter still,
-then the panel opens. **Send:** the three screenshots, and whether 40 % is too faint.
+then the panel opens. Below 100 % the button has no shadow: there must be no dark disc showing
+through it. **Send:** the three screenshots, and whether 40 % is too faint.
 
 16.B3 **Do:** turn on Settings → Bubble → Shrink when idle. Open a chat with the keyboard up and
 don't touch the button for 5 s. **See:** it shrinks to a small dot without the mark. Tap the dot
 once. **See:** the panel opens on that first tap (no second tap needed), and Requests today
 (Settings → Limits and usage) went up by exactly 1. Then press and hold the dot without moving:
 **See:** it grows back to full size while held. **Send:** pass/fail, and whether the dot is easy to
-hit.
+hit. Then drag the dot a little: it grows to full size while dragged, and the drag opens no panel.
+With Developer options → Remove animations on, repeat the shrink and the tap: same result, no
+animation.
 
 16.B4 **Do:** with Shrink when idle on, turn on TalkBack and open a chat with the keyboard up;
 wait 10 s. **See:** the button stays full size. Turn TalkBack off. **Send:** pass/fail.

@@ -249,6 +249,8 @@ class OverlayButtonView(
         val inset = ((circle - icon) / 2).coerceAtLeast(0)
         mark.scaleType = ImageView.ScaleType.FIT_CENTER
         mark.setPadding(inset, inset, inset, inset)
+        // A see-through circle would show its own shadow as a dark disc (review pr58-r1 S2).
+        mark.elevation = if (look.opacityPercent < 100) 0f else Elevation.Sheet.value * density
         idleShrink.setEnabled(look.shrinkWhenIdle)
         updateMark(if (isAttachedToWindow) MotionDurations.SHORT else 0)
     }
