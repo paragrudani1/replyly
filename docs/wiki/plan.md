@@ -63,3 +63,10 @@
 - 2026-11-21: #23 fixes at `4c7937b` (786 tests). A final merger waits for #24 to merge, then merges main into #23 (panel checklist steps become 11.C), merges on green and confirms the latest-debug APK.
 - 2026-11-21: #24 (P2 panel) merged as `1e65e27` (merge head `6c4ac40`, CI 44934049383, 802 tests). Panel checklist steps are 11.20–11.29 and 11.40–11.43 on main; the #23 merger moves them to 11.C.
 - 2026-11-21: Polish pass and provider profiles complete. #23 (P4 settings) merged as `d394065` (merge head `6933f5d`, CI 44934846375, 850 tests). Push run 44935397397 green; `latest-debug` → `d394065`, `replyly-debug.apk` 48,794,136 bytes, versionCode 48 / versionName 0.1.48. Checklist section 11 is lettered 11.A–11.E; section 12 is provider profiles. Issues #17 and #18 closed.
+
+## Bubble: drag, settings, snooze (approved 2026-11-24)
+- 2026-11-24: Parag asked for a Wispr-Flow-style bubble. Spec #53; tickets #54 (A, 2D drag + edge snap), #55 (B, Bubble settings), #56 (C, dismiss target + snooze + shake + home card, blocked by #54). A and B in parallel. Decisions: `/root/.t3/cos/replyly/bubble-decisions.md`; brief rules: `bubble-common.md`.
+- 2026-11-24: A test reading the wall-clock date broke `main`; fixed in #58. Environment PR on branch `env-no-wallclock-tests` adds a guard so tests never read the wall clock.
+- 2026-11-24: #55 merged as PR #58 (`77af568`). Review `reviews/pr58-r1.md`; CoS fixed S2 (no shadow below 100 % opacity) and N7 (device checks) in `0498c67`. Gate 1186 tests.
+- 2026-11-24: PR #57 (#54) reviewed (`reviews/pr57-r1.md`): merge after S1 (back-gesture exclusion) and S2 (rebase). Fix delegate running.
+- 2026-11-24: #56 started early on `origin/main`, drag-independent parts first.
