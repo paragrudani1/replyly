@@ -99,6 +99,7 @@ private fun SettingsRouteContent(
                             costGuard = graph.costGuard,
                             feedbackLog = graph.feedbackLog,
                             clock = graph.clock,
+                            resetButtonPositions = graph.buttonPositionStore::resetAll,
                         )
                     }
                 },
@@ -156,8 +157,8 @@ private fun SettingsRouteContent(
 }
 
 /**
- * The settings screen, in sections: AI provider, Your style, Privacy, Limits and usage,
- * Appearance, About.
+ * The settings screen, in sections: AI provider, Your style, On X, Privacy, Limits and usage,
+ * Appearance, Bubble, About.
  *
  * @param aiProvider the content of the "AI provider" section.
  *   The route passes the provider profiles; tests pass a fixed-state list.
@@ -194,6 +195,9 @@ fun SettingsScreen(
             snackbarHostState.showSnackbar(message)
             vm.dismissStorageError()
         }
+    }
+    if (state.confirmResetPositions) {
+        ResetPositionsDialog(onConfirm = vm::confirmResetPositions, onDismiss = vm::cancelResetPositions)
     }
     Scaffold(
         snackbarHost = { SnackbarHost(snackbarHostState) },
@@ -357,6 +361,18 @@ fun SettingsScreen(
                         haptic = true,
                     )
                 }
+            }
+            item(key = "bubble") {
+                BubbleSection(
+                    state.bubble,
+                    BubbleActions(
+                        onShowBubble = vm::setShowBubble,
+                        onSize = vm::setBubbleSize,
+                        onOpacity = vm::setBubbleOpacity,
+                        onShrinkWhenIdle = vm::setShrinkWhenIdle,
+                        onResetPositions = vm::requestResetPositions,
+                    ),
+                )
             }
             item(key = "about") {
                 SettingsSection("About") {

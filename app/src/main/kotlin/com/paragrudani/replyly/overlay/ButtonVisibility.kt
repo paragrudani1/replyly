@@ -57,6 +57,9 @@ enum class HideReason {
 
     /** An app-specific field that is not a reply: X search or a new post without a target (issue #30). */
     NOT_A_REPLY_FIELD,
+
+    /** "Show bubble" is off in Settings (#55): hidden in every app; the panel and capture are unaffected. */
+    TURNED_OFF,
 }
 
 /**
@@ -66,13 +69,16 @@ enum class HideReason {
  * = any app [isAppAllowed] lets through (WhatsApp, WhatsApp Business, Telegram, and the generic
  * mode for every other app), except Replyly itself and the system UI. [isFieldAllowed] narrows
  * an app to some of its fields: on X, the reply and quote composers and DMs only (`XFields`).
+ * [isTurnedOff] ("Show bubble" off, #55) wins over every other reason; its default never hides.
  */
 class ButtonVisibility(
     private val ownPackage: String,
     private val isAppAllowed: (packageName: String) -> Boolean,
     private val isFieldAllowed: (packageName: String, viewId: String?, hint: String?) -> Boolean = { _, _, _ -> true },
+    private val isTurnedOff: () -> Boolean = { false },
 ) {
     fun decide(facts: ScreenFacts): ButtonDecision {
+        if (isTurnedOff()) return hide(HideReason.TURNED_OFF)
         val keyboard =
             facts.windows.firstOrNull { it.kind == WindowKind.INPUT_METHOD && it.bounds.height > 0 }
                 ?: return hide(HideReason.KEYBOARD_CLOSED)

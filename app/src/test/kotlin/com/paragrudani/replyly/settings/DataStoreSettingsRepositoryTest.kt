@@ -1,6 +1,7 @@
 package com.paragrudani.replyly.settings
 
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import com.google.common.truth.Truth.assertThat
 import com.paragrudani.replyly.testing.TestDataStores
@@ -32,6 +33,10 @@ class DataStoreSettingsRepositoryTest {
             assertThat(settings.retentionDays).isEqualTo(60)
             assertThat(settings.blockedPackages).isEmpty()
             assertThat(settings.useDynamicColor).isFalse()
+            assertThat(settings.showBubble).isTrue()
+            assertThat(settings.bubbleSize).isEqualTo(1.0f)
+            assertThat(settings.bubbleOpacity).isEqualTo(100)
+            assertThat(settings.shrinkWhenIdle).isFalse()
         }
 
     @Test
@@ -52,6 +57,10 @@ class DataStoreSettingsRepositoryTest {
                     myXVoice = "dev, dry humour, no hashtags",
                     xPostLength = 500,
                     useDynamicColor = true,
+                    showBubble = false,
+                    bubbleSize = 1.15f,
+                    bubbleOpacity = 60,
+                    shrinkWhenIdle = true,
                 )
             DataStoreSettingsRepository(stores.open("settings")).update { changed }
 
@@ -100,5 +109,27 @@ class DataStoreSettingsRepositoryTest {
                     }
                 }.awaitAll()
             assertThat(repo.current().blockedPackages).hasSize(20)
+        }
+
+    @Test
+    fun `out-of-range stored bubble values read as steps`() =
+        runBlocking<Unit> {
+            val cases =
+                listOf(
+                    Triple(2.0f, 250, 1.0f to 100),
+                    Triple(0.5f, 0, 1.0f to 40),
+                    Triple(1.3f, 55, 1.3f to 60),
+                    Triple(0.85f, 39, 0.85f to 40),
+                    Triple(-1f, -5, 1.0f to 40),
+                )
+            cases.forEachIndexed { i, (size, opacity, expected) ->
+                val name = "bubble$i"
+                stores.open(name).edit {
+                    it[floatPreferencesKey("bubble_size")] = size
+                    it[intPreferencesKey("bubble_opacity")] = opacity
+                }
+                val read = DataStoreSettingsRepository(stores.reopen(name)).current()
+                assertThat(read.bubbleSize to read.bubbleOpacity).isEqualTo(expected)
+            }
         }
 }

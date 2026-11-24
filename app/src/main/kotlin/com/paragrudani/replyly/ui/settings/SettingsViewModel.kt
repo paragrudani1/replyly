@@ -7,6 +7,7 @@ import com.paragrudani.replyly.cost.CostStatus
 import com.paragrudani.replyly.feedback.FeedbackEntry
 import com.paragrudani.replyly.feedback.FeedbackLog
 import com.paragrudani.replyly.feedback.PromptVersionStats
+import com.paragrudani.replyly.overlay.BubbleLook
 import com.paragrudani.replyly.settings.ReplylySettings
 import com.paragrudani.replyly.settings.SettingsRepository
 import com.paragrudani.replyly.settings.current
@@ -37,9 +38,14 @@ data class SettingsUiState(
      * confirm haptic plays when it changes, so a failed validation or write never buzzes.
      */
     val savedCount: Int = 0,
+    /** "Reset button positions" was tapped: the confirm dialog shows until Reset or Cancel. */
+    val confirmResetPositions: Boolean = false,
 ) {
     /** Material You colours. Saved at once (not part of the Save bar), like the blocklists. */
     val useDynamicColor: Boolean get() = saved?.useDynamicColor ?: false
+
+    /** Settings → Bubble (#55), as stored (defaults until loaded). Saved at once, never in the draft. */
+    val bubble: BubbleLook get() = saved?.let(BubbleLook::from) ?: BubbleLook()
 
     val dirty: Boolean get() = draft != null && saved != null && draft != SettingsDraft.from(saved)
 }
@@ -49,6 +55,8 @@ class SettingsViewModel(
     private val costGuard: CostGuard,
     private val feedbackLog: FeedbackLog,
     private val clock: Clock,
+    /** "Reset button positions" (#55): `ButtonPositionStore.resetAll` in the app. */
+    private val resetButtonPositions: () -> Unit = {},
 ) : ViewModel() {
     private val mutableState = MutableStateFlow(SettingsUiState())
     val state: StateFlow<SettingsUiState> = mutableState.asStateFlow()
@@ -160,6 +168,40 @@ class SettingsViewModel(
     /** Applies at once: the theme follows the stored setting, so a Save bar would only delay it. */
     fun setDynamicColor(enabled: Boolean) {
         viewModelScope.launch { writeSettings { it.copy(useDynamicColor = enabled) } }
+    }
+
+    /** "Show bubble" (#55): saved at once; the overlay hides or shows the button live. */
+    fun setShowBubble(show: Boolean) {
+        viewModelScope.launch { writeSettings { it.copy(showBubble = show) } }
+    }
+
+    /** "Size" (#55): one of [ReplylySettings.BUBBLE_SIZES]; anything else is stored as its step. */
+    fun setBubbleSize(size: Float) {
+        val step = ReplylySettings.bubbleSizeStep(size)
+        viewModelScope.launch { writeSettings { it.copy(bubbleSize = step) } }
+    }
+
+    /** "Opacity" (#55), percent; clamped and rounded to a step of 20. */
+    fun setBubbleOpacity(percent: Int) {
+        val step = ReplylySettings.bubbleOpacityStep(percent)
+        viewModelScope.launch { writeSettings { it.copy(bubbleOpacity = step) } }
+    }
+
+    /** "Shrink when idle" (#55). */
+    fun setShrinkWhenIdle(enabled: Boolean) {
+        viewModelScope.launch { writeSettings { it.copy(shrinkWhenIdle = enabled) } }
+    }
+
+    /** "Reset button positions" tapped: asks first ([confirmResetPositions] / [cancelResetPositions]). */
+    fun requestResetPositions() = mutableState.update { it.copy(confirmResetPositions = true) }
+
+    fun cancelResetPositions() = mutableState.update { it.copy(confirmResetPositions = false) }
+
+    /** Confirmed: the button goes back to its default spot in every app. */
+    fun confirmResetPositions() {
+        if (!mutableState.value.confirmResetPositions) return
+        mutableState.update { it.copy(confirmResetPositions = false) }
+        resetButtonPositions()
     }
 
     fun dismissSaveError() = mutableState.update { it.copy(saveError = null) }

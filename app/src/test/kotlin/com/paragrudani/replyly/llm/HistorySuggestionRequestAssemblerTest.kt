@@ -269,8 +269,18 @@ class HistorySuggestionRequestAssemblerTest {
         runBlocking {
             settings.update { it.copy(myXVoice = "dry humour, no hashtags", xPostLength = 500) }
             val chat = XParser { "kiran_test" }.parse(Fixtures.snapshot("x/synthetic-reply_thread.json"))!!
+            // A fixed Now (Mon 23 Nov, 02:00): the post ages below ("5h" = yesterday) depend on it.
+            val fixedNow =
+                HistorySuggestionRequestAssembler(
+                    history,
+                    notes,
+                    settings,
+                    appLabelOf = { "Label($it)" },
+                    clock = Clock.fixed(Instant.parse("2026-11-23T02:00:00Z"), ZoneOffset.UTC),
+                    zone = { ZoneOffset.UTC },
+                )
 
-            val request = assembler.assemble(chat, instruction = null)
+            val request = fixedNow.assemble(chat, instruction = null)
 
             assertThat(request.appLabel).isEqualTo("X")
             assertThat(request.x).isEqualTo(chat.x)

@@ -1,5 +1,6 @@
 package com.paragrudani.replyly.overlay
 
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.ColorStateList
@@ -8,6 +9,7 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewConfiguration
+import android.view.accessibility.AccessibilityManager
 import android.view.accessibility.AccessibilityNodeInfo
 import android.view.animation.Interpolator
 import android.widget.FrameLayout
@@ -205,42 +207,126 @@ class OverlayButtonView(
 
     // Looks -------------------------------------------------------------------------------------
 
+    /** The bubble settings (#55) this button draws with; [applyLook] changes it. */
+    var look = BubbleLook()
+        private set
+
+    /** "Shrink when idle" (#55): the dot after 5 s untouched; press and drag grow it back. */
+    private val idleShrink =
+        IdleShrink(
+            schedule = { delayMillis, action ->
+                val runnable = Runnable(action)
+                postDelayed(runnable, delayMillis)
+                ({ removeCallbacks(runnable) })
+            },
+            onShrunkChange = { updateMark(MotionDurations.MEDIUM) },
+        )
+
+    /** Shown as the small dot (tests). */
+    val shrunk: Boolean get() = idleShrink.shrunk
+
+    private val accessibilityManager: AccessibilityManager? = context.getSystemService(AccessibilityManager::class.java)
+    private val touchExplorationListener =
+        AccessibilityManager.TouchExplorationStateChangeListener { on -> idleShrink.setTouchExploration(on) }
+    private var iconFade: ValueAnimator? = null
+
+    /**
+     * Size, opacity and "Shrink when idle" from Settings → Bubble. Before the window is attached
+     * it applies at once (the first frame is already right); on a shown button the change is
+     * short. The window itself is sized by [OverlayWindows].
+     */
+    fun applyLook(look: BubbleLook) {
+        this.look = look
+        val circle = look.circlePx(density)
+        val params = mark.layoutParams as LayoutParams
+        if (params.width != circle || params.height != circle) {
+            params.width = circle
+            params.height = circle
+            mark.layoutParams = params
+        }
+        // The mark grows with the circle (24 dp at 1.0x, as before).
+        val icon = (ICON_DP * look.size * density).roundToInt()
+        val inset = ((circle - icon) / 2).coerceAtLeast(0)
+        mark.scaleType = ImageView.ScaleType.FIT_CENTER
+        mark.setPadding(inset, inset, inset, inset)
+        // A see-through circle would show its own shadow as a dark disc (review pr58-r1 S2).
+        mark.elevation = if (look.opacityPercent < 100) 0f else Elevation.Sheet.value * density
+        idleShrink.setEnabled(look.shrinkWhenIdle)
+        updateMark(if (isAttachedToWindow) MotionDurations.SHORT else 0)
+    }
+
     /** Dimmed while a tap is being read (it can take a few seconds). */
     fun setBusy(busy: Boolean) {
         this.busy = busy
+        idleShrink.setBusy(busy)
         updateMark(MotionDurations.SHORT)
     }
 
     fun setPressedLook(pressed: Boolean) {
         pressedLook = pressed
+        idleShrink.setTouching(pressedLook || dragging)
         updateMark(MotionDurations.SHORT)
     }
 
     fun setDragging(dragging: Boolean) {
         this.dragging = dragging
+        idleShrink.setTouching(pressedLook || dragging)
         updateMark(MotionDurations.SHORT)
     }
 
     private fun updateMark(durationMillis: Int) {
+        val shrunk = idleShrink.shrunk
         val scale =
             when {
                 dragging -> DRAG_SCALE
                 pressedLook -> PRESSED_SCALE
+                shrunk -> BubbleLook.DOT_SCALE
                 else -> 1f
             }
-        mark.animateTo(
-            scale,
-            if (busy) BUSY_ALPHA else 1f,
-            motion.viewDuration(durationMillis),
-            MotionEasing.viewInterpolator(MotionEasing.Standard),
-        )
+        val duration = motion.viewDuration(durationMillis)
+        mark.animateTo(scale, look.alpha(busy), duration, MotionEasing.viewInterpolator(MotionEasing.Standard))
+        fadeIcon(if (shrunk && !pressedLook && !dragging) 0 else OPAQUE, duration)
     }
 
-    /** Scale and fade in from [HIDDEN_SCALE] (~150 ms; instant with "Remove animations"). */
+    /** The dot hides the mark; it fades with the circle's scale. */
+    private fun fadeIcon(
+        target: Int,
+        durationMillis: Long,
+    ) {
+        iconFade?.cancel()
+        iconFade = null
+        if (durationMillis == 0L || mark.imageAlpha == target) {
+            mark.imageAlpha = target
+            return
+        }
+        iconFade =
+            ValueAnimator.ofInt(mark.imageAlpha, target).apply {
+                duration = durationMillis
+                interpolator = MotionEasing.viewInterpolator(MotionEasing.Standard)
+                addUpdateListener { mark.imageAlpha = it.animatedValue as Int }
+                start()
+            }
+    }
+
+    override fun onAttachedToWindow() {
+        super.onAttachedToWindow()
+        accessibilityManager?.addTouchExplorationStateChangeListener(touchExplorationListener)
+        idleShrink.setTouchExploration(accessibilityManager?.isTouchExplorationEnabled == true)
+    }
+
+    override fun onDetachedFromWindow() {
+        accessibilityManager?.removeTouchExplorationStateChangeListener(touchExplorationListener)
+        idleShrink.setShown(false)
+        iconFade?.cancel()
+        super.onDetachedFromWindow()
+    }
+
+    /** Scale and fade in from [HIDDEN_SCALE] (~150 ms; instant with "Remove animations"). Starts full size. */
     fun animateIn() {
         scaleX = HIDDEN_SCALE
         scaleY = HIDDEN_SCALE
         alpha = 0f
+        idleShrink.setShown(true)
         animateTo(
             1f,
             1f,
@@ -252,6 +338,7 @@ class OverlayButtonView(
     /** Scale and fade out, then [onEnd] (remove the window). */
     fun animateOut(onEnd: () -> Unit) {
         isEnabled = false
+        idleShrink.setShown(false)
         animateTo(
             HIDDEN_SCALE,
             0f,
@@ -266,6 +353,10 @@ class OverlayButtonView(
         const val PRESSED_SCALE = 0.9f
         const val DRAG_SCALE = 1.04f
         const val HIDDEN_SCALE = 0.6f
+
+        /** The mark's size in the 1.0x circle (`overlay_button_icon` is 24 dp). */
+        const val ICON_DP = 24
+        private const val OPAQUE = 255
     }
 }
 

@@ -25,6 +25,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
@@ -39,6 +40,8 @@ class OverlayComponent(
     private val panel: () -> ReplyPanel,
     private val rememberTarget: (InputFieldRef) -> Unit,
     private val positions: ButtonPositionStore? = null,
+    /** Settings → Bubble (#55), hot; `null` (tests): the defaults, never turned off. */
+    private val bubble: StateFlow<BubbleLook>? = null,
 ) : AccessibilityComponent {
     private var scope: CoroutineScope? = null
     private var controller: OverlayController? = null
@@ -58,8 +61,13 @@ class OverlayComponent(
                 Log.e(TAG, "overlay failed: ${e::class.simpleName}")
             }
         val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate + errors)
-        val placement =
-            ButtonPlacement(buttonSizePx = dp(TOUCH_DP), marginPx = dp(MARGIN_DP), maxInputLiftPx = dp(MAX_LIFT_DP))
+        // Rebuilt when the bubble size changes (#55); the lambdas below read the current one.
+        val look = bubble?.value ?: BubbleLook()
+
+        fun placementFor(windowPx: Int) =
+            ButtonPlacement(buttonSizePx = windowPx, marginPx = dp(MARGIN_DP), maxInputLiftPx = dp(MAX_LIFT_DP))
+        var placementSizePx = look.windowPx(density)
+        var placement = placementFor(placementSizePx)
         val windowManager = service.getSystemService(WindowManager::class.java)
         val tapFlow = TapFlow(capture = { id -> host.captureWindowChecked(id) }, policy = policy, parsers = parsers)
         lateinit var controller: OverlayController
@@ -67,7 +75,7 @@ class OverlayComponent(
             OverlayWindows(
                 context = service,
                 panel = panel(),
-                buttonSizePx = dp(TOUCH_DP),
+                buttonSizePx = placementSizePx,
                 onButtonTap = { controller.onButtonTapped() },
                 onButtonMoved = { y -> controller.onButtonMoved(y) },
                 // Posted: the panel's close button and Back run inside its own input dispatch,
@@ -82,6 +90,7 @@ class OverlayComponent(
                         service.packageName,
                         isAppAllowed = { pkg -> policy.evaluate(ScreenContext(pkg)) == SensitivityVerdict.Allowed },
                         isFieldAllowed = XFields::allowsButton,
+                        isTurnedOff = { bubble?.value?.show == false },
                     ),
                 place = { shown ->
                     val metrics = windowManager.currentWindowMetrics
@@ -112,6 +121,21 @@ class OverlayComponent(
             )
         this.scope = scope
         this.controller = controller
+        // Settings → Bubble applies live, without waiting for an accessibility event (#55).
+        bubble?.let { looks ->
+            scope.followBubbleLook(
+                looks,
+                density,
+                onWindowSize = { px ->
+                    if (px != placementSizePx) {
+                        placementSizePx = px
+                        placement = placementFor(px)
+                    }
+                },
+                apply = ui::applyLook,
+                refresh = { controller.onEvent(OverlayEvent.WINDOWS) },
+            )
+        }
         // Overlays draw above the lock screen: nothing of a chat may stay readable there.
         val receiver =
             object : BroadcastReceiver() {
@@ -165,7 +189,10 @@ class OverlayComponent(
         /** The visible circle. */
         const val BUTTON_DP = 44
 
-        /** The button window = its touch area (DESIGN.md: at least 48 dp); the rest is shadow room. */
+        /**
+         * The button window at 1.0x = its touch area (DESIGN.md: at least 48 dp); the rest is shadow
+         * room. Other bubble sizes: [BubbleLook.windowDp].
+         */
         const val TOUCH_DP = 56
 
         /** Window to keyboard/screen edge; the circle sits (TOUCH_DP - BUTTON_DP) / 2 further in, 8 dp. */
@@ -181,6 +208,7 @@ class OverlayComponent(
                 panel = { graph.replyPanel },
                 rememberTarget = graph.accessibilityReplyInserter::rememberTarget,
                 positions = graph.buttonPositionStore,
+                bubble = graph.bubbleSettings.look,
             )
     }
 }
