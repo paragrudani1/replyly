@@ -12,6 +12,7 @@ import com.paragrudani.replyly.cost.CostStatus
 import com.paragrudani.replyly.cost.InMemoryCostGuard
 import com.paragrudani.replyly.feedback.InMemoryFeedbackLog
 import com.paragrudani.replyly.llm.TokenUsage
+import com.paragrudani.replyly.overlay.BubbleLook
 import com.paragrudani.replyly.settings.ApiFormat
 import com.paragrudani.replyly.settings.InMemorySettingsRepository
 import com.paragrudani.replyly.settings.ProviderProfile
@@ -19,6 +20,7 @@ import com.paragrudani.replyly.settings.ReplylySettings
 import com.paragrudani.replyly.testing.MutableClock
 import com.paragrudani.replyly.testing.ScreenshotRule
 import com.paragrudani.replyly.testing.ScreenshotTest
+import com.paragrudani.replyly.testing.ShotVariant
 import com.paragrudani.replyly.ui.settings.profiles.MODEL_SHORTLIST
 import com.paragrudani.replyly.ui.settings.profiles.ProfileDraft
 import com.paragrudani.replyly.ui.settings.profiles.ProfileEditor
@@ -152,6 +154,23 @@ class SettingsScreenshotTest {
                 message = null,
                 actions = ProfileEditorActions({}, {}, {}, {}, {}, {}, {}),
             )
+        }
+
+    /** Settings → Bubble (#55): preview at 1.15x and 80 %, Show bubble on, Shrink when idle on. */
+    @Test
+    fun bubble() =
+        shots.component("settings/bubble") {
+            BubbleSection(
+                BubbleLook(size = 1.15f, opacityPercent = 80, shrinkWhenIdle = true),
+                BubbleActions({}, {}, {}, {}, {}),
+            )
+        }
+
+    /** The "Reset button positions?" confirm dialog's card (#55). */
+    @Test
+    fun bubbleResetDialog() =
+        shots.component("settings/bubble_reset_dialog", ShotVariant.LIGHT_DARK) {
+            ResetPositionsDialogContent(onConfirm = {}, onDismiss = {})
         }
 
     @Composable

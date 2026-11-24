@@ -17,6 +17,8 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import org.robolectric.shadows.ShadowLooper
+import java.util.concurrent.TimeUnit
 import kotlin.math.roundToInt
 
 /**
@@ -100,6 +102,55 @@ class OverlayButtonScreenshotTest {
                     addView(button, FrameLayout.LayoutParams(size, size, Gravity.CENTER))
                 }
             activity.setContentView(frame, FrameLayout.LayoutParams((96 * density).toInt(), (96 * density).toInt()))
+            frame.captureShot(name, variant)
+        }
+    }
+
+    // Settings → Bubble (#55) -------------------------------------------------------------------
+
+    @Test
+    fun size085() = shootLook("overlay/button_size_085", BubbleLook(size = 0.85f), listOf(ShotVariant.Light))
+
+    @Test
+    fun size130() = shootLook("overlay/button_size_130", BubbleLook(size = 1.3f))
+
+    @Test
+    fun opacity40() = shootLook("overlay/button_opacity_40", BubbleLook(opacityPercent = 40))
+
+    @Test
+    fun opacity40Busy() =
+        shootLook("overlay/button_opacity_40_busy", BubbleLook(opacityPercent = 40), listOf(ShotVariant.Light)) {
+            it.setBusy(true)
+        }
+
+    /** Shrink when idle, 5 s after showing: the dot (the window keeps its size). */
+    @Test
+    fun shrunk() =
+        shootLook("overlay/button_shrunk", BubbleLook(shrinkWhenIdle = true)) {
+            it.animateIn()
+            ShadowLooper.idleMainLooper(BubbleLook.IDLE_SHRINK_MILLIS + 100, TimeUnit.MILLISECONDS)
+            check(it.shrunk)
+        }
+
+    /** The button with [look] in its own window size, centred in a 96 dp square of chat. */
+    private fun shootLook(
+        name: String,
+        look: BubbleLook,
+        variants: List<ShotVariant> = ShotVariant.LIGHT_DARK,
+        state: (OverlayButtonView) -> Unit = {},
+    ) {
+        for (variant in variants) {
+            val activity = activity(variant)
+            val density = activity.resources.displayMetrics.density
+            val size = look.windowPx(density)
+            val button = OverlayButtonView(activity, noop, ReplylyMotion(reduced = true)).apply { applyLook(look) }
+            val frame =
+                FrameLayout(activity).apply {
+                    setBackgroundColor(chatBackground(variant))
+                    addView(button, FrameLayout.LayoutParams(size, size, Gravity.CENTER))
+                }
+            activity.setContentView(frame, FrameLayout.LayoutParams((96 * density).toInt(), (96 * density).toInt()))
+            state(button)
             frame.captureShot(name, variant)
         }
     }

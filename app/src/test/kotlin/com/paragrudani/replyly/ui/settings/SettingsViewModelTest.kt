@@ -8,6 +8,7 @@ import com.paragrudani.replyly.feedback.FeedbackLog
 import com.paragrudani.replyly.feedback.InMemoryFeedbackLog
 import com.paragrudani.replyly.llm.Suggestion
 import com.paragrudani.replyly.llm.TokenUsage
+import com.paragrudani.replyly.overlay.BubbleLook
 import com.paragrudani.replyly.parser.ChatKey
 import com.paragrudani.replyly.security.DatabaseKeyUnavailableException
 import com.paragrudani.replyly.settings.InMemorySettingsRepository
@@ -255,6 +256,80 @@ class SettingsViewModelTest {
             assertThat(settings.current().useDynamicColor).isTrue()
             vm.setDynamicColor(false)
             assertThat(settings.current().useDynamicColor).isFalse()
+        }
+
+    @Test
+    fun `each bubble control is stored at once and keeps unsaved edits`() =
+        runTest {
+            val vm = viewModel()
+            assertThat(vm.state.value.bubble).isEqualTo(BubbleLook())
+            vm.editDraft { it.copy(aboutMe = "typing...") }
+
+            vm.setShowBubble(false)
+            assertThat(settings.current().showBubble).isFalse()
+            vm.setBubbleSize(1.3f)
+            assertThat(settings.current().bubbleSize).isEqualTo(1.3f)
+            vm.setBubbleOpacity(60)
+            assertThat(settings.current().bubbleOpacity).isEqualTo(60)
+            vm.setShrinkWhenIdle(true)
+            assertThat(settings.current().shrinkWhenIdle).isTrue()
+
+            assertThat(vm.state.value.bubble)
+                .isEqualTo(BubbleLook(show = false, size = 1.3f, opacityPercent = 60, shrinkWhenIdle = true))
+            assertThat(
+                vm.state.value.draft
+                    ?.aboutMe,
+            ).isEqualTo("typing...")
+            assertThat(vm.state.value.dirty).isTrue()
+        }
+
+    @Test
+    fun `bubble values off the steps are stored as steps`() =
+        runTest {
+            val vm = viewModel()
+
+            vm.setBubbleSize(2f)
+            vm.setBubbleOpacity(15)
+
+            assertThat(settings.current().bubbleSize).isEqualTo(1.0f)
+            assertThat(settings.current().bubbleOpacity).isEqualTo(40)
+        }
+
+    @Test
+    fun `Save keeps the bubble settings written meanwhile`() =
+        runTest {
+            val vm = viewModel()
+            vm.setBubbleOpacity(80)
+            vm.editDraft { it.copy(aboutMe = "Short replies") }
+
+            vm.save()
+
+            assertThat(settings.current().aboutMe).isEqualTo("Short replies")
+            assertThat(settings.current().bubbleOpacity).isEqualTo(80)
+        }
+
+    @Test
+    fun `reset button positions runs only after confirm, and cancel does nothing`() =
+        runTest {
+            var resets = 0
+            val vm = SettingsViewModel(settings, cost, feedback, clock, resetButtonPositions = { resets++ })
+
+            vm.confirmResetPositions() // no dialog open: nothing
+            assertThat(resets).isEqualTo(0)
+
+            vm.requestResetPositions()
+            assertThat(vm.state.value.confirmResetPositions).isTrue()
+            assertThat(resets).isEqualTo(0)
+            vm.cancelResetPositions()
+            assertThat(vm.state.value.confirmResetPositions).isFalse()
+            assertThat(resets).isEqualTo(0)
+
+            vm.requestResetPositions()
+            vm.confirmResetPositions()
+            assertThat(resets).isEqualTo(1)
+            assertThat(vm.state.value.confirmResetPositions).isFalse()
+            vm.confirmResetPositions()
+            assertThat(resets).isEqualTo(1)
         }
 
     @Test
