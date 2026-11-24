@@ -3,4 +3,6 @@
   <!-- Accessibility actions on the floating button (TalkBack: move it without dragging). -->
   <item name="overlay_action_move_up" type="id" />
   <item name="overlay_action_move_down" type="id" />
+  <item name="overlay_action_move_left_edge" type="id" />
+  <item name="overlay_action_move_right_edge" type="id" />
 </resources>

@@ -36,8 +36,9 @@ import kotlin.math.roundToInt
  * for its shadow. A View, not Compose: the button window has no lifecycle owners and must stay cheap.
  *
  * Touch: a tap goes through [View.performClick] to [Listener.onTap], the one existing tap path
- * (so still one LLM call per tap). A touch that moves past the touch slop is a drag and never a
- * tap ([DragTracker]). TalkBack users get "Move up" / "Move down" actions instead of dragging.
+ * (so still one LLM call per tap). A touch that moves past the touch slop is a drag, in any
+ * direction, and never a tap ([DragTracker]). TalkBack users get "Move up" / "Move down" and
+ * "Move to left edge" / "Move to right edge" actions instead of dragging.
  */
 @SuppressLint("ViewConstructor")
 class OverlayButtonView(
@@ -54,6 +55,16 @@ class OverlayButtonView(
         /** [dy] px from where the drag started (raw, not yet clamped). */
         fun onDrag(dy: Int) {}
 
+        /**
+         * [dx] and [dy] px from where the drag started (raw, not yet clamped). The view calls
+         * this one; by default it passes the vertical part on to [onDrag] (vertical-only listeners).
+         */
+        fun onDrag(
+            dx: Int,
+            dy: Int,
+        ) = onDrag(dy)
+
+        /** The finger went up (or the gesture was cancelled): the window snaps to the nearer edge. */
         fun onDragEnd() {}
 
         /** Accessibility action: move one step up (`-1`) or down (`+1`). */
@@ -64,6 +75,15 @@ class OverlayButtonView(
          * button is at the top or bottom of its range) is not offered to TalkBack.
          */
         fun canMoveStep(direction: Int): Boolean = true
+
+        /** Accessibility action: move to the [side] edge at the same height. */
+        fun onMoveToEdge(side: ButtonSide) {}
+
+        /**
+         * Whether moving to [side] would move the button at all. Only that action is offered, so
+         * a button on the right offers "Move to left edge" only. Default: never (no sides).
+         */
+        fun canMoveToEdge(side: ButtonSide): Boolean = false
     }
 
     private val density = resources.displayMetrics.density
@@ -130,15 +150,15 @@ class OverlayButtonView(
                 setDragging(true)
                 performReplylyHaptic(HapticEvent.DragSnap)
                 listener.onDragStart()
-                listener.onDrag(step.dy)
+                listener.onDrag(step.dx, step.dy)
             }
 
             is DragStep.Drag -> {
-                listener.onDrag(step.dy)
+                listener.onDrag(step.dx, step.dy)
             }
 
             is DragStep.DragEnd -> {
-                listener.onDrag(step.dy)
+                listener.onDrag(step.dx, step.dy)
                 setDragging(false)
                 listener.onDragEnd()
             }
@@ -179,6 +199,11 @@ class OverlayButtonView(
                 ),
             )
         }
+        for ((side, id, label) in EDGE_ACTIONS) {
+            if (listener.canMoveToEdge(side)) {
+                info.addAction(AccessibilityNodeInfo.AccessibilityAction(id, context.getString(label)))
+            }
+        }
     }
 
     override fun performAccessibilityAction(
@@ -194,6 +219,14 @@ class OverlayButtonView(
                 moveStep(1)
             }
 
+            R.id.overlay_action_move_left_edge -> {
+                moveToEdge(ButtonSide.LEFT)
+            }
+
+            R.id.overlay_action_move_right_edge -> {
+                moveToEdge(ButtonSide.RIGHT)
+            }
+
             else -> {
                 super.performAccessibilityAction(action, arguments)
             }
@@ -202,6 +235,13 @@ class OverlayButtonView(
     private fun moveStep(direction: Int): Boolean {
         if (!listener.canMoveStep(direction)) return false
         listener.onMoveStep(direction)
+        return true
+    }
+
+    /** Never a tap: only moves the window (and remembers the side). */
+    private fun moveToEdge(side: ButtonSide): Boolean {
+        if (!listener.canMoveToEdge(side)) return false
+        listener.onMoveToEdge(side)
         return true
     }
 
@@ -398,3 +438,10 @@ internal fun overlayButtonScheme(
         dynamicColor = dynamicColor,
     )
 }
+
+/** The TalkBack edge actions: side, action id, label. */
+private val EDGE_ACTIONS =
+    listOf(
+        Triple(ButtonSide.LEFT, R.id.overlay_action_move_left_edge, R.string.overlay_button_move_left_edge),
+        Triple(ButtonSide.RIGHT, R.id.overlay_action_move_right_edge, R.string.overlay_button_move_right_edge),
+    )

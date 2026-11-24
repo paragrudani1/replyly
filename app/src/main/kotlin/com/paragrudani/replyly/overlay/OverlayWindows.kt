@@ -1,5 +1,8 @@
 package com.paragrudani.replyly.overlay
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.PixelFormat
@@ -18,13 +21,21 @@ import com.paragrudani.replyly.panel.PanelRequest
 import com.paragrudani.replyly.panel.PanelSheet
 import com.paragrudani.replyly.panel.PanelSheetState
 import com.paragrudani.replyly.panel.ReplyPanel
+import com.paragrudani.replyly.ui.theme.HapticEvent
+import com.paragrudani.replyly.ui.theme.MotionDurations
+import com.paragrudani.replyly.ui.theme.MotionEasing
+import com.paragrudani.replyly.ui.theme.ReplylyMotion
 import com.paragrudani.replyly.ui.theme.ReplylyTheme
+import com.paragrudani.replyly.ui.theme.performReplylyHaptic
 
 /**
  * The two overlay windows (TYPE_ACCESSIBILITY_OVERLAY, no extra permission needed):
  *
  * - the button: small, never focusable, so the chat's input keeps focus and the keyboard stays.
- *   It scales and fades in and out, and the user can drag it up and down within its [ButtonSlot];
+ *   It scales and fades in and out. The user can drag it anywhere within its [ButtonSlot]; on
+ *   release it glides to the nearer left or right edge at the drop height ([ButtonSlot.snap],
+ *   `MotionDurations.LONG`, instant with "Remove animations") with one `DragSnap` tick on landing.
+ *   TalkBack's "Move to left/right edge" glides the same way;
  * - the panel: full screen and focusable, so its instruction field can take the keyboard. When it
  *   is removed, window focus returns to the chat app, whose input field never lost view focus.
  *
@@ -38,10 +49,15 @@ class OverlayWindows(
     private var buttonSizePx: Int,
     private val onButtonTap: () -> Unit,
     private val onPanelDismiss: () -> Unit,
-    /** The user dragged (or moved with TalkBack) the button to window top [y]. */
-    private val onButtonMoved: (y: Int) -> Unit = {},
+    /**
+     * The user dragged (or moved with TalkBack) the button: it rests at window ([x], [y]), `x`
+     * being the edge it glides to. Called once per move, at release, before the glide ends.
+     */
+    private val onButtonMoved: (x: Int, y: Int) -> Unit = { _, _ -> },
     /** How far one TalkBack "Move up/down" goes. */
     private val moveStepPx: Int = buttonSizePx,
+    /** Read at each snap, so "Remove animations" applies without a restart. */
+    private val motion: () -> ReplylyMotion = { ReplylyMotion.forContext(context) },
 ) : OverlayUi {
     private val windowManager = context.getSystemService(WindowManager::class.java)
     private var button: OverlayButtonView? = null
@@ -49,8 +65,13 @@ class OverlayWindows(
 
     /** The button playing its hide animation; removed at its end or as soon as a new one shows. */
     private var leaving: OverlayButtonView? = null
+    private var dragStartX = 0
     private var dragStartY = 0
     private var dragging = false
+
+    /** The glide to an edge, while it runs, and the x it ends at. */
+    private var snap: ValueAnimator? = null
+    private var snapTargetX: Int? = null
     private var buttonBusy = false
     private var panelWindow: PanelWindow? = null
 
@@ -66,23 +87,38 @@ class OverlayWindows(
             override fun onTap() = onButtonTap()
 
             override fun onDragStart() {
+                val params = buttonParams() ?: return
+                cancelSnap()
                 dragging = true
-                dragStartY = buttonParams()?.y ?: return
+                dragStartX = params.x
+                dragStartY = params.y
             }
 
-            override fun onDrag(dy: Int) {
-                moveButtonTo(dragStartY + dy)
+            override fun onDrag(
+                dx: Int,
+                dy: Int,
+            ) {
+                if (!dragging) return
+                moveButtonTo(dragStartX + dx, dragStartY + dy)
             }
 
             override fun onDragEnd() {
+                if (!dragging) return
                 dragging = false
-                buttonParams()?.let { onButtonMoved(it.y) }
+                val params = buttonParams() ?: return
+                val target = slot?.let { it.edgeX(it.snap(params.x)) } ?: params.x
+                val y = params.y
+                glideTo(target)
+                onButtonMoved(target, y)
             }
 
             override fun onMoveStep(direction: Int) {
                 val params = buttonParams() ?: return
-                val y = moveButtonTo(params.y + direction * moveStepPx) ?: return
-                onButtonMoved(y)
+                // A running glide jumps to its end: the step keeps the side.
+                val x = restingX(params)
+                cancelSnap()
+                val y = moveButtonTo(x, params.y + direction * moveStepPx)?.second ?: return
+                onButtonMoved(x, y)
             }
 
             override fun canMoveStep(direction: Int): Boolean {
@@ -90,16 +126,35 @@ class OverlayWindows(
                 val target = params.y + direction * moveStepPx
                 return (slot?.clampY(target) ?: target) != params.y
             }
+
+            override fun onMoveToEdge(side: ButtonSide) {
+                val params = buttonParams() ?: return
+                val target = slot?.edgeX(side) ?: return
+                glideTo(target)
+                onButtonMoved(target, params.y)
+            }
+
+            override fun canMoveToEdge(side: ButtonSide): Boolean {
+                val params = buttonParams() ?: return false
+                val edge = slot?.edgeX(side) ?: return false
+                return edge != restingX(params)
+            }
         }
+
+    /** Where the button rests: the end of a running glide, else where it is. */
+    private fun restingX(params: WindowManager.LayoutParams): Int = snapTargetX ?: params.x
 
     override fun showButton(slot: ButtonSlot) {
         this.slot = slot
         val existing = button
         if (existing != null) {
             val params = existing.layoutParams as WindowManager.LayoutParams
-            params.x = slot.position.x
             // Never pull the button from under the finger; the drag clamps to the new range.
-            if (!dragging) params.y = slot.position.y
+            if (!dragging) {
+                cancelSnap()
+                params.x = slot.position.x
+                params.y = slot.position.y
+            }
             windowManager.updateViewLayout(existing, params)
             return
         }
@@ -151,6 +206,7 @@ class OverlayWindows(
     }
 
     override fun hideButton(immediate: Boolean) {
+        cancelSnap()
         val view = button
         button = null
         slot = null
@@ -192,16 +248,75 @@ class OverlayWindows(
 
     private fun buttonParams() = button?.layoutParams as? WindowManager.LayoutParams
 
-    /** Moves the button window to [y] clamped to the slot; returns the clamped y (`null`: no button). */
-    private fun moveButtonTo(y: Int): Int? {
+    /**
+     * Moves the button window to ([x], [y]) clamped to the slot (fully on screen, never below the
+     * default spot); returns the clamped spot (`null`: no button).
+     */
+    private fun moveButtonTo(
+        x: Int,
+        y: Int,
+    ): Pair<Int, Int>? {
         val view = button ?: return null
         val params = buttonParams() ?: return null
-        val clamped = slot?.clampY(y) ?: y
-        if (params.y != clamped) {
-            params.y = clamped
+        val clampedX = slot?.clampX(x) ?: x
+        val clampedY = slot?.clampY(y) ?: y
+        if (params.x != clampedX || params.y != clampedY) {
+            params.x = clampedX
+            params.y = clampedY
             windowManager.updateViewLayout(view, params)
         }
-        return clamped
+        return clampedX to clampedY
+    }
+
+    /**
+     * Glides the button window to [x] at its current height, then plays one `DragSnap` tick.
+     * Instant (and the tick at once) with "Remove animations". Stopped by [cancelSnap]: a new
+     * drag, a new slot or a hide; a stopped glide never ticks.
+     */
+    private fun glideTo(x: Int) {
+        val view = button ?: return
+        val params = buttonParams() ?: return
+        cancelSnap()
+        val duration = motion().viewDuration(MotionDurations.LONG)
+        if (duration == 0L || params.x == x) {
+            moveButtonTo(x, params.y)
+            view.performReplylyHaptic(HapticEvent.DragSnap)
+            return
+        }
+        snapTargetX = x
+        snap =
+            ValueAnimator.ofInt(params.x, x).apply {
+                this.duration = duration
+                interpolator = MotionEasing.viewInterpolator(MotionEasing.Standard)
+                addUpdateListener {
+                    if (button === view) moveButtonTo(it.animatedValue as Int, params.y)
+                }
+                addListener(
+                    object : AnimatorListenerAdapter() {
+                        private var cancelled = false
+
+                        override fun onAnimationCancel(animation: Animator) {
+                            cancelled = true
+                        }
+
+                        override fun onAnimationEnd(animation: Animator) {
+                            if (snap === animation) {
+                                snap = null
+                                snapTargetX = null
+                            }
+                            if (!cancelled && button === view) view.performReplylyHaptic(HapticEvent.DragSnap)
+                        }
+                    },
+                )
+                start()
+            }
+    }
+
+    private fun cancelSnap() {
+        val running = snap ?: return
+        snap = null
+        snapTargetX = null
+        running.cancel()
     }
 
     override fun openPanel(request: PanelRequest) {
