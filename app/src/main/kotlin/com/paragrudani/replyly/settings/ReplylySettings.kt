@@ -41,6 +41,14 @@ data class ReplylySettings(
     val xPostLength: Int = X_POST_STANDARD,
     /** Material You: colours from the wallpaper instead of the Replyly brand colours. */
     val useDynamicColor: Boolean = false,
+    /** "Show bubble" (#55): off hides the floating button in every app; capture continues. */
+    val showBubble: Boolean = true,
+    /** "Size" (#55): one of [BUBBLE_SIZES], times the 44 dp circle. See [bubbleSizeStep]. */
+    val bubbleSize: Float = BUBBLE_SIZE_DEFAULT,
+    /** "Opacity" (#55): percent, one of [BUBBLE_OPACITIES]. See [bubbleOpacityStep]. */
+    val bubbleOpacity: Int = BUBBLE_OPACITY_DEFAULT,
+    /** "Shrink when idle" (#55): after 5 s untouched the button becomes a small dot. */
+    val shrinkWhenIdle: Boolean = false,
 ) {
     companion object {
         const val DEFAULT_ENDPOINT = "https://openrouter.ai/api/v1"
@@ -51,6 +59,24 @@ data class ReplylySettings(
         /** "X post length" values; the same numbers as `XLength.STANDARD_LIMIT` / `MEDIUM_LIMIT`. */
         const val X_POST_STANDARD = 280
         const val X_POST_MEDIUM = 500
+
+        /** The bubble size steps (#55), smallest first. */
+        val BUBBLE_SIZES = listOf(0.85f, 1.0f, 1.15f, 1.3f)
+        const val BUBBLE_SIZE_DEFAULT = 1.0f
+
+        /** The bubble opacity steps in percent (#55): never below 40, so the button stays findable. */
+        val BUBBLE_OPACITIES = listOf(40, 60, 80, 100)
+        const val BUBBLE_OPACITY_DEFAULT = 100
+
+        /** A stored size that is one of [BUBBLE_SIZES] (as a float, within rounding), else the default 1.0. */
+        fun bubbleSizeStep(stored: Float): Float =
+            BUBBLE_SIZES.firstOrNull { kotlin.math.abs(it - stored) < 0.001f } ?: BUBBLE_SIZE_DEFAULT
+
+        /** A stored opacity clamped to 40..100 and rounded to the nearest step of 20 (half up). */
+        fun bubbleOpacityStep(stored: Int): Int {
+            val clamped = stored.coerceIn(BUBBLE_OPACITIES.first(), BUBBLE_OPACITIES.last())
+            return (clamped + 10) / 20 * 20
+        }
     }
 }
 

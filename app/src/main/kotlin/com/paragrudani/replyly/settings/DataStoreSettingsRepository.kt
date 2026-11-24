@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
@@ -42,6 +43,10 @@ class DataStoreSettingsRepository(
             myXVoice = this[MY_X_VOICE] ?: defaults.myXVoice,
             xPostLength = this[X_POST_LENGTH] ?: defaults.xPostLength,
             useDynamicColor = this[DYNAMIC_COLOR] ?: defaults.useDynamicColor,
+            showBubble = this[SHOW_BUBBLE] ?: defaults.showBubble,
+            bubbleSize = this[BUBBLE_SIZE]?.let(ReplylySettings::bubbleSizeStep) ?: defaults.bubbleSize,
+            bubbleOpacity = this[BUBBLE_OPACITY]?.let(ReplylySettings::bubbleOpacityStep) ?: defaults.bubbleOpacity,
+            shrinkWhenIdle = this[SHRINK_WHEN_IDLE] ?: defaults.shrinkWhenIdle,
         )
     }
 
@@ -59,6 +64,10 @@ class DataStoreSettingsRepository(
         this[MY_X_VOICE] = settings.myXVoice
         this[X_POST_LENGTH] = settings.xPostLength
         this[DYNAMIC_COLOR] = settings.useDynamicColor
+        this[SHOW_BUBBLE] = settings.showBubble
+        this[BUBBLE_SIZE] = ReplylySettings.bubbleSizeStep(settings.bubbleSize)
+        this[BUBBLE_OPACITY] = ReplylySettings.bubbleOpacityStep(settings.bubbleOpacity)
+        this[SHRINK_WHEN_IDLE] = settings.shrinkWhenIdle
     }
 
     private companion object {
@@ -75,5 +84,9 @@ class DataStoreSettingsRepository(
         val MY_X_VOICE = stringPreferencesKey("my_x_voice")
         val X_POST_LENGTH = intPreferencesKey("x_post_length")
         val DYNAMIC_COLOR = booleanPreferencesKey("use_dynamic_color")
+        val SHOW_BUBBLE = booleanPreferencesKey("show_bubble")
+        val BUBBLE_SIZE = floatPreferencesKey("bubble_size")
+        val BUBBLE_OPACITY = intPreferencesKey("bubble_opacity")
+        val SHRINK_WHEN_IDLE = booleanPreferencesKey("shrink_when_idle")
     }
 }
