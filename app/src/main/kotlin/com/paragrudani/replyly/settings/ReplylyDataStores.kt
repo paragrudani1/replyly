@@ -28,6 +28,9 @@ object ReplylyDataStores {
     /** Polish #3: where the user dragged the floating button, per app (not secret). */
     const val BUTTON_POSITIONS = "button_positions"
 
+    /** Bubble C #56: the snoozed-until time (one number, not secret). */
+    const val SNOOZE = "snooze"
+
     fun create(
         context: Context,
         name: String,

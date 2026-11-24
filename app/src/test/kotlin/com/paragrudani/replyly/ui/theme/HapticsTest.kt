@@ -1,6 +1,9 @@
 package com.paragrudani.replyly.ui.theme
 
 import android.content.Context
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.provider.Settings
 import android.view.HapticFeedbackConstants
 import android.view.View
@@ -12,6 +15,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.Shadows.shadowOf
 
 @RunWith(RobolectricTestRunner::class)
 class HapticsTest {
@@ -48,11 +52,39 @@ class HapticsTest {
                 HapticEvent.ToggleOn to HapticFeedbackConstants.TOGGLE_ON,
                 HapticEvent.ToggleOff to HapticFeedbackConstants.TOGGLE_OFF,
                 HapticEvent.Save to HapticFeedbackConstants.CONFIRM,
+                HapticEvent.SnoozeEnd to HapticFeedbackConstants.CONFIRM,
             )
         // A new event must get a deliberate mapping (and a row in DESIGN.md > Haptics).
         assertThat(HapticEvent.entries.toSet()).isEqualTo(expected.keys)
         HapticEvent.entries.forEach { assertThat(it.feedbackConstant).isEqualTo(expected.getValue(it)) }
     }
+
+    @Test
+    fun `only the snooze end plays without a view, as the predefined click`() {
+        assertThat(HapticEvent.entries.filter { it.predefinedEffect != null }).containsExactly(HapticEvent.SnoozeEnd)
+        assertThat(HapticEvent.SnoozeEnd.predefinedEffect).isEqualTo(VibrationEffect.EFFECT_CLICK)
+    }
+
+    @Test
+    fun `context entry point plays the predefined effect on the system vibrator`() {
+        assertThat(context.performReplylyHaptic(HapticEvent.SnoozeEnd)).isTrue()
+        assertThat(shadowOf(vibrator()).effectId).isEqualTo(VibrationEffect.EFFECT_CLICK)
+    }
+
+    @Test
+    fun `context entry point plays nothing when system touch feedback is off`() {
+        setSystemTouchFeedback(false)
+        assertThat(context.performReplylyHaptic(HapticEvent.SnoozeEnd)).isFalse()
+        assertThat(shadowOf(vibrator()).isVibrating).isFalse()
+    }
+
+    @Test
+    fun `context entry point ignores events that need a view`() {
+        assertThat(context.performReplylyHaptic(HapticEvent.Tap)).isFalse()
+        assertThat(shadowOf(vibrator()).isVibrating).isFalse()
+    }
+
+    private fun vibrator(): Vibrator = context.getSystemService(VibratorManager::class.java).defaultVibrator
 
     @Test
     fun `toggle picks on or off`() {
