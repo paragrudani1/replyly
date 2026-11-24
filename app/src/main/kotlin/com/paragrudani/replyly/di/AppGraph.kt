@@ -49,6 +49,7 @@ import com.paragrudani.replyly.settings.ProfileSecretStore
 import com.paragrudani.replyly.settings.ReplylyDataStores
 import com.paragrudani.replyly.settings.SettingsMigrations
 import com.paragrudani.replyly.settings.SettingsRepository
+import com.paragrudani.replyly.snooze.SnoozeStore
 import com.paragrudani.replyly.ui.theme.ThemeSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -219,6 +220,9 @@ class AppGraph(
     val buttonPositionStore: ButtonPositionStore by lazy {
         ButtonPositionStore(ReplylyDataStores.create(app, ReplylyDataStores.BUTTON_POSITIONS), appScope)
     }
+
+    // Bubble C #56: the snoozed-until time (snooze/SnoozeStore), read synchronously by the overlay.
+    val snoozeStore: SnoozeStore by lazy { SnoozeStore(ReplylyDataStores.create(app, ReplylyDataStores.SNOOZE), appScope) }
 
     // Skeleton: the order components receive events in.
     fun accessibilityComponents(): List<AccessibilityComponent> = listOf(overlayComponent, captureComponent)
