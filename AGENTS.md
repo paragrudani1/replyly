@@ -31,6 +31,7 @@ Before touching code, read [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): the dat
 - Parser tests read JSON fixtures: `Fixtures.snapshot("whatsapp/group.json")`. See `app/src/test/resources/fixtures/README.md`.
 - HTTP tests use OkHttp `MockWebServer` (`mockwebserver3`); flows use Turbine; assertions use Truth.
 - History merge: `HistoryMergePropertyTest` must stay green; extend its invariants for new cases. Logic with a large input space needs a seeded property test.
+- Tests never read the wall clock (`Instant.now()`, `Clock.system*()`, `System.currentTimeMillis()`, ...): inject `testing.MutableClock.atLocal(...)` or `Clock.fixed(...)`, and pass it (or a fixed `today`) where production defaults to the system clock. `NoWallClockInTestsTest` enforces it.
 
 ## Working in parallel
 

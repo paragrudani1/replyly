@@ -35,7 +35,8 @@ class HistorySuggestionRequestAssembler(
     private val settings: SettingsRepository,
     /** Label for apps outside [TargetApps]; see [packageManagerAppLabel]. */
     private val appLabelOf: (String) -> String = { it },
-    private val clock: Clock = Clock.systemDefaultZone(),
+    /** Required, never defaulted to the system clock: tests pass a fixed one, AppGraph the real one. */
+    private val clock: Clock,
     /** Read per request, so the "Now" header follows a time zone change without a restart. */
     private val zone: () -> ZoneId = { ZoneId.systemDefault() },
     /** The phone's 12/24-hour setting (`DateFormat.is24HourFormat`), read per request. */

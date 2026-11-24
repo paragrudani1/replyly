@@ -13,21 +13,31 @@ import com.paragrudani.replyly.security.DatabaseKeyUnavailableException
 import com.paragrudani.replyly.settings.InMemorySettingsRepository
 import com.paragrudani.replyly.settings.ReplylySettings
 import com.paragrudani.replyly.testing.Fixtures
+import com.paragrudani.replyly.testing.MutableClock
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import java.io.IOException
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 
 class HistorySuggestionRequestAssemblerTest {
-    private val history = InMemoryHistoryRepository(Clock.systemUTC())
+    private val clock = MutableClock.atLocal(LocalDateTime.of(2026, 11, 21, 10, 0))
+    private val history = InMemoryHistoryRepository(clock)
     private val notes = InMemoryContactNoteStore()
     private val settings = InMemorySettingsRepository(ReplylySettings(historyMessageCount = 3, aboutMe = "I'm Parag"))
     private val assembler =
-        HistorySuggestionRequestAssembler(history, notes, settings, appLabelOf = { "Label($it)" })
+        HistorySuggestionRequestAssembler(
+            history,
+            notes,
+            settings,
+            appLabelOf = { "Label($it)" },
+            clock = clock,
+            zone = { clock.zone },
+        )
 
     private fun me(text: String) = ChatMessage(null, text, null, true)
 
@@ -321,7 +331,7 @@ class HistorySuggestionRequestAssemblerTest {
                             DatabaseKeyUnavailableException(IOException("keystore")),
                         )
                 }
-            val lockedAssembler = HistorySuggestionRequestAssembler(locked, notes, settings)
+            val lockedAssembler = HistorySuggestionRequestAssembler(locked, notes, settings, clock = clock)
 
             val thrown = runCatching { lockedAssembler.assemble(chat(messages = listOf(them("hi"))), null) }
 
@@ -343,6 +353,7 @@ class HistorySuggestionRequestAssemblerTest {
                         broken,
                         notes,
                         settings,
+                        clock = clock,
                     ).assemble(chat(messages = listOf(them("hi"))), null)
                 }
 
