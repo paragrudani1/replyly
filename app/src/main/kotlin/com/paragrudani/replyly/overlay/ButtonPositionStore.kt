@@ -99,11 +99,14 @@ class ButtonPositionStore(
     /** The edge the button rests on in [packageName]; right if never moved there or saved before sides. */
     fun side(packageName: String): ButtonSide = cache[packageName]?.side ?: ButtonSide.RIGHT
 
-    /** Remembers (lift, side) for [packageName]; both keys go to disk in one write. */
+    /**
+     * Remembers (lift, side) for [packageName]; both keys go to disk in one write. No default
+     * side: a caller that forgot it would silently move the app's button back to the right.
+     */
     fun save(
         packageName: String,
         liftDp: Float,
-        side: ButtonSide = ButtonSide.RIGHT,
+        side: ButtonSide,
     ) {
         change(packageName) { it + (packageName to Spot(liftDp, side)) }
         writes.trySend {

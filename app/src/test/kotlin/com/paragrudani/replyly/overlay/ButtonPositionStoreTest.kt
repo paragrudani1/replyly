@@ -59,7 +59,7 @@ class ButtonPositionStoreTest {
     @Test
     fun `a saved spot reads back at once, before it is on disk`() {
         val store = fresh()
-        store.save(WHATSAPP, 120f)
+        store.save(WHATSAPP, 120f, ButtonSide.RIGHT)
         assertThat(store.liftDp(WHATSAPP)).isEqualTo(120f)
     }
 
@@ -67,9 +67,9 @@ class ButtonPositionStoreTest {
     fun `spots are per app and survive a restart`() =
         runBlocking {
             val store = fresh()
-            store.save(WHATSAPP, 120f)
-            store.save(TELEGRAM, 40.5f)
-            store.save(WHATSAPP, 80f)
+            store.save(WHATSAPP, 120f, ButtonSide.RIGHT)
+            store.save(TELEGRAM, 40.5f, ButtonSide.RIGHT)
+            store.save(WHATSAPP, 80f, ButtonSide.RIGHT)
             store.sync()
 
             val after = restart()
@@ -83,8 +83,8 @@ class ButtonPositionStoreTest {
     fun `reset forgets one app, also after a restart`() =
         runBlocking {
             val store = fresh()
-            store.save(WHATSAPP, 120f)
-            store.save(TELEGRAM, 40f)
+            store.save(WHATSAPP, 120f, ButtonSide.RIGHT)
+            store.save(TELEGRAM, 40f, ButtonSide.RIGHT)
             store.reset(WHATSAPP)
             assertThat(store.liftDp(WHATSAPP)).isNull()
             store.sync()
@@ -99,8 +99,8 @@ class ButtonPositionStoreTest {
     fun `resetAll forgets every app, also after a restart`() =
         runBlocking {
             val store = fresh()
-            store.save(WHATSAPP, 120f)
-            store.save(TELEGRAM, 40f)
+            store.save(WHATSAPP, 120f, ButtonSide.RIGHT)
+            store.save(TELEGRAM, 40f, ButtonSide.RIGHT)
             store.sync()
             store.resetAll()
             assertThat(store.liftDp(TELEGRAM)).isNull()
@@ -116,8 +116,8 @@ class ButtonPositionStoreTest {
     fun `a change made while loading wins over the old value on disk`() =
         runBlocking {
             val first = fresh()
-            first.save(WHATSAPP, 120f)
-            first.save(TELEGRAM, 40f)
+            first.save(WHATSAPP, 120f, ButtonSide.RIGHT)
+            first.save(TELEGRAM, 40f, ButtonSide.RIGHT)
             first.sync()
             scopes
                 .removeLastOrNull()
@@ -127,7 +127,7 @@ class ButtonPositionStoreTest {
 
             // Changes right after start, maybe before the load finished.
             val second = ButtonPositionStore(stores.reopen(NAME), newScope())
-            second.save(WHATSAPP, 10f)
+            second.save(WHATSAPP, 10f, ButtonSide.RIGHT)
             second.reset(TELEGRAM)
             second.sync()
 
@@ -139,8 +139,8 @@ class ButtonPositionStoreTest {
     fun `resetAll before the load finishes keeps the old spots from coming back`() =
         runBlocking {
             val first = fresh()
-            first.save(WHATSAPP, 120f)
-            first.save(TELEGRAM, 40f)
+            first.save(WHATSAPP, 120f, ButtonSide.RIGHT)
+            first.save(TELEGRAM, 40f, ButtonSide.RIGHT)
             first.sync()
             scopes
                 .removeLastOrNull()
@@ -151,7 +151,7 @@ class ButtonPositionStoreTest {
             val disk = Gated(stores.reopen(NAME))
             val second = ButtonPositionStore(disk, newScope())
             second.resetAll()
-            second.save(TELEGRAM, 7f) // After the reset, still before the load.
+            second.save(TELEGRAM, 7f, ButtonSide.RIGHT) // After the reset, still before the load.
             disk.gate.complete(Unit)
             second.sync()
 
@@ -177,7 +177,7 @@ class ButtonPositionStoreTest {
             withTimeout(5_000) { store.sync() }
 
             assertThat(store.liftDp(WHATSAPP)).isNull()
-            store.save(WHATSAPP, 30f)
+            store.save(WHATSAPP, 30f, ButtonSide.RIGHT)
             assertThat(store.liftDp(WHATSAPP)).isEqualTo(30f)
         }
 
@@ -260,7 +260,7 @@ class ButtonPositionStoreTest {
             assertThat(after.side(OTHER)).isEqualTo(ButtonSide.RIGHT)
             assertThat(after.liftDp(OTHER)).isNull()
             // Saving a lift alone after a reset is on the right, not on a side left over on disk.
-            after.save(TELEGRAM, 5f)
+            after.save(TELEGRAM, 5f, ButtonSide.RIGHT)
             assertThat(after.side(TELEGRAM)).isEqualTo(ButtonSide.RIGHT)
         }
 
