@@ -34,7 +34,8 @@ import com.paragrudani.replyly.ui.theme.ReplylyTheme
 class OverlayWindows(
     private val context: Context,
     private val panel: ReplyPanel,
-    private val buttonSizePx: Int,
+    /** The button window's side (the touch area); [applyLook] changes it for the bubble size (#55). */
+    private var buttonSizePx: Int,
     private val onButtonTap: () -> Unit,
     private val onPanelDismiss: () -> Unit,
     /** The user dragged (or moved with TalkBack) the button to window top [y]. */
@@ -104,7 +105,11 @@ class OverlayWindows(
         }
         leaving?.let(::remove)
         leaving = null
-        val view = OverlayButtonView(context, buttonListener).apply { setBusy(buttonBusy) }
+        val view =
+            OverlayButtonView(context, buttonListener).apply {
+                applyLook(this@OverlayWindows.look)
+                setBusy(buttonBusy)
+            }
         val params =
             baseParams(buttonSizePx, buttonSizePx).apply {
                 flags = flags or WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
@@ -119,6 +124,30 @@ class OverlayWindows(
     override fun setButtonBusy(busy: Boolean) {
         buttonBusy = busy
         button?.setBusy(busy)
+    }
+
+    /** The bubble look for the next button; kept so a new window draws it in its first frame. */
+    private var look = BubbleLook()
+
+    /**
+     * Settings → Bubble changed (#55): keeps [look] for the next button and applies it to a shown
+     * one at once: its window takes [BubbleLook.windowPx] (the placement follows on the next
+     * refresh), its circle the new size and alpha, its idle timer the shrink setting.
+     */
+    fun applyLook(look: BubbleLook) {
+        this.look = look
+        buttonSizePx = look.windowPx(context.resources.displayMetrics.density)
+        val view = button ?: return
+        view.applyLook(look)
+        val params = buttonParams() ?: return
+        if (params.width == buttonSizePx && params.height == buttonSizePx) return
+        params.width = buttonSizePx
+        params.height = buttonSizePx
+        try {
+            windowManager.updateViewLayout(view, params)
+        } catch (e: IllegalArgumentException) {
+            // Not attached any more.
+        }
     }
 
     override fun hideButton(immediate: Boolean) {

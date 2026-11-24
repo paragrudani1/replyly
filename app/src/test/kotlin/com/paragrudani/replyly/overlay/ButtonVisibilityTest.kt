@@ -129,6 +129,32 @@ class ButtonVisibilityTest {
         ).isEqualTo(ButtonDecision.Show(bottomInput, floating.bounds))
     }
 
+    @Test
+    fun `Show bubble off hides with TURNED_OFF before every other reason`() {
+        var off = true
+        val turnedOff = ButtonVisibility(ownPackage = OWN, isAppAllowed = { false }, isTurnedOff = { off })
+        val password = input.copy(password = true)
+        val cases =
+            listOf(
+                ScreenFacts(listOf(chatWindow, keyboardWindow), input),
+                ScreenFacts(listOf(chatWindow), input),
+                ScreenFacts(listOf(chatWindow, keyboardWindow), null),
+                ScreenFacts(listOf(chatWindow, keyboardWindow), password),
+                ScreenFacts(listOf(chatWindow, keyboardWindow), input.copy(packageName = OWN)),
+                ScreenFacts(emptyList(), null),
+            )
+
+        cases.forEach { assertThat(turnedOff.decide(it)).isEqualTo(hidden(HideReason.TURNED_OFF)) }
+        off = false
+        assertThat(turnedOff.decide(cases[1])).isEqualTo(hidden(HideReason.KEYBOARD_CLOSED))
+    }
+
+    @Test
+    fun `the default for Show bubble never hides`() {
+        assertThat(decide()).isEqualTo(ButtonDecision.Show(input, KEYBOARD))
+        assertThat(decide(input, chatWindow)).isEqualTo(hidden(HideReason.KEYBOARD_CLOSED))
+    }
+
     private companion object {
         const val OWN = "com.paragrudani.replyly"
         const val WHATSAPP = "com.whatsapp"

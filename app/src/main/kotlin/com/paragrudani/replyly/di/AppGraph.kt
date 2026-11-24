@@ -21,6 +21,7 @@ import com.paragrudani.replyly.llm.LlmReplyGenerator
 import com.paragrudani.replyly.llm.ReplyGenerator
 import com.paragrudani.replyly.llm.SuggestionRequestAssembler
 import com.paragrudani.replyly.llm.packageManagerAppLabel
+import com.paragrudani.replyly.overlay.BubbleSettings
 import com.paragrudani.replyly.overlay.ButtonPositionStore
 import com.paragrudani.replyly.overlay.OverlayComponent
 import com.paragrudani.replyly.panel.ComposeReplyPanel
@@ -210,6 +211,9 @@ class AppGraph(
 
     // Polish #0: the dynamic-colour setting, kept hot so overlay windows open in the right colours.
     val themeSettings: ThemeSettings by lazy { ThemeSettings.create(settingsRepository, appScope) }
+
+    // Bubble B #55: Settings → Bubble (show, size, opacity, shrink when idle), hot for the overlay's first frame.
+    val bubbleSettings: BubbleSettings by lazy { BubbleSettings.create(settingsRepository, appScope) }
 
     // Polish #3: the floating button's dragged position per app (overlay/ButtonPositionStore).
     val buttonPositionStore: ButtonPositionStore by lazy {
