@@ -82,14 +82,31 @@ class ButtonSlotPropertyTest {
             // 3: round trip on both sides.
             val y = random.nextInt(slot.minY, slot.maxY + 1)
             for (s in ButtonSide.entries) {
-                val back = placement.slot(keyboard, input, width, height, topInset, placement.liftOf(y, keyboard.top), s)
+                val back =
+                    placement.slot(
+                        keyboard,
+                        input,
+                        width,
+                        height,
+                        topInset,
+                        placement.liftOf(y, keyboard.top),
+                        s,
+                    )
                 assertWithMessage("$what back side=$s").that(back.position).isEqualTo(ButtonPosition(back.edgeX(s), y))
                 assertWithMessage("$what back side=$s").that(back.side).isEqualTo(s)
             }
 
             // 4: sides and the horizontal range.
             assertWithMessage(what).that(slot.side).isEqualTo(side)
-            assertWithMessage(what).that(slot.position.x).isEqualTo(if (side == ButtonSide.LEFT) slot.leftX else slot.rightX)
+            assertWithMessage(what).that(slot.position.x).isEqualTo(
+                if (side ==
+                    ButtonSide.LEFT
+                ) {
+                    slot.leftX
+                } else {
+                    slot.rightX
+                },
+            )
             assertWithMessage(what).that(slot.rightX).isEqualTo(default.x)
             assertWithMessage(what).that(slot.leftX).isAtMost(slot.rightX)
             assertWithMessage(what).that(slot.minX).isAtMost(slot.leftX)

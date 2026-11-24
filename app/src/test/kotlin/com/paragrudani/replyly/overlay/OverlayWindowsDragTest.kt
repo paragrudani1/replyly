@@ -251,7 +251,9 @@ class OverlayWindowsDragTest {
     fun `a slot with one spot for both edges offers no edge action`() {
         val button = show(ButtonSlot(ButtonPosition(500, 1000), minY = 400, maxY = 1200))
 
-        assertThat(button.actionIds()).containsNoneOf(R.id.overlay_action_move_left_edge, R.id.overlay_action_move_right_edge)
+        assertThat(
+            button.actionIds(),
+        ).containsNoneOf(R.id.overlay_action_move_left_edge, R.id.overlay_action_move_right_edge)
     }
 
     @Test

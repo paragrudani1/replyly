@@ -226,7 +226,9 @@ class OverlayButtonViewTest {
 
     @Test
     fun `a listener without sides offers no edge actions`() {
-        assertThat(view.actionIds()).containsNoneOf(R.id.overlay_action_move_left_edge, R.id.overlay_action_move_right_edge)
+        assertThat(
+            view.actionIds(),
+        ).containsNoneOf(R.id.overlay_action_move_left_edge, R.id.overlay_action_move_right_edge)
     }
 
     @Test
