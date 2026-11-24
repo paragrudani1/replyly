@@ -10,20 +10,23 @@ sealed interface DragStep {
 
     /**
      * The finger moved past the touch slop: from now on this touch is a drag, never a tap. [dy]
-     * is the vertical move so far, in px.
+     * and [dx] are the vertical and horizontal move so far, in px.
      */
     data class DragStart(
         val dy: Int,
+        val dx: Int = 0,
     ) : DragStep
 
-    /** Still dragging; [dy] is the total vertical move since the finger went down, in px. */
+    /** Still dragging; [dy] and [dx] are the total move since the finger went down, in px. */
     data class Drag(
         val dy: Int,
+        val dx: Int = 0,
     ) : DragStep
 
-    /** Drag finished (finger up or the gesture was cancelled); [dy] is the total move. */
+    /** Drag finished (finger up or the gesture was cancelled); [dy] and [dx] are the total move. */
     data class DragEnd(
         val dy: Int,
+        val dx: Int = 0,
     ) : DragStep
 
     /** Finger up without ever passing the slop: a tap. The only step that may lead to an LLM call. */
@@ -47,6 +50,7 @@ class DragTracker(
     private var downX = 0f
     private var downY = 0f
     private var lastDy = 0
+    private var lastDx = 0
     private var state = State.IDLE
 
     private enum class State { IDLE, PRESSED, DRAGGING }
@@ -58,6 +62,7 @@ class DragTracker(
         downX = x
         downY = y
         lastDy = 0
+        lastDx = 0
         state = State.PRESSED
         return DragStep.Press
     }
@@ -74,16 +79,16 @@ class DragTracker(
             State.PRESSED -> {
                 if (abs(x - downX) > slopPx || abs(y - downY) > slopPx) {
                     state = State.DRAGGING
-                    lastDy = (y - downY).roundToInt()
-                    DragStep.DragStart(lastDy)
+                    track(x, y)
+                    DragStep.DragStart(lastDy, lastDx)
                 } else {
                     DragStep.Ignore
                 }
             }
 
             State.DRAGGING -> {
-                lastDy = (y - downY).roundToInt()
-                DragStep.Drag(lastDy)
+                track(x, y)
+                DragStep.Drag(lastDy, lastDx)
             }
         }
 
@@ -101,18 +106,28 @@ class DragTracker(
                     if (abs(x - downX) > slopPx ||
                         abs(y - downY) > slopPx
                     ) {
-                        DragStep.DragEnd((y - downY).roundToInt())
+                        track(x, y)
+                        DragStep.DragEnd(lastDy, lastDx)
                     } else {
                         DragStep.Tap
                     }
                 }
 
                 State.DRAGGING -> {
-                    DragStep.DragEnd((y - downY).roundToInt())
+                    track(x, y)
+                    DragStep.DragEnd(lastDy, lastDx)
                 }
             }
         state = State.IDLE
         return step
+    }
+
+    private fun track(
+        x: Float,
+        y: Float,
+    ) {
+        lastDy = (y - downY).roundToInt()
+        lastDx = (x - downX).roundToInt()
     }
 
     /** The system took the gesture away. A drag keeps the last position it reached. */
@@ -121,7 +136,7 @@ class DragTracker(
             when (state) {
                 State.IDLE -> DragStep.Ignore
                 State.PRESSED -> DragStep.Cancel
-                State.DRAGGING -> DragStep.DragEnd(lastDy)
+                State.DRAGGING -> DragStep.DragEnd(lastDy, lastDx)
             }
         state = State.IDLE
         return step

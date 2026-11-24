@@ -29,6 +29,40 @@ class DragTrackerTest {
     }
 
     @Test
+    fun `a drag reports the horizontal move too`() {
+        tracker.down(500f, 1200f)
+        assertThat(tracker.move(470f, 1180f)).isEqualTo(DragStep.DragStart(dy = -20, dx = -30))
+        assertThat(tracker.move(100f, 1150f)).isEqualTo(DragStep.Drag(dy = -50, dx = -400))
+        assertThat(tracker.up(900f, 1300f)).isEqualTo(DragStep.DragEnd(dy = 100, dx = 400))
+    }
+
+    @Test
+    fun `the slop counts on either axis`() {
+        tracker.down(500f, 1200f)
+        assertThat(tracker.move(524f, 1224f)).isEqualTo(DragStep.Ignore)
+        assertThat(tracker.move(525f, 1200f)).isEqualTo(DragStep.DragStart(dy = 0, dx = 25))
+        tracker.cancel()
+
+        tracker.down(500f, 1200f)
+        assertThat(tracker.move(500f, 1175f)).isEqualTo(DragStep.DragStart(dy = -25, dx = 0))
+    }
+
+    @Test
+    fun `a sideways wiggle under the slop is still a tap`() {
+        tracker.down(500f, 1200f)
+        assertThat(tracker.move(520f, 1200f)).isEqualTo(DragStep.Ignore)
+        assertThat(tracker.move(480f, 1205f)).isEqualTo(DragStep.Ignore)
+        assertThat(tracker.up(490f, 1200f)).isEqualTo(DragStep.Tap)
+    }
+
+    @Test
+    fun `a cancelled drag keeps its last horizontal move`() {
+        tracker.down(500f, 1200f)
+        tracker.move(200f, 1100f)
+        assertThat(tracker.cancel()).isEqualTo(DragStep.DragEnd(dy = -100, dx = -300))
+    }
+
+    @Test
     fun `a drag that comes back to the start point is still not a tap`() {
         tracker.down(500f, 1200f)
         tracker.move(500f, 1100f)
@@ -39,8 +73,8 @@ class DragTrackerTest {
     @Test
     fun `a sideways slide is not a tap either`() {
         tracker.down(500f, 1200f)
-        assertThat(tracker.move(560f, 1200f)).isEqualTo(DragStep.DragStart(0))
-        assertThat(tracker.up(560f, 1200f)).isEqualTo(DragStep.DragEnd(0))
+        assertThat(tracker.move(560f, 1200f)).isEqualTo(DragStep.DragStart(dy = 0, dx = 60))
+        assertThat(tracker.up(560f, 1200f)).isEqualTo(DragStep.DragEnd(dy = 0, dx = 60))
     }
 
     @Test
